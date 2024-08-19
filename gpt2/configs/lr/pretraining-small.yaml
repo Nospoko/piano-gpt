@@ -1,0 +1,5 @@
+decay_lr: true  # whether to decay the learning rate
+warmup_iters: 50  # how many steps to warm up for
+lr_decay_iters: ${optimizer.max_iters}  # should be ~= max_iters per Chinchilla
+min_lr: 1e-4  # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
+learning_rate: 3e-3  # max learning rate

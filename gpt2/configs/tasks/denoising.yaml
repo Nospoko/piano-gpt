@@ -1,0 +1,5 @@
+- "velocity_denoising"  # Denoising tasks
+- "pitch_denoising"
+- "start_time_denoising"
+- "time_denoising"
+- "comprehensive_denoising"

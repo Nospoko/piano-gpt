@@ -1,0 +1,5 @@
+wandb_log: True  # disabled by default
+wandb_project: 'piano-gpt'
+wandb_time_suffix: ${now:%Y-%m-%d-%H-%M}
+wandb_run_name_suffix: pretraining
+log_interval: 20
