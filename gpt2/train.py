@@ -25,7 +25,6 @@ from contextlib import nullcontext
 
 import hydra
 import torch
-import psutil
 from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from datasets import Dataset, load_dataset
@@ -43,12 +42,6 @@ from data.next_token_dataset import NextTokenDataset
 from data.memory_efficient_random_sampler import MemoryEfficientRandomSampler
 
 load_dotenv()
-
-
-def log_open_files():
-    process = psutil.Process()
-    print(f"Open file descriptors: {process.num_fds()}")
-
 
 class CyclicalDataLoader:
     def __init__(
@@ -460,7 +453,6 @@ def main(cfg: DictConfig):
 
         # evaluate the loss on train/val sets and write checkpoints
         if iter_num % cfg.eval_interval == 0 and master_process:
-            log_open_files()
             losses = estimate_loss()
             print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
             if losses["val"] < best_val_loss:
