@@ -5,7 +5,7 @@ import numpy as np
 import fortepyan as ff
 from midi_tokenizers.no_loss_tokenizer import ExponentialTimeTokenizer
 from datasets import Split, Dataset, DatasetInfo, GeneratorBasedBuilder
-from midi_datasets.MidiTokenizedDatasetConfig import BUILDER_CONFIGS, MidiTokenizedDatasetConfig
+from midi_datasets.MidiTokenizedDataset.MidiTokenizedDatasetConfig import BUILDER_CONFIGS, MidiTokenizedDatasetConfig
 
 from artifacts import special_tokens
 from data.augmentation import augment_dataset
