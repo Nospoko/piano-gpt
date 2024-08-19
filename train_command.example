@@ -1,0 +1,19 @@
+PYTHONPATH=. torchrun --nproc-per-node=2 \
+gpt2/train.py --config-name=gpt2_pretraining \
+data.batch_size=48 \
+optimizer.gradient_accumulation_steps=8 \
+optimizer.max_iters=30000 \
+data.sequence_length=1024 \
+data.notes_per_record=128 \
+dataset.step=48 \
+dataset.extra_datasets="['roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2']" \
+dataset.augmentation.max_pitch_shift=0 \
+dataset.augmentation.speed_change_factors=[] \
+lr.warmup_iters=4000 \
+lr.learning_rate=6e-5 \
+lr.min_lr=6e-6 \
+model=gpt2 \
+system.data_workers=44 \
+system.compile=false \
+loss_masking=pretrianing \
+init_from=scratch
