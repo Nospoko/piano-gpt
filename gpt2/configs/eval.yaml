@@ -3,26 +3,22 @@ defaults:
   - data: default
   - tokenizer: exponential
   - dataset: augmented
-  - logging: subsequence
-  - lr: finetuning
-  - optimizer: default
   - tasks: all
   - _self_
 
-out_dir: 'checkpoints'
-eval_interval: 100
+dataset:
+  extra_datasets: []
+  augmentation:
+    max_pitch_shift: 0
+    speed_change_factors: []
 
-eval_iters: 100
-eval_only: false  # if True, script exits right after the first eval
-always_save_checkpoint: false  # if True, always save a checkpoint after each eval
-init_from: 'scratch'  # 'scratch' or 'midi-gpt2*'
+init_from: midi-gpt2-85M-all-4096-ctx-2024-08-20-11-41.pt # should be 'midi-gpt2*'
 
 task: multi
+tasks:
+  - "above_median_prediction"  # Pitch tasks
 
 loss_masking: finetuning
-
-ddp:
-  backend: 'nccl'  # 'nccl', 'gloo', etc.
 
 system:
   device: 'cuda'  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks

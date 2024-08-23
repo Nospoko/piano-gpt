@@ -25,6 +25,7 @@ from contextlib import nullcontext
 
 import hydra
 import torch
+import wandb
 from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from datasets import Dataset, load_dataset
@@ -33,7 +34,6 @@ from torch.utils.data import Sampler, DataLoader
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 
-import wandb
 from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
 from gpt2.utils import load_tokenizer
@@ -42,6 +42,7 @@ from data.next_token_dataset import NextTokenDataset
 from data.memory_efficient_random_sampler import MemoryEfficientRandomSampler
 
 load_dotenv()
+
 
 class CyclicalDataLoader:
     def __init__(

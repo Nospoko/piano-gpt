@@ -20,6 +20,7 @@ class PianoDataset(MidiDataset):
         notes_per_record: int,
         tasks: list,
         loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
+        num_proc: int = 32,
     ):
         # Initialize the parent class and set instance variables
         super().__init__(dataset=dataset, tokenizer=tokenizer, loss_masking=loss_masking)
@@ -29,6 +30,7 @@ class PianoDataset(MidiDataset):
         self.record_lengths = {}
         self.tasks = tasks
         self.num_tasks = len(self.tasks)
+        self.num_proc = num_proc
         self._build_records()
 
     def _build_records(self):
@@ -48,7 +50,7 @@ class PianoDataset(MidiDataset):
 
             self.dataset.map(
                 get_length_partial,
-                num_proc=32,
+                num_proc=self.num_proc,
                 desc="Building record lengths",
                 with_indices=True,
             )
