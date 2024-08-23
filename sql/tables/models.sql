@@ -4,6 +4,7 @@ CREATE TABLE models (
     name VARCHAR(255),
     milion_parameters INT,
     best_val_loss FLOAT,
+    train_loss FLOAT,
     iter_num INT,
     total_tokens BIGINT NULL,
     configs JSON,  -- model, dataset, data, lr, optimizer, system.dtype
