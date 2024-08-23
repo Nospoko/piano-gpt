@@ -1,5 +1,4 @@
 import json
-from typing import Literal
 
 import pandas as pd
 import sqlalchemy as sa
@@ -56,6 +55,7 @@ generations_table = "generations"
 prompt_table = "prompt_notes"
 validation_table = "validation_examples"
 
+
 def insert_generated_notes(
     model: dict,
     prompt: dict,
@@ -99,6 +99,7 @@ def insert_generated_notes(
             if_exists="append",
         )
 
+
 def get_generator(generator_id: int) -> pd.DataFrame:
     query = f"""
     SELECT *
@@ -108,6 +109,7 @@ def get_generator(generator_id: int) -> pd.DataFrame:
     df = database_cnx.read_sql(sql=query)
     return df
 
+
 def get_prompt(prompt_id: int) -> pd.DataFrame:
     query = f"""
     SELECT *
@@ -116,6 +118,7 @@ def get_prompt(prompt_id: int) -> pd.DataFrame:
     """
     df = database_cnx.read_sql(sql=query)
     return df
+
 
 def get_prompts_for_model(model_id: int) -> pd.DataFrame:
     query = f"""
@@ -128,6 +131,7 @@ def get_prompts_for_model(model_id: int) -> pd.DataFrame:
     df = database_cnx.read_sql(sql=query)
     return df
 
+
 def get_generator_for_model_and_prompt(model_id: int, prompt_id: int) -> pd.DataFrame:
     query = f"""
     SELECT DISTINCT g.*
@@ -138,6 +142,7 @@ def get_generator_for_model_and_prompt(model_id: int, prompt_id: int) -> pd.Data
     df = database_cnx.read_sql(sql=query)
     return df
 
+
 def get_models(model_name: str) -> pd.DataFrame:
     query = f"""
     SELECT *
@@ -146,6 +151,7 @@ def get_models(model_name: str) -> pd.DataFrame:
     """
     df = database_cnx.read_sql(sql=query)
     return df
+
 
 def get_model_id(model_name: str) -> int:
     query = f"""
@@ -158,6 +164,7 @@ def get_model_id(model_name: str) -> int:
         return None
     else:
         return df.iloc[-1]["model_id"]
+
 
 def purge_model(model_name: str):
     notes_query = f"""
@@ -174,12 +181,14 @@ def purge_model(model_name: str):
     """
     database_cnx.execute(model_query)
 
+
 def remove_validation_prompt(validation_prompt_id: int):
     query = f"""
     DELETE FROM {validation_table}
     WHERE example_id = {validation_prompt_id}
     """
     database_cnx.execute(query=query)
+
 
 def get_model_predictions(
     model_filters: dict = None,
@@ -210,25 +219,30 @@ def get_model_predictions(
     df = database_cnx.read_sql(sql=base_query)
     return df
 
+
 def get_unique_values(column, table):
     query = f"SELECT DISTINCT {column} FROM {table} ORDER BY {column}"
     df = database_cnx.read_sql(sql=query)
     return df[column].dropna().tolist()
+
 
 def get_all_models() -> pd.DataFrame:
     query = f"SELECT * FROM {models_table}"
     df = database_cnx.read_sql(sql=query)
     return df
 
+
 def get_all_generators() -> pd.DataFrame:
     query = f"SELECT * FROM {generators_table}"
     df = database_cnx.read_sql(sql=query)
     return df
 
+
 def get_all_prompt_notes() -> pd.DataFrame:
     query = f"SELECT * FROM {prompt_table}"
     df = database_cnx.read_sql(sql=query)
     return df
+
 
 def get_validation_examples_for_task(task: str) -> pd.DataFrame:
     query = f"""
@@ -241,6 +255,7 @@ def get_validation_examples_for_task(task: str) -> pd.DataFrame:
     df = database_cnx.read_sql(sql=query)
     return df
 
+
 def get_all_validation_prompts() -> pd.DataFrame:
     query = f"""
     SELECT *
@@ -250,6 +265,7 @@ def get_all_validation_prompts() -> pd.DataFrame:
     """
     df = database_cnx.read_sql(sql=query)
     return df
+
 
 def register_model(model_registration: dict) -> int:
     query = f"""
@@ -275,6 +291,7 @@ def register_model(model_registration: dict) -> int:
     df = database_cnx.read_sql(sql=query)
     return df.iloc[0]["model_id"]
 
+
 def register_generator(generator: dict) -> int:
     query = f"""
     SELECT generator_id
@@ -296,6 +313,7 @@ def register_generator(generator: dict) -> int:
     )
     df = database_cnx.read_sql(sql=query)
     return df.iloc[0]["generator_id"]
+
 
 def register_prompt_notes(prompt_notes: dict) -> int:
     query = f"""
@@ -320,6 +338,7 @@ def register_prompt_notes(prompt_notes: dict) -> int:
     )
     df = database_cnx.read_sql(sql=query)
     return df.iloc[0]["prompt_id"]
+
 
 def remove_models_without_generations():
     query = f"""
