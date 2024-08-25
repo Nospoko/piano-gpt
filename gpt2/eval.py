@@ -221,7 +221,8 @@ def main(cfg: DictConfig):
     model.train()
     model.eval()
     losses = torch.zeros(len(val_dataset))
-    for k in range(len(val_dataset)):
+    # Iterate whole dataset once
+    for k in range(len(val_dataset) // cfg.data.batch_size):
         X, Y, mask = get_batch()
         with ctx:
             logits, loss = model(X, Y, mask)
