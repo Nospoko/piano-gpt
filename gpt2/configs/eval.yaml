@@ -16,7 +16,8 @@ init_from: midi-gpt2-85M-all-4096-ctx-2024-08-20-11-41.pt # should be 'midi-gpt2
 
 task: multi
 tasks:
-  - "above_median_prediction"  # Pitch tasks
+  list:
+    - "above_median_prediction"  # Pitch tasks
 
 loss_masking: finetuning
 

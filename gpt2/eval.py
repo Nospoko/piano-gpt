@@ -118,7 +118,7 @@ def prepare_piano_dataset(cfg: DictConfig) -> tuple[PianoDataset, PianoDataset]:
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
-        tasks=cfg.tasks,
+        tasks=cfg.tasks.list,
         num_proc=cfg.system.data_workers,
     )
     return val_dataset
@@ -191,7 +191,6 @@ def main(cfg: DictConfig):
     val_loader = ValidationDataLoader(
         val_dataset,
         batch_size=cfg.data.batch_size,
-        shuffle=False,
         pin_memory=device_type == "cuda",
         num_workers=cfg.system.data_workers // ddp_world_size,
         device=device,
@@ -231,7 +230,7 @@ def main(cfg: DictConfig):
             print(f"iter: {k}, loss: {losses[: k + 1].mean()}")
     val_loss = losses.mean()
 
-    print(f"Validation loss for: \n{run_name} \non {cfg.tasks} tasks \nis {val_loss}")
+    print(f"Validation loss for: \n{run_name} \non {cfg.tasks.list} tasks \nis {val_loss}")
 
 
 if __name__ == "__main__":

@@ -154,7 +154,7 @@ def prepare_piano_dataset(cfg: DictConfig) -> tuple[PianoDataset, PianoDataset]:
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
-        tasks=cfg.tasks,
+        tasks=cfg.tasks.list,
     )
     val_dataset = PianoDataset(
         dataset=validation_split,
@@ -162,7 +162,7 @@ def prepare_piano_dataset(cfg: DictConfig) -> tuple[PianoDataset, PianoDataset]:
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
-        tasks=cfg.tasks,
+        tasks=cfg.tasks.list,
     )
     return train_dataset, val_dataset
 
