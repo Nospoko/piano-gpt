@@ -17,4 +17,3 @@ for table in "${sql_table_names[@]}"; do
     echo "Applying $sql_files_path/$table.sql to $db_name"
     psql -U "$POSTGRES_USER" -d "$db_name" -f "$sql_files_path/$table.sql"
 done
-psql -U "$POSTGRES_USER" -d "$db_name" -f "$sql_files_path/initdb/post_init.sql"
