@@ -1,6 +1,6 @@
 import re
 import json
-import datetime
+from datetime import datetime
 
 import pandas as pd
 import sqlalchemy as sa
@@ -183,6 +183,18 @@ def get_model_id(model_name: str) -> int:
         return None
     else:
         return df.iloc[-1]["model_id"]
+
+
+def get_validation_sources() -> pd.DataFrame:
+    # Select the first 16 sources for validation purposes
+    query = f"""
+    SELECT *
+    FROM {sources_table}
+    ORDER BY source_id ASC
+    LIMIT 16
+    """
+    df = database_cnx.read_sql(sql=query)
+    return df
 
 
 def get_all_generators() -> pd.DataFrame:
