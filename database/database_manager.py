@@ -172,16 +172,6 @@ def get_source(source_id: int) -> pd.DataFrame:
     return df
 
 
-def get_models(model_name: str) -> pd.DataFrame:
-    query = f"""
-    SELECT *
-    FROM {models_table}
-    WHERE name = '{model_name}'
-    """
-    df = database_cnx.read_sql(sql=query)
-    return df
-
-
 def get_model_id(model_name: str) -> int:
     query = f"""
     SELECT model_id
@@ -195,111 +185,8 @@ def get_model_id(model_name: str) -> int:
         return df.iloc[-1]["model_id"]
 
 
-def purge_model(model_name: str):
-    notes_query = f"""
-    DELETE FROM {generations_table}
-    WHERE model_id IN (
-        SELECT model_id FROM {models_table} WHERE name = '{model_name}'
-    )
-    """
-    database_cnx.execute(notes_query)
-
-    model_query = f"""
-    DELETE FROM {models_table}
-    WHERE name = '{model_name}'
-    """
-    database_cnx.execute(model_query)
-
-
-def get_model_predictions(
-    model_filters: dict = None,
-    prompt_filters: dict = None,
-    generator_filters: dict = None,
-) -> pd.DataFrame:
-    base_query = f"""
-    SELECT gn.*
-    FROM {generations_table} gn
-    JOIN {models_table} m ON gn.model_id = m.model_id
-    JOIN {generators_table} g ON gn.generator_id = g.generator_id
-    WHERE 1=1
-    """
-
-    if model_filters:
-        for key, value in model_filters.items():
-            base_query += f" AND m.{key} = '{value}'"
-
-    if prompt_filters:
-        for key, value in prompt_filters.items():
-            base_query += f" AND pn.{key} = '{value}'"
-
-    if generator_filters:
-        for key, value in generator_filters.items():
-            base_query += f" AND g.{key} = '{value}'"
-
-    df = database_cnx.read_sql(sql=base_query)
-    return df
-
-
-def get_unique_values(column, table):
-    query = f"SELECT DISTINCT {column} FROM {table} ORDER BY {column}"
-    df = database_cnx.read_sql(sql=query)
-    return df[column].dropna().tolist()
-
-
-def get_all_models() -> pd.DataFrame:
-    query = f"SELECT * FROM {models_table}"
-    df = database_cnx.read_sql(sql=query)
-    return df
-
-
-def select_models_with_generations() -> pd.DataFrame:
-    query = """
-    SELECT
-        m.model_id,
-        m.base_model_id,
-        m.name,
-        m.milion_parameters,
-        m.best_val_loss,
-        m.train_loss,
-        m.iter_num,
-        m.total_tokens,
-        m.training_task,
-        m.wandb_link,
-        m.created_at
-    FROM models m
-    WHERE m.model_id IN (
-        SELECT DISTINCT model_id
-        FROM generations
-    )
-    ORDER BY m.model_id
-    """
-    df = database_cnx.read_sql(sql=query)
-
-    # Fetch configs separately
-    configs_query = """
-    SELECT model_id, configs
-    FROM models
-    WHERE model_id IN (
-        SELECT DISTINCT model_id
-        FROM generations
-    )
-    """
-    configs_df = database_cnx.read_sql(sql=configs_query)
-
-    # Merge the results
-    df = pd.merge(df, configs_df, on="model_id", how="left")
-
-    return df
-
-
 def get_all_generators() -> pd.DataFrame:
     query = f"SELECT * FROM {generators_table}"
-    df = database_cnx.read_sql(sql=query)
-    return df
-
-
-def get_all_prompt_notes() -> pd.DataFrame:
-    query = f"SELECT * FROM {prompt_table}"
     df = database_cnx.read_sql(sql=query)
     return df
 
@@ -406,56 +293,3 @@ def register_generator(generator: dict) -> int:
     )
     df = database_cnx.read_sql(sql=query)
     return df.iloc[0]["generator_id"]
-
-
-def register_prompt_notes(prompt_notes: dict) -> int:
-    query = f"""
-    SELECT prompt_id
-    FROM {prompt_table}
-    WHERE start_time = {prompt_notes['start_time']}
-      AND end_time = {prompt_notes['end_time']}
-      AND midi_name = '{prompt_notes['midi_name']}'
-    """
-    existing_records = database_cnx.read_sql(sql=query)
-
-    if not existing_records.empty:
-        return existing_records.iloc[0]["prompt_id"]
-
-    df = pd.DataFrame([prompt_notes])
-    database_cnx.to_sql(
-        df=df,
-        table=prompt_table,
-        dtype=prompt_dtype,
-        index=False,
-        if_exists="append",
-    )
-    df = database_cnx.read_sql(sql=query)
-    return df.iloc[0]["prompt_id"]
-
-
-def get_model_tasks(model_id: int) -> list:
-    query = f"""
-    SELECT DISTINCT g.task
-    FROM {generations_table} gn
-    JOIN {generators_table} g ON gn.generator_id = g.generator_id
-    WHERE gn.model_id = {model_id}
-    ORDER BY g.task
-    """
-    df = database_cnx.read_sql(sql=query)
-    return df["task"].tolist()
-
-
-def remove_models_without_generations():
-    query = f"""
-    SELECT DISTINCT model_id
-    FROM {generations_table}
-    """
-    models_with_generations = database_cnx.read_sql(sql=query)
-
-    model_ids_with_generations = models_with_generations["model_id"].tolist()
-
-    delete_query = f"""
-    DELETE FROM {models_table}
-    WHERE model_id NOT IN ({','.join(map(str, model_ids_with_generations))})
-    """
-    database_cnx.execute(delete_query)
