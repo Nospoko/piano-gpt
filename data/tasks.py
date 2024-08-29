@@ -314,6 +314,22 @@ class ComprehensiveDenoising(Task):
         return noisy_notes
 
 
+class PerformanceTask(Task):
+    def __init__(self):
+        super().__init__("<SCORES>", "<PERFORMANCE>")
+
+    def simplify_notes(self, notes: pd.DataFrame):
+        notes = notes.copy()
+        dt = 0.2
+        notes.start = np.cumsum(np.ones(len(notes)) * dt) - dt
+        notes.end = notes.start + dt
+        notes.duration = dt
+        return notes
+
+    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        return self.simplify_notes(notes=notes), notes
+
+
 task_map: Dict[str, Type[Task]] = {
     "above_median_prediction": AboveMedianPrediction,
     "above_low_quartile_prediction": AboveLowQuartilePrediction,
@@ -334,6 +350,7 @@ task_map: Dict[str, Type[Task]] = {
     "start_time_denoising": StartTimeDenoising,
     "time_denoising": TimeDenoising,
     "comprehensive_denoising": ComprehensiveDenoising,
+    "performance_task": PerformanceTask,
 }
 
 
@@ -361,4 +378,5 @@ all_tasks = [
     "start_time_denoising",
     "time_denoising",
     "comprehensive_denoising",
+    "performance_task",
 ]

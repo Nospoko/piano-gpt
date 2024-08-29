@@ -3,6 +3,7 @@ fortepyan>=0.2.8
 hydra-core>=1.3.2
 midi_tokenizers @ git+https://github.com/Nospoko/midi-tokenizers
 pandas~=2.1.4
+piano_generation @ git+https://github.com/Nospoko/piano-generation@MIDI-152/generation-methods#egg=piano_generation
 python-dotenv==1.0.0
 streamlit==1.36.0
 streamlit-pianoroll>=0.7.1
