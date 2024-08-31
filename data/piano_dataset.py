@@ -76,8 +76,28 @@ class PianoDataset(MidiDataset):
             idx -= record_length
         raise IndexError("Index out of range")
 
+    def prepare_encodings(
+        self,
+        source_notes: pd.DataFrame,
+        target_notes: pd.DataFrame,
+        task_generator: Task,
+    ):
+        source_prefix = task_generator.source_token
+        target_prefix = task_generator.target_token
+
+        # Encode source and target notes
+        prompt_token_ids = self.tokenizer.encode(
+            notes=source_notes,
+            prefix_tokens=[source_prefix],
+        )
+        target_token_ids = self.tokenizer.encode(
+            notes=target_notes,
+            prefix_tokens=[target_prefix],
+        )
+
+        return prompt_token_ids, target_token_ids
+
     def __getitem__(self, idx: int) -> dict:
-        # TODO: different implementations for each task
         # Get the record ID and start point for the given index
         record_id, start_point, task = self._index_to_record(idx)
 
@@ -96,17 +116,10 @@ class PianoDataset(MidiDataset):
         task_generator = Task.get_task(task_name=task)
         source_notes, target_notes = task_generator.generate(notes=notes)
 
-        source_prefix = task_generator.source_token
-        target_prefix = task_generator.target_token
-
-        # Encode source and target notes
-        prompt_token_ids = self.tokenizer.encode(
-            notes=source_notes,
-            prefix_tokens=[source_prefix],
-        )
-        target_token_ids = self.tokenizer.encode(
-            notes=target_notes,
-            prefix_tokens=[target_prefix],
+        prompt_token_ids, target_token_ids = self.prepare_encoding(
+            source_notes=source_notes,
+            target_notes=target_notes,
+            task_generator=task_generator,
         )
         encoding = prompt_token_ids + target_token_ids
 
