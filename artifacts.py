@@ -70,3 +70,23 @@ special_tokens = (
     + composer_tokens
     + placeholder_tokens
 )
+
+composer_token_map = {
+    "Alexander Scriabin": "<SCRIABIN>",
+    "César Franck": "<FRANCK>",
+    "Wolfgang Amadeus Mozart": "<MOZART>",
+    "Frédéric Chopin": "<CHOPIN>",
+    "Felix Mendelssohn": "<MENDELSSON>",
+    "Franz Liszt": "<LISZT>",
+    "Franz Schubert": "<SCHUBERT>",
+    "Johannes Brahms": "<BRAHMS>",
+    "Joseph Haydn": "<HAYDN>",
+    "Ludwig van Beethoven": "<BEETHOVEN>",
+    "Mily Balakirev": "<BALAKIREV>",
+    "Robert Schumann": "<SCHUMANN>",
+    "Sergei Rachmaninoff": "<RACHMANIOFF>",
+}
+
+
+def get_composer_token(composer: str) -> str:
+    return composer_token_map.get(composer, "<UNKNOWN_COMPOSER>")

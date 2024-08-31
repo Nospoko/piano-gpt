@@ -78,10 +78,21 @@ class PianoDataset(MidiDataset):
 
     def prepare_encodings(
         self,
-        source_notes: pd.DataFrame,
-        target_notes: pd.DataFrame,
-        task_generator: Task,
+        record: dict,
+        start_point: int,
+        task: str,
     ):
+        # Convert notes to a DataFrame and select the desired range
+        notes = pd.DataFrame(record["notes"])
+        notes = notes.iloc[start_point : start_point + self.notes_per_record]
+
+        # Normalize start and end times
+        offset = notes.start.min()
+        notes.start = notes.start - offset
+        notes.end = notes.end - offset
+
+        task_generator = Task.get_task(task_name=task)
+        source_notes, target_notes = task_generator.generate(notes=notes)
         source_prefix = task_generator.source_token
         target_prefix = task_generator.target_token
 
@@ -100,26 +111,12 @@ class PianoDataset(MidiDataset):
     def __getitem__(self, idx: int) -> dict:
         # Get the record ID and start point for the given index
         record_id, start_point, task = self._index_to_record(idx)
-
-        # Retrieve the record from the dataset
         record = self.dataset[record_id]
 
-        # Convert notes to a DataFrame and select the desired range
-        notes = pd.DataFrame(record["notes"])
-        notes = notes.iloc[start_point : start_point + self.notes_per_record]
-
-        # Normalize start and end times
-        offset = notes.start.min()
-        notes.start = notes.start - offset
-        notes.end = notes.end - offset
-
-        task_generator = Task.get_task(task_name=task)
-        source_notes, target_notes = task_generator.generate(notes=notes)
-
-        prompt_token_ids, target_token_ids = self.prepare_encoding(
-            source_notes=source_notes,
-            target_notes=target_notes,
-            task_generator=task_generator,
+        prompt_token_ids, target_token_ids = self.prepare_encodings(
+            record=record,
+            start_point=start_point,
+            task=task,
         )
         encoding = prompt_token_ids + target_token_ids
 
