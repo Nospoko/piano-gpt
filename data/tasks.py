@@ -231,6 +231,7 @@ class StartTimeDenoising(Task):
             notes,
             max_time_change=0.3,
         )
+        noisy_notes.sort_values(by="start").reset_index(drop=True)
         return noisy_notes, notes
 
     @staticmethod
@@ -252,6 +253,7 @@ class TimeDenoising(Task):
             notes,
             max_time_change=0.3,
         )
+        noisy_notes.sort_values(by="start").reset_index(drop=True)
         return noisy_notes, notes
 
     @staticmethod
@@ -280,6 +282,7 @@ class ComprehensiveDenoising(Task):
             max_time_change=0.3,
             max_velocity_change=30,
         )
+        noisy_notes.sort_values(by="start").reset_index(drop=True)
         return noisy_notes, notes
 
     @staticmethod
