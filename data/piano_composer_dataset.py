@@ -1,24 +1,19 @@
-from typing import Literal
-from artifacts import get_composer_token
+import json
 
 import pandas as pd
-import json
-from datasets import Dataset as HuggingFaceDataset
 
 from data.tasks import Task
+from artifacts import get_composer_token
 from data.piano_dataset import PianoDataset
-from data.tokenizer import AwesomeTokenizer, ExponentialTokenizer
 
 
 class PianoComposerDataset(PianoDataset):
-
     def prepare_encodings(
         self,
         record: dict,
         start_point: int,
         task: str,
     ):
-
         # Convert notes to a DataFrame and select the desired range
         notes = pd.DataFrame(record["notes"])
         source: dict = json.loads(record["source"])
@@ -47,6 +42,3 @@ class PianoComposerDataset(PianoDataset):
         )
 
         return prompt_token_ids, target_token_ids
-        
-        
-

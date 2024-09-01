@@ -1,9 +1,15 @@
+from typing import Any
+
 import torch
 from hydra.utils import to_absolute_path
+from datasets import Dataset, load_dataset
 from omegaconf import OmegaConf, DictConfig
 
 from artifacts import special_tokens
 from gpt2.model import GPT, GPTConfig
+from data.piano_dataset import PianoDataset
+from data.next_token_dataset import NextTokenDataset
+from data.piano_composer_dataset import PianoComposerDataset
 from data.tokenizer import AwesomeTokenizer, ExponentialTokenizer
 
 
@@ -73,3 +79,120 @@ def initialize_model(
     model.to(device)
 
     return model
+
+
+def get_dataset_for_task(cfg: DictConfig) -> tuple[Any, Any]:
+    task_to_dataset = {
+        "next_token_prediction": prepare_next_token_datasets,
+        "multi": prepare_piano_dataset,
+        "multi_with_composer": prepare_piano_composer_dataset,
+    }
+    prepare_function = task_to_dataset.get(cfg.task)
+    if prepare_function:
+        return prepare_function(cfg)
+    raise ValueError(f"Unknown task: {cfg.task}")
+
+
+def prepare_dataset_base(cfg: DictConfig, dataset_name: str) -> tuple[Dataset, Dataset]:
+    dataset_config = OmegaConf.to_container(cfg.dataset)
+    dataset_path = to_absolute_path(f"./midi_datasets/{dataset_name}")
+    if dataset_name == "MidiTokenizedDataset":
+        dataset_config["tokenizer_parameters"] = OmegaConf.to_container(cfg.tokenizer.tokenizer_parameters)
+
+    dataset = load_dataset(
+        dataset_path,
+        trust_remote_code=True,
+        num_proc=cfg.system.data_workers,
+        **dataset_config,
+    )
+    train_split: Dataset = dataset["train"]
+    validation_split: Dataset = dataset["validation"]
+    validation_split.shuffle(seed=1337)
+
+    if validation_split.num_rows > cfg.data.batch_size * cfg.eval_iters:
+        validation_split = validation_split.select(range(cfg.data.batch_size * cfg.eval_iters))
+    return train_split, validation_split
+
+
+def prepare_next_token_datasets(cfg: DictConfig) -> tuple[NextTokenDataset, NextTokenDataset]:
+    train_split, validation_split = prepare_dataset_base(cfg, "MidiTokenizedDataset")
+    tokenizer = load_tokenizer(cfg)
+    train_dataset = NextTokenDataset(
+        dataset=train_split,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+    )
+    val_dataset = NextTokenDataset(
+        dataset=validation_split,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+    )
+    return train_dataset, val_dataset
+
+
+def prepare_piano_dataset(cfg: DictConfig) -> tuple[PianoDataset, PianoDataset]:
+    dataset_config = OmegaConf.to_container(cfg.dataset)
+    dataset_path = to_absolute_path("./midi_datasets/AugmentedDataset")
+
+    dataset = load_dataset(
+        dataset_path,
+        trust_remote_code=True,
+        num_proc=cfg.system.data_workers,
+        **dataset_config,
+    )
+    train_split: Dataset = dataset["train"]
+    validation_split: Dataset = dataset["validation"]
+
+    tokenizer = load_tokenizer(cfg)
+    train_dataset = PianoDataset(
+        dataset=train_split,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+        notes_per_record=cfg.data.notes_per_record,
+        tasks=cfg.tasks.list,
+    )
+    val_dataset = PianoDataset(
+        dataset=validation_split,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+        notes_per_record=cfg.data.notes_per_record,
+        tasks=cfg.tasks.list,
+    )
+    return train_dataset, val_dataset
+
+
+def prepare_piano_composer_dataset(cfg: DictConfig) -> tuple[PianoComposerDataset, PianoComposerDataset]:
+    dataset_config = OmegaConf.to_container(cfg.dataset)
+    dataset_path = to_absolute_path("./midi_datasets/AugmentedDataset")
+
+    dataset = load_dataset(
+        dataset_path,
+        trust_remote_code=True,
+        num_proc=cfg.system.data_workers,
+        **dataset_config,
+    )
+    train_split: Dataset = dataset["train"]
+    validation_split: Dataset = dataset["validation"]
+
+    tokenizer = load_tokenizer(cfg)
+    train_dataset = PianoComposerDataset(
+        dataset=train_split,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+        notes_per_record=cfg.data.notes_per_record,
+        tasks=cfg.tasks.list,
+    )
+    val_dataset = PianoComposerDataset(
+        dataset=validation_split,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+        notes_per_record=cfg.data.notes_per_record,
+        tasks=cfg.tasks.list,
+    )
+    return train_dataset, val_dataset
