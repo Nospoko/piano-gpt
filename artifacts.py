@@ -1,3 +1,5 @@
+import re
+
 placeholder_tokens = [f"<SENTINEL_{idx}>" for idx in range(64)]
 composer_tokens = [
     "<SCRIABIN>",
@@ -14,6 +16,7 @@ composer_tokens = [
     "<SCHUMANN>",
     "<RACHMANIOFF>",
     "<UNKNOWN_COMPOSER>",
+    "<BACH>",
 ]
 special_tokens = (
     [
@@ -71,7 +74,7 @@ special_tokens = (
     + placeholder_tokens
 )
 
-composer_token_map = {
+composer_token_map: dict[str, str] = {
     "Alexander Scriabin": "<SCRIABIN>",
     "César Franck": "<FRANCK>",
     "Wolfgang Amadeus Mozart": "<MOZART>",
@@ -85,8 +88,28 @@ composer_token_map = {
     "Mily Balakirev": "<BALAKIREV>",
     "Robert Schumann": "<SCHUMANN>",
     "Sergei Rachmaninoff": "<RACHMANIOFF>",
+    "Johann Sebastian Bach": "<BACH>",
 }
 
 
+def create_composer_regex_map() -> dict[re.Pattern, str]:
+    regex_map: dict[re.Pattern, str] = {}
+    for full_name, token in composer_token_map.items():
+        names = full_name.split()
+        surname = names[-1]
+        pattern = re.compile(rf"\b{re.escape(surname)}\b", re.IGNORECASE)
+        regex_map[pattern] = token
+    return regex_map
+
+
+composer_regex_map: dict[re.Pattern, str] = create_composer_regex_map()
+
+
 def get_composer_token(composer: str) -> str:
-    return composer_token_map.get(composer, "<UNKNOWN_COMPOSER>")
+    matches: list[tuple[re.Match, str]] = [
+        (match, token) for pattern, token in composer_regex_map.items() if (match := pattern.search(composer))
+    ]
+
+    if len(matches) == 1:
+        return matches[0][1]
+    return "<UNKNOWN_COMPOSER>"

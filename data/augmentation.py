@@ -126,6 +126,7 @@ def augment_dataset(
     Returns:
         Dataset: Augmented dataset.
     """
+    dataset = dataset.select_columns(["notes"], ["source"])
     if max_pitch_shift == 0 and (speed_change_factors is None or len(speed_change_factors) == 0):
         return dataset
 
