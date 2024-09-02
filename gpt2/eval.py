@@ -125,6 +125,7 @@ def prepare_piano_dataset(cfg: DictConfig) -> tuple[PianoDataset, PianoDataset]:
 
 
 @hydra.main(config_path="configs", config_name="eval", version_base=None)
+@torch.no_grad()
 def main(cfg: DictConfig):
     model_args = dict(
         n_layer=cfg.model.n_layer,
