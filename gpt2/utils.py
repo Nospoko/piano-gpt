@@ -11,6 +11,7 @@ from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 from data.piano_composer_dataset import PianoComposerDataset
 from data.tokenizer import AwesomeTokenizer, ExponentialTokenizer
+from data.next_token_composer_dataset import NextTokenComposerDataset
 
 
 def load_cfg(checkpoint: dict) -> DictConfig:
@@ -84,6 +85,7 @@ def initialize_model(
 def get_dataset_for_task(cfg: DictConfig) -> tuple[Any, Any]:
     task_to_dataset = {
         "next_token_prediction": prepare_next_token_datasets,
+        "next_token_prediction_with_composer": prepare_next_token_composer_datasets,
         "multi": prepare_piano_dataset,
         "multi_with_composer": prepare_piano_composer_dataset,
     }
@@ -112,6 +114,24 @@ def prepare_dataset_base(cfg: DictConfig, dataset_name: str) -> tuple[Dataset, D
     if validation_split.num_rows > cfg.data.batch_size * cfg.eval_iters:
         validation_split = validation_split.select(range(cfg.data.batch_size * cfg.eval_iters))
     return train_split, validation_split
+
+
+def prepare_next_token_composer_datasets(cfg: DictConfig) -> tuple[NextTokenDataset, NextTokenDataset]:
+    train_split, validation_split = prepare_dataset_base(cfg, "MidiTokenizedDataset")
+    tokenizer = load_tokenizer(cfg)
+    train_dataset = NextTokenComposerDataset(
+        dataset=train_split,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+    )
+    val_dataset = NextTokenComposerDataset(
+        dataset=validation_split,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+    )
+    return train_dataset, val_dataset
 
 
 def prepare_next_token_datasets(cfg: DictConfig) -> tuple[NextTokenDataset, NextTokenDataset]:
