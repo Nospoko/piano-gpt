@@ -20,6 +20,8 @@ from gpt2.model import GPT, GPTConfig
 from gpt2.utils import load_tokenizer
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
+from data.piano_composer_dataset import PianoComposerDataset
+from data.next_token_composer_dataset import NextTokenComposerDataset
 
 load_dotenv()
 
@@ -60,15 +62,53 @@ class ValidationDataLoader:
         return x, y, mask
 
 
-def get_dataset_for_task(cfg: DictConfig) -> Any:
+def get_dataset_for_task(cfg: DictConfig) -> tuple[Any, Any]:
     task_to_dataset = {
         "next_token_prediction": prepare_next_token_dataset,
+        "next_token_prediction_with_composer": prepare_next_token_composer_dataset,
         "multi": prepare_piano_dataset,
+        "multi_with_composer": prepare_piano_composer_dataset,
     }
     prepare_function = task_to_dataset.get(cfg.task)
     if prepare_function:
         return prepare_function(cfg)
     raise ValueError(f"Unknown task: {cfg.task}")
+
+
+def prepare_piano_composer_dataset(cfg: DictConfig) -> PianoComposerDataset:
+    dataset_config = OmegaConf.to_container(cfg.dataset)
+    dataset_path = to_absolute_path("./midi_datasets/AugmentedDataset")
+
+    dataset = load_dataset(
+        dataset_path,
+        trust_remote_code=True,
+        num_proc=cfg.system.data_workers,
+        **dataset_config,
+    )
+    validation_split: Dataset = dataset["validation"]
+
+    tokenizer = load_tokenizer(cfg)
+    val_dataset = PianoComposerDataset(
+        dataset=validation_split,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+        notes_per_record=cfg.data.notes_per_record,
+        tasks=cfg.tasks.list,
+    )
+    return val_dataset
+
+
+def prepare_next_token_composer_dataset(cfg: DictConfig) -> NextTokenComposerDataset:
+    validation_split = prepare_dataset_base(cfg, "MidiTokenizedDataset")
+    tokenizer = load_tokenizer(cfg)
+    val_dataset = NextTokenComposerDataset(
+        dataset=validation_split,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+    )
+    return val_dataset
 
 
 def prepare_dataset_base(cfg: DictConfig, dataset_name: str) -> tuple[Dataset, Dataset]:
