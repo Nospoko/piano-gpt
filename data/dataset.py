@@ -3,8 +3,8 @@ from abc import abstractmethod
 
 from datasets import Dataset as HuggingFaceDataset
 from torch.utils.data import Dataset as TorchDataset
-
-from data.tokenizer import AwesomeTokenizer, ExponentialTokenizer
+from midi_trainable_tokenizers import AwesomeMidiTokenizer
+from midi_tokenizers.no_loss_tokenizer import ExponentialTimeTokenizer
 
 
 class MidiDataset(TorchDataset):
@@ -19,7 +19,7 @@ class MidiDataset(TorchDataset):
     def __init__(
         self,
         dataset: HuggingFaceDataset,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
         loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
     ):
         """

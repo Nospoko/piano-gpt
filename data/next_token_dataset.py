@@ -4,9 +4,10 @@ from multiprocessing import Manager
 
 import torch
 from datasets import Dataset as HuggingFaceDataset
+from midi_trainable_tokenizers import AwesomeMidiTokenizer
+from midi_tokenizers.no_loss_tokenizer import ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
-from data.tokenizer import AwesomeTokenizer, ExponentialTokenizer
 
 
 class NextTokenDataset(MidiDataset):
@@ -18,7 +19,7 @@ class NextTokenDataset(MidiDataset):
     def __init__(
         self,
         dataset: HuggingFaceDataset,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
         sequence_length: int,
         loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
     ):

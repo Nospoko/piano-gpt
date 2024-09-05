@@ -1,14 +1,18 @@
+import json
+from functools import partial
+
 import torch
+import pandas as pd
 import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
 import matplotlib.pyplot as plt
-from datasets import load_dataset
+from datasets import Dataset, load_dataset
+from midi_tokenizers.no_loss_tokenizer import ExponentialTimeTokenizer
 
 from artifacts import special_tokens
 from data.tasks import Task, task_map
-from data.piano_dataset import PianoDataset
-from data.tokenizer import ExponentialTokenizer
+from data.piano_composer_dataset import PianoComposerDataset
 
 
 @st.cache_data()
@@ -36,6 +40,51 @@ def plot_target_mask(target_mask):
     return fig
 
 
+@st.cache_data()
+def load_piano_dataset(
+    tokenizer_parameters,
+    config,
+    dataset_name,
+    dataset_split,
+    sequence_length,
+    notes_per_record,
+    tasks,
+    loss_masking,
+    selected_composers,
+    selected_title,
+):
+    tokenizer = ExponentialTimeTokenizer(**tokenizer_parameters)
+
+    dataset = load_hf_dataset(
+        config=config,
+        dataset_name=dataset_name,
+        dataset_split=dataset_split,
+    )
+
+    # Filter dataset
+    def filter_dataset(record):
+        source_data = json.loads(record["source"])
+        composer_match = source_data.get("composer") in selected_composers
+        title_match = selected_title == "All" or source_data.get("title") == selected_title
+        return composer_match and title_match
+
+    filtered_dataset = dataset.filter(filter_dataset)
+
+    def gen_from_iterable_dataset(iterable_ds):
+        yield from iterable_ds
+
+    dataset = Dataset.from_generator(partial(gen_from_iterable_dataset, filtered_dataset), features=filtered_dataset.features)
+    piano_dataset = PianoComposerDataset(
+        dataset=dataset,
+        tokenizer=tokenizer,
+        sequence_length=sequence_length,
+        notes_per_record=notes_per_record,
+        tasks=tasks,
+        loss_masking=loss_masking,
+    )
+    return piano_dataset, dataset
+
+
 def main():
     st.title("Piano MIDI Dataset Review Dashboard")
 
@@ -51,13 +100,13 @@ def main():
             notes_per_record = st.number_input(
                 label="Notes per Record",
                 min_value=1,
-                value=128,
+                value=256,
             )
         with col2:
             sequence_length = st.number_input(
                 label="Sequence Length",
                 min_value=1,
-                value=1024,
+                value=2048,
                 step=1024,
             )
             loss_masking = st.selectbox(
@@ -78,10 +127,9 @@ def main():
         with col1:
             min_time_unit = st.number_input(
                 label="Min Time Unit",
-                min_value=0.01,
                 value=0.01,
                 step=0.01,
-                format="%.2f",
+                format="%.3f",
             )
         with col2:
             n_velocity_bins = st.number_input(
@@ -102,21 +150,38 @@ def main():
         "n_velocity_bins": n_velocity_bins,
         "special_tokens": special_tokens,
     }
-
-    tokenizer = ExponentialTokenizer(**tokenizer_parameters)
     dataset_name = "AugmentedDataset"
     dataset = load_hf_dataset(
         config=config,
         dataset_name=dataset_name,
         dataset_split=dataset_split,
     )
-    piano_dataset = PianoDataset(
-        dataset=dataset,
-        tokenizer=tokenizer,
+
+    composers = set()
+    titles = set()
+    for record in dataset:
+        source_data = json.loads(record["source"])
+        if "composer" in source_data:
+            composers.add(source_data["composer"])
+        if "title" in source_data:
+            titles.add(source_data["title"])
+    composers = list(composers)
+    titles = list(titles)
+
+    selected_composers = st.multiselect("Filter by Composer", options=composers, default=["Johann Sebastian Bach"])
+    selected_title = st.selectbox("Filter by Title", options=["All"] + titles, index=0)
+
+    piano_dataset, dataset = load_piano_dataset(
+        tokenizer_parameters=tokenizer_parameters,
+        config=config,
+        dataset_name=dataset_name,
+        dataset_split=dataset_split,
         sequence_length=sequence_length,
         notes_per_record=notes_per_record,
         tasks=tasks,
         loss_masking=loss_masking,
+        selected_composers=selected_composers,
+        selected_title=selected_title,
     )
 
     st.write(f"Total Samples: {len(piano_dataset)}")
@@ -136,7 +201,6 @@ def main():
     sample = piano_dataset[idx]
     record_id, start_point, task = piano_dataset._index_to_record(idx=idx)
     st.write(f"Record ID: {record_id}, Start Point: {start_point}, Task: {task}")
-    st.json(dataset[record_id], expanded=False)
 
     with st.expander(label="Source Data"):
         st.json(sample["source"])
@@ -182,6 +246,12 @@ def main():
 
     source_notes = piano_dataset.tokenizer.untokenize(source_tokens)
     target_notes = piano_dataset.tokenizer.untokenize(target_tokens)
+    record_id, start_point, _ = piano_dataset._index_to_record(idx)
+    all_notes = ff.MidiPiece.from_huggingface(dataset[record_id])
+    all_notes.df = all_notes.df.iloc[start_point : start_point + piano_dataset.notes_per_record]
+    streamlit_pianoroll.from_fortepyan(piece=all_notes)
+    st.write(pd.concat([source_notes, target_notes]).sort_values(by="start").reset_index(drop=True))
+    st.write(piano_dataset.tokenizer.untokenize(piano_dataset.tokenizer.tokenize(all_notes.df)))
 
     source_piece = ff.MidiPiece(source_notes)
     target_piece = ff.MidiPiece(target_notes)

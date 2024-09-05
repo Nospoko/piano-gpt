@@ -4,13 +4,14 @@ import torch
 from hydra.utils import to_absolute_path
 from datasets import Dataset, load_dataset
 from omegaconf import OmegaConf, DictConfig
+from midi_tokenizers import ExponentialTimeTokenizer
+from midi_trainable_tokenizers import AwesomeMidiTokenizer
 
 from artifacts import special_tokens
 from gpt2.model import GPT, GPTConfig
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 from data.piano_composer_dataset import PianoComposerDataset
-from data.tokenizer import AwesomeTokenizer, ExponentialTokenizer
 from data.next_token_composer_dataset import NextTokenComposerDataset
 
 
@@ -29,9 +30,9 @@ def load_tokenizer(cfg: DictConfig):
         tokenizer_path = to_absolute_path(
             f"pretrained/awesome_tokenizers/awesome-tokenizer-{min_time_unit}-{n_velocity_bins}.json"
         )
-        return AwesomeTokenizer.from_file(tokenizer_path)
+        return AwesomeMidiTokenizer.from_file(tokenizer_path)
     else:
-        return ExponentialTokenizer(**tokenizer_parameters)
+        return ExponentialTimeTokenizer(**tokenizer_parameters)
 
 
 def initialize_model(

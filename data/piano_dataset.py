@@ -5,17 +5,18 @@ from multiprocessing import Manager
 import torch
 import pandas as pd
 from datasets import Dataset as HuggingFaceDataset
+from midi_tokenizers import ExponentialTimeTokenizer
+from midi_trainable_tokenizers import AwesomeMidiTokenizer
 
 from data.tasks import Task
 from data.dataset import MidiDataset
-from data.tokenizer import AwesomeTokenizer, ExponentialTokenizer
 
 
 class PianoDataset(MidiDataset):
     def __init__(
         self,
         dataset: HuggingFaceDataset,
-        tokenizer: AwesomeTokenizer | ExponentialTokenizer,
+        tokenizer: AwesomeMidiTokenizer | ExponentialTimeTokenizer,
         sequence_length: int,
         notes_per_record: int,
         tasks: list,
