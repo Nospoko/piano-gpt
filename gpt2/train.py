@@ -391,6 +391,7 @@ def main(cfg: DictConfig):
                 "model_args": model_args,
                 "iter_num": iter_num,
                 "best_val_loss": best_val_loss.item(),
+                "train_loss": losses["train"].item(),
                 "config": config,
                 "wandb": wandb_link,
                 "total_tokens": total_tokens,
