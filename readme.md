@@ -52,21 +52,68 @@ The PIANO dataset is designed to standardize approaches and provide a benchmark 
 ### Training
 
 ```
-python gpt2/train.py
+python -m gpt2.train.py
 ```
 
-Customize training by modifying configuration files in `gpt2/configs/`.
+You can run the script in DDP mode and with custom configuration, for example
+```
+PYTHONPATH=. torchrun --nproc-per-node=2 \
+gpt2/train.py --config-name=gpt2_pretraining \
+data.batch_size=48 \
+optimizer.gradient_accumulation_steps=8 \
+optimizer.max_iters=30000 \
+data.sequence_length=1024 \
+data.notes_per_record=128 \
+dataset.extra_datasets="['roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2']" \
+dataset.augmentation.max_pitch_shift=0 \
+dataset.augmentation.speed_change_factors=[] \
+lr.warmup_iters=4000 \
+lr.learning_rate=6e-5 \
+lr.min_lr=6e-6 \
+model=gpt2 \
+system.data_workers=44 \
+system.compile=false \
+loss_masking=pretrianing \
+init_from=scratch
+```
+
+or, for downstream tasks:
+```
+PYTHONPATH=. torchrun --nproc-per-node=4 \
+gpt2/train.py --config-name=gpt2_piano \
+tasks = subsequence \
+data.batch_size=64 \
+optimizer.gradient_accumulation_steps=4 \
+optimizer.max_iters=30000 \
+data.sequence_length=1024 \
+data.notes_per_record=128 \
+dataset.extra_datasets="['roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2']" \
+dataset.augmentation.max_pitch_shift=5 \
+dataset.augmentation.speed_change_factors=[0.95, 1.05] \
+lr.learning_rate=8e-5 \
+system.data_workers=128 \
+system.compile=true \
+loss_masking=finetuning \
+init_from=midi-gpt2-my-awesome-model.pt  # has to be located in checkpoints and the name needs to start with midi-gpt2
+
+```
 
 ### Evaluation
 
 ```
-python gpt2/eval.py init_from=path_to_checkpoint.pt
+python -m gpt2.eval.py init_from=path_to_checkpoint.pt
 ```
+
+### Generation
+To generate with your model refer to:
+https://github.com/Nospoko/piano-generation
+a repository fully commited to generation methods.
 
 ### Data Visualization
+Browse through piano dataset by running:
 
 ```
-streamlit run dashboards/piano_dataset_review.py
+PYTHONPATH=. streamlit run dashboards/piano_dataset_review.py
 ```
 
 ### Model Management
