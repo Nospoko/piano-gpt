@@ -9,6 +9,7 @@ from contextlib import nullcontext
 
 import hydra
 import torch
+import pandas as pd
 from dotenv import load_dotenv
 from torch.utils.data import DataLoader
 from hydra.utils import to_absolute_path
@@ -22,6 +23,7 @@ from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 from data.piano_composer_dataset import PianoComposerDataset
 from data.next_token_composer_dataset import NextTokenComposerDataset
+from data.memory_efficient_random_sampler import MemoryEfficientRandomSampler
 
 load_dotenv()
 
@@ -40,10 +42,12 @@ class ValidationDataLoader:
         self.pin_memory = pin_memory
         self.num_workers = num_workers
         self.device = device
+        sampler = MemoryEfficientRandomSampler(data_source=dataset, seed=4)
         self.dataloader = DataLoader(
             dataset=dataset,
             batch_size=self.batch_size,
             pin_memory=self.pin_memory,
+            sampler=sampler,
             num_workers=num_workers,
         )
         self.iterator = iter(self.dataloader)
@@ -59,7 +63,8 @@ class ValidationDataLoader:
         x = batch["source_token_ids"].to(self.device, non_blocking=True)
         y = batch["target_token_ids"].to(self.device, non_blocking=True)
         mask = batch["target_mask"].to(self.device, non_blocking=True)
-        return x, y, mask
+        prompt_lengths = batch["prompt_length"]
+        return x, y, mask, prompt_lengths
 
 
 def get_dataset_for_task(cfg: DictConfig) -> tuple[Any, Any]:
@@ -258,28 +263,47 @@ def main(cfg: DictConfig):
         # unoptimized_model = model
         model = torch.compile(model)  # requires PyTorch 2.0
 
-    run_name = str(cfg.init_from).removesuffix(".pt")
     model.train()
     model.eval()
-    losses = torch.zeros(len(val_dataset))
-    accuracies = torch.zeros(len(val_dataset))
-
+    accuracies = pd.DataFrame(columns=["pitch", "velocity", "start", "end"])
+    target_prefix_tokens = 1 if cfg.task == "multi" else 2
     # Iterate whole dataset once
     for k in range(len(val_dataset) // cfg.data.batch_size):
-        X, Y, mask = get_batch()
+        X, Y, mask, prompt_lengths = get_batch()
         with ctx:
-            logits, loss = model(X, Y, mask)
-        # Calculate accuracy
-        predictions = logits.argmax(dim=-1)
-        correct = (predictions[mask] == Y[mask]).float()
-        accuracy = correct.sum() / mask.sum()
-        accuracies[k] = accuracy
-        losses[k] = loss.item()
-        if k % 100 == 0:
-            print(f"iter: {k}, loss: {losses[: k + 1].mean()}, accuracy: {accuracy}")
-    val_loss = losses.mean()
+            out = model.generate(
+                X[:, : prompt_lengths[0] + target_prefix_tokens],
+                max_new_tokens=cfg.data.sequence_length,
+                temperature=0.1,
+            )
+        for generation, prompt_length, labels in zip(out, prompt_lengths, Y):
+            output = generation.cpu().numpy()
 
-    print(f"Validation loss for: \n{run_name} \non {cfg.tasks.list} tasks \nis {val_loss}")
+            out_tokens = [tokenizer.vocab[token_id] for token_id in output]
+            target_tokens = [tokenizer.vocab[token_id] for token_id in labels]
+
+            generated_tokens = out_tokens[prompt_length:]
+            true_tokens = target_tokens[prompt_length + 1 :]
+
+            # Convert tokens back to notes
+            generated_notes = tokenizer.untokenize(generated_tokens)
+            true_notes = tokenizer.untokenize(true_tokens)
+            generated_notes = generated_notes.iloc[: len(true_notes)]
+            row = {
+                "pitch": (generated_notes.pitch == true_notes.pitch).sum() / len(true_notes),
+                "velocity": (generated_notes.velocity == true_notes.velocity).sum() / len(true_notes),
+                "start": (abs(generated_notes.start - true_notes.start) < 0.01).sum() / len(true_notes),
+                "end": (abs(generated_notes.end - true_notes.end) < 0.01).sum() / len(true_notes),
+            }
+            accuracies.loc[k] = row
+
+        if k % 20 == 0:
+            p_acc = accuracies.pitch.mean()
+            v_acc = accuracies.velocity.mean()
+            s_acc = accuracies.start.mean()
+            e_acc = accuracies.end.mean()
+
+            print(f"iter: {k}, accuracies - pitch: {p_acc} | velocity: {v_acc} | start: {s_acc} | end: {e_acc}")
 
 
 if __name__ == "__main__":

@@ -12,9 +12,9 @@ dataset:
     max_pitch_shift: 0
     speed_change_factors: []
 
-init_from: midi-gpt2-85M-all-4096-ctx-2024-08-20-11-41.pt # should be 'midi-gpt2*'
+init_from: midi-gpt2-0M-subsequence-2024-09-10-22-20last.pt # should be 'midi-gpt2*'
 
-task: multi
+task: multi_with_composer
 tasks:
   list:
     - "above_median_prediction"  # Pitch tasks

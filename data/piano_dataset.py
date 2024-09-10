@@ -119,6 +119,7 @@ class PianoDataset(MidiDataset):
             start_point=start_point,
             task=task,
         )
+        prompt_length = len(prompt_token_ids)
         encoding = prompt_token_ids + target_token_ids
 
         # Add padding to reach the desired sequence length
@@ -146,5 +147,6 @@ class PianoDataset(MidiDataset):
             "target_mask": target_mask,
             "prediction_task": "high_median_prediction",
             "source": record["source"],
+            "prompt_length": prompt_length,
         }
         return out
