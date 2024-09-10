@@ -6,6 +6,7 @@ and on chosen tasks.
 import os
 from typing import Any
 from contextlib import nullcontext
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import hydra
 import torch
@@ -169,6 +170,29 @@ def prepare_piano_dataset(cfg: DictConfig) -> tuple[PianoDataset, PianoDataset]:
     return val_dataset
 
 
+def process_batch_item(generation, prompt_length, labels, tokenizer):
+    output = generation.cpu().numpy()
+
+    out_tokens = [tokenizer.vocab[token_id] for token_id in output]
+    target_tokens = [tokenizer.vocab[token_id] for token_id in labels]
+
+    generated_tokens = out_tokens[prompt_length:]
+    true_tokens = target_tokens[prompt_length + 1 :]
+
+    # Convert tokens back to notes
+    generated_notes = tokenizer.untokenize(generated_tokens)
+    true_notes = tokenizer.untokenize(true_tokens)
+    generated_notes = generated_notes.iloc[: len(true_notes)]
+
+    row = {
+        "pitch": (generated_notes.pitch == true_notes.pitch).sum() / len(true_notes),
+        "velocity": (generated_notes.velocity == true_notes.velocity).sum() / len(true_notes),
+        "start": (abs(generated_notes.start - true_notes.start) < 0.01).sum() / len(true_notes),
+        "end": (abs(generated_notes.end - true_notes.end) < 0.01).sum() / len(true_notes),
+    }
+    return row
+
+
 @hydra.main(config_path="configs", config_name="eval", version_base=None)
 @torch.no_grad()
 def main(cfg: DictConfig):
@@ -273,29 +297,23 @@ def main(cfg: DictConfig):
         with ctx:
             out = model.generate(
                 X[:, : prompt_lengths[0] + target_prefix_tokens],
-                max_new_tokens=cfg.data.sequence_length,
-                temperature=0.1,
+                max_new_tokens=cfg.data.sequence_length - min(prompt_lengths),
+                temperature=1,
             )
-        for generation, prompt_length, labels in zip(out, prompt_lengths, Y):
-            output = generation.cpu().numpy()
 
-            out_tokens = [tokenizer.vocab[token_id] for token_id in output]
-            target_tokens = [tokenizer.vocab[token_id] for token_id in labels]
+        # Process batch items concurrently
+        with ThreadPoolExecutor(max_workers=len(out)) as executor:
+            futures = [
+                executor.submit(process_batch_item, generation, prompt_length, labels, tokenizer)
+                for generation, prompt_length, labels in zip(out, prompt_lengths, Y)
+            ]
 
-            generated_tokens = out_tokens[prompt_length:]
-            true_tokens = target_tokens[prompt_length + 1 :]
+            batch_results = []
+            for future in as_completed(futures):
+                batch_results.append(future.result())
 
-            # Convert tokens back to notes
-            generated_notes = tokenizer.untokenize(generated_tokens)
-            true_notes = tokenizer.untokenize(true_tokens)
-            generated_notes = generated_notes.iloc[: len(true_notes)]
-            row = {
-                "pitch": (generated_notes.pitch == true_notes.pitch).sum() / len(true_notes),
-                "velocity": (generated_notes.velocity == true_notes.velocity).sum() / len(true_notes),
-                "start": (abs(generated_notes.start - true_notes.start) < 0.01).sum() / len(true_notes),
-                "end": (abs(generated_notes.end - true_notes.end) < 0.01).sum() / len(true_notes),
-            }
-            accuracies.loc[k] = row
+        # Add batch results to accuracies DataFrame
+        accuracies = pd.concat([accuracies, pd.DataFrame(batch_results)], ignore_index=True)
 
         if k % 20 == 0:
             p_acc = accuracies.pitch.mean()
