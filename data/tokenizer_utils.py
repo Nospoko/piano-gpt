@@ -65,8 +65,8 @@ def load_tokenizer_from_cfg(tokenizer_cfg: dict) -> AwesomeMidiTokenizer:
         tokenizer=tokenizer,
         dataset_dict={
             "augmentation": {
-                "max_pitch_shift": 0,
-                "speed_change_factors": [],
+                "max_pitch_shift": 5,
+                "speed_change_factors": [0.975, 0.95, 1.025, 1.05],
             },
         },
     )
