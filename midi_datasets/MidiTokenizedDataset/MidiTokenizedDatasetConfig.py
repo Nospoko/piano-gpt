@@ -53,9 +53,10 @@ class MidiTokenizedDatasetConfig(BuilderConfig):
         # Assign the provided arguments to the class attributes
         self.base_dataset_name: str = base_dataset_name
         self.extra_datasets: list[str] = extra_datasets
-        self.tokenizer_parameters: dict[str, Any] = tokenizer_cfg
+        self.tokenizer_cfg: dict[str, Any] = tokenizer_cfg
         self.pause_detection_threshold = pause_detection_threshold
         self.augmentation = augmentation
+
 
     @property
     def builder_parameters(self):
@@ -83,7 +84,13 @@ BUILDER_CONFIGS = [
     MidiTokenizedDatasetConfig(
         base_dataset_name="roszcz/maestro-sustain-v2",
         extra_datasets=[],
-        tokenizer_cfg={"n_velocity_bins": 32, "min_time_unit": 0.01},
+        tokenizer_cfg={
+            "name": "ExponentialTimeTokenizer",
+            "parameters": {
+                "min_time_unit": 0.01,
+                "n_velocity_bins": 32,
+            },
+        },
         pause_detection_threshold=4,
         name="basic-no-overlap",
     ),
