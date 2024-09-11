@@ -92,6 +92,7 @@ def setup_device(cfg: DictConfig):
 
 @hydra.main(config_path="configs", config_name="gpt2_pretraining", version_base=None)
 def main(cfg: DictConfig):
+    os.environ["TOKENIZERS_PARALLELISM"] = "1"  # for training BPE tokenizer
     model_args = dict(
         n_layer=cfg.model.n_layer,
         n_head=cfg.model.n_head,
