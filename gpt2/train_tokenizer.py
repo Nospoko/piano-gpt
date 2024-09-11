@@ -84,7 +84,7 @@ def train_tokenizer(cfg: DictConfig):
     print(f"Configuration saved to {config_file}")
 
 
-@hydra.main(config_path="configs", config_name="tokenizer", version_base=None)
+@hydra.main(config_path="configs", config_name="tokenizer_training", version_base=None)
 def main(cfg: DictConfig):
     train_tokenizer(cfg)
 

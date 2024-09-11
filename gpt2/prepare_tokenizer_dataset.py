@@ -46,7 +46,7 @@ def prepare_dataset_for_tokenizer_training(
         print(f"Dataset already created: {output_file}")
         return
     # Load and augment the dataset
-    dataset = load_dataset(cfg.dataset.name, split="train")
+    dataset = load_dataset(cfg.dataset.base_dataset_name, split="train")
     dataset = augment_dataset(dataset=dataset, **cfg.dataset.augmentation)
 
     # Initialize the base tokenizer
@@ -94,7 +94,7 @@ def prepare_dataset_for_tokenizer_training(
     print(f"Configuration saved to {config_file}")
 
 
-@hydra.main(config_path="configs", config_name="tokenizer", version_base=None)
+@hydra.main(config_path="configs", config_name="tokenizer_training", version_base=None)
 def main(cfg: DictConfig):
     prepare_dataset_for_tokenizer_training(cfg)
 
