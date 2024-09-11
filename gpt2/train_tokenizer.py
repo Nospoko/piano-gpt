@@ -34,7 +34,7 @@ def get_dataset_path(cfg: DictConfig) -> str:
 def get_tokenizer_path(cfg: DictConfig) -> str:
     """Generate the tokenizer file path based on the configuration hash."""
     config_hash = hash_config(cfg)
-    output_dir = os.path.join("tmp", "trained_tokenizers")
+    output_dir = os.path.join("tmp", "tokenizers")
     return os.path.join(output_dir, f"{config_hash}.json")
 
 
@@ -68,7 +68,6 @@ def train_tokenizer(cfg: DictConfig):
         **awesome_tokenizer_parameters,
     )
     tokenizer.train_from_text_dataset(dataset)
-    print(tokenizer.token_to_id)
     # Save the trained tokenizer
     output_dir = to_absolute_path(os.path.join("tmp", "tokenizers"))
 
