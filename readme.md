@@ -41,13 +41,13 @@ The PIANO dataset is designed to standardize approaches and provide a benchmark 
 ## Installation
 
 1. Clone the repository:
-   ```
+   ```sh
    git clone https://github.com/your-username/piano-gpt.git
    cd piano-gpt
    ```
 
 2. Install dependencies:
-   ```
+   ```sh
    pip install -r requirements.txt
    ```
 
@@ -55,12 +55,12 @@ The PIANO dataset is designed to standardize approaches and provide a benchmark 
 
 ### Training
 
-```
+```sh
 python -m gpt2.train.py
 ```
 
 You can run the script in DDP mode and with custom configuration, for example
-```
+```sh
 PYTHONPATH=. torchrun --nproc-per-node=2 \
 gpt2/train.py --config-name=gpt2_pretraining \
 data.batch_size=48 \
@@ -82,7 +82,7 @@ init_from=scratch
 ```
 
 or, for downstream tasks:
-```
+```sh
 PYTHONPATH=. torchrun --nproc-per-node=4 \
 gpt2/train.py --config-name=gpt2_piano \
 tasks = subsequence \
@@ -100,6 +100,28 @@ system.compile=true \
 loss_masking=finetuning \
 init_from=midi-gpt2-my-awesome-model.pt  # has to be located in checkpoints and the name needs to start with midi-gpt2
 
+```
+
+### Awesome Tokenizer training
+```sh
+python3.10 -m gpt2.prepare_tokenizer_dataset; \
+python3.10 -m gpt2.train_tokenizer; \
+PYTHONPATH-. torchrun --nproc-per-node=4 \
+gpt2/train.py --config-name=gpt2_pretraining \
+model=gpt2 \
+lr.learning_rate=8e-5 \
+lr.min_lr=8e-6 \
+lr.warmup_iters=1000 \
+system.data_workers=124 \
+optimizer.gradient_accumulation_steps=4 \
+task=next_token_prediction_with_composer \
+eval_iters=200 eval_interval=1000 \
+"dataset.extra_datasets=['roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2', 'roszcz/imslp-midi-v1']" \
+data.batch_size=20 \
+data.sequence_length=4096 \
+logging.wandb_run_name_suffix=huge-pretraining-4096-ctx \
+tokenizer=awesome \
+logging.wandb_project=piano-awesome-gpt
 ```
 
 ### Evaluation
