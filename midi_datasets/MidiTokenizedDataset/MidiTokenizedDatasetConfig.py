@@ -69,7 +69,7 @@ class MidiTokenizedDatasetConfig(BuilderConfig):
         return {
             "base_dataset_name": self.base_dataset_name,
             "extra_datasets": self.extra_datasets,
-            "tokenizer_parameters": self.tokenizer_parameters,
+            "tokenizer_cfg": self.tokenizer_cfg,
             "pause_detection_threshold": self.pause_detection_threshold,
             "augmentation": self.augmentation,
         }
