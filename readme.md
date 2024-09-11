@@ -5,6 +5,10 @@
 
 Piano-GPT is a project leveraging the GPT-2 architecture for generating and processing MIDI piano music. It introduces the PIANO (Performance Inference And Note Orchestration) dataset, a multi-task benchmark for voice and dynamic reconstruction in MIDI piano rolls.
 
+### Tokenization
+
+Tokenization is described to full extent in [midi-tokenizers repo](https://github.com/Nospoko/midi-tokenizers)
+
 ## PIANO Dataset
 
 The PIANO dataset is designed to standardize approaches and provide a benchmark for the music modeling community. It focuses on specific subsets of music generation tasks:
@@ -130,6 +134,12 @@ The project uses Hydra for configuration management. Main configuration files ar
 
 - This project uses the GPT-2 architecture developed by OpenAI.
 - The PIANO dataset is based on the MAESTRO (MIDI and Audio Edited for Synchronous TRacks and Organization) dataset, provided by the International Piano-e-Competition and the Tensorflow Magenta team.
+
+## Important Links
+- **Maestro Dataset**: [Link to dataset](https://magenta.tensorflow.org/datasets/maestro)
+- **GitHub Repository**: [piano-gpt](https://github.com/Nospoko/piano-gpt)
+- **Midi Tokenizers Repository**: [midi-tokenizers](https://github.com/Nospoko/midi-tokenizers)
+- **Platform for pianists and algorithmic music enthusiasts**: [pianoroll.io](https://pianoroll.io)
 
 ## References
 
