@@ -16,8 +16,11 @@ def train_awesome_tokenizer(tokenizer: AwesomeMidiTokenizer, dataset_dict) -> Aw
     return tokenizer
 
 
-def hash_tokenizer_desc(tokenizer_desc: dict) -> str:
-    tokenizer_json = json.dumps(tokenizer_desc)
+def hash_tokenizer_desc(tokenizer_cfg: dict) -> str:
+    # Special tokens are always the same hence we do not use them for hashing
+    if "special_tokens" in tokenizer_cfg.keys():
+        tokenizer_cfg.pop("special_tokens")
+    tokenizer_json = json.dumps(tokenizer_cfg)
     hasher = hashlib.sha256()
     hasher.update(tokenizer_json.encode("utf-8"))
     return hasher.hexdigest()
