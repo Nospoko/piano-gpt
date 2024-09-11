@@ -1,16 +1,17 @@
 from typing import Any
+from functools import partial
 
 import torch
 from hydra.utils import to_absolute_path
 from datasets import Dataset, load_dataset
 from omegaconf import OmegaConf, DictConfig
-from midi_tokenizers import ExponentialTimeTokenizer
-from midi_trainable_tokenizers import AwesomeMidiTokenizer
+from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
 
 from artifacts import special_tokens
 from gpt2.model import GPT, GPTConfig
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
+from data.tokenizer_utils import load_tokenizer_if_exists
 from data.piano_composer_dataset import PianoComposerDataset
 from data.next_token_composer_dataset import NextTokenComposerDataset
 
@@ -21,16 +22,12 @@ def load_cfg(checkpoint: dict) -> DictConfig:
 
 
 def load_tokenizer(cfg: DictConfig):
-    tokenizer_parameters = OmegaConf.to_container(cfg.tokenizer.tokenizer_parameters)
+    tokenizer_cfg = OmegaConf.to_container(cfg.tokenizer)
+    tokenizer_parameters = tokenizer_cfg["parameters"]
     tokenizer_parameters |= {"special_tokens": special_tokens}
 
-    if cfg.tokenizer.tokenizer == "AwesomeMidiTokenizer":
-        min_time_unit = tokenizer_parameters["min_time_unit"]
-        n_velocity_bins = tokenizer_parameters["min_velocity_bins"]
-        tokenizer_path = to_absolute_path(
-            f"pretrained/awesome_tokenizers/awesome-tokenizer-{min_time_unit}-{n_velocity_bins}.json"
-        )
-        return AwesomeMidiTokenizer.from_file(tokenizer_path)
+    if cfg.tokenizer.name == "AwesomeMidiTokenizer":
+        return load_tokenizer_if_exists(tokenizer_cfg=tokenizer_cfg)
     else:
         return ExponentialTimeTokenizer(**tokenizer_parameters)
 
@@ -83,12 +80,12 @@ def initialize_model(
     return model
 
 
-def get_dataset_for_task(cfg: DictConfig) -> tuple[Any, Any]:
+def get_dataset_for_task(cfg: DictConfig, tokenizer: MidiTokenizer) -> tuple[Any, Any]:
     task_to_dataset = {
-        "next_token_prediction": prepare_next_token_datasets,
-        "next_token_prediction_with_composer": prepare_next_token_composer_datasets,
-        "multi": prepare_piano_dataset,
-        "multi_with_composer": prepare_piano_composer_dataset,
+        "next_token_prediction": partial(prepare_next_token_datasets, tokenizer=tokenizer),
+        "next_token_prediction_with_composer": partial(prepare_next_token_composer_datasets, tokenizer=tokenizer),
+        "multi": partial(prepare_piano_dataset, tokenizer=tokenizer),
+        "multi_with_composer": partial(prepare_piano_composer_dataset, tokenizer=tokenizer),
     }
     prepare_function = task_to_dataset.get(cfg.task)
     if prepare_function:
@@ -117,9 +114,11 @@ def prepare_dataset_base(cfg: DictConfig, dataset_name: str) -> tuple[Dataset, D
     return train_split, validation_split
 
 
-def prepare_next_token_composer_datasets(cfg: DictConfig) -> tuple[NextTokenDataset, NextTokenDataset]:
+def prepare_next_token_composer_datasets(
+    cfg: DictConfig,
+    tokenizer: MidiTokenizer,
+) -> tuple[NextTokenDataset, NextTokenDataset]:
     train_split, validation_split = prepare_dataset_base(cfg, "MidiTokenizedDataset")
-    tokenizer = load_tokenizer(cfg)
     train_dataset = NextTokenComposerDataset(
         dataset=train_split,
         tokenizer=tokenizer,
@@ -135,9 +134,11 @@ def prepare_next_token_composer_datasets(cfg: DictConfig) -> tuple[NextTokenData
     return train_dataset, val_dataset
 
 
-def prepare_next_token_datasets(cfg: DictConfig) -> tuple[NextTokenDataset, NextTokenDataset]:
+def prepare_next_token_datasets(
+    cfg: DictConfig,
+    tokenizer: MidiTokenizer,
+) -> tuple[NextTokenDataset, NextTokenDataset]:
     train_split, validation_split = prepare_dataset_base(cfg, "MidiTokenizedDataset")
-    tokenizer = load_tokenizer(cfg)
     train_dataset = NextTokenDataset(
         dataset=train_split,
         tokenizer=tokenizer,
@@ -153,7 +154,10 @@ def prepare_next_token_datasets(cfg: DictConfig) -> tuple[NextTokenDataset, Next
     return train_dataset, val_dataset
 
 
-def prepare_piano_dataset(cfg: DictConfig) -> tuple[PianoDataset, PianoDataset]:
+def prepare_piano_dataset(
+    cfg: DictConfig,
+    tokenizer: MidiTokenizer,
+) -> tuple[PianoDataset, PianoDataset]:
     dataset_config = OmegaConf.to_container(cfg.dataset)
     dataset_path = to_absolute_path("./midi_datasets/AugmentedDataset")
 
@@ -166,7 +170,6 @@ def prepare_piano_dataset(cfg: DictConfig) -> tuple[PianoDataset, PianoDataset]:
     train_split: Dataset = dataset["train"]
     validation_split: Dataset = dataset["validation"]
 
-    tokenizer = load_tokenizer(cfg)
     train_dataset = PianoDataset(
         dataset=train_split,
         tokenizer=tokenizer,
@@ -186,7 +189,10 @@ def prepare_piano_dataset(cfg: DictConfig) -> tuple[PianoDataset, PianoDataset]:
     return train_dataset, val_dataset
 
 
-def prepare_piano_composer_dataset(cfg: DictConfig) -> tuple[PianoComposerDataset, PianoComposerDataset]:
+def prepare_piano_composer_dataset(
+    cfg: DictConfig,
+    tokenizer: MidiTokenizer,
+) -> tuple[PianoComposerDataset, PianoComposerDataset]:
     dataset_config = OmegaConf.to_container(cfg.dataset)
     dataset_path = to_absolute_path("./midi_datasets/AugmentedDataset")
 
@@ -199,7 +205,6 @@ def prepare_piano_composer_dataset(cfg: DictConfig) -> tuple[PianoComposerDatase
     train_split: Dataset = dataset["train"]
     validation_split: Dataset = dataset["validation"]
 
-    tokenizer = load_tokenizer(cfg)
     train_dataset = PianoComposerDataset(
         dataset=train_split,
         tokenizer=tokenizer,

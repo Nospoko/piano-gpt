@@ -26,6 +26,7 @@ import hydra
 import torch
 from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
+from midi_tokenizers import MidiTokenizer
 from omegaconf import OmegaConf, DictConfig
 from torch.utils.data import Sampler, DataLoader
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -34,7 +35,7 @@ from torch.distributed import init_process_group, destroy_process_group
 import wandb
 from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
-from gpt2.utils import get_dataset_for_task
+from gpt2.utils import load_tokenizer, get_dataset_for_task
 from data.memory_efficient_random_sampler import MemoryEfficientRandomSampler
 
 load_dotenv()
@@ -132,9 +133,9 @@ def main(cfg: DictConfig):
         cfg.tokenizer = checkpoint_cfg.tokenizer
         cfg.system.dtype = checkpoint_cfg.system.dtype
 
+        tokenizer = MidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
         train_dataset, val_dataset = get_dataset_for_task(cfg=cfg)
         out_dir = to_absolute_path(cfg.out_dir)
-        tokenizer = train_dataset.tokenizer
         pad_token_id = tokenizer.token_to_id["<PAD>"]
         config = OmegaConf.to_container(cfg=cfg)
         # model init
@@ -161,9 +162,10 @@ def main(cfg: DictConfig):
         state_dict = None
 
     elif cfg.init_from == "scratch":
-        train_dataset, val_dataset = get_dataset_for_task(cfg=cfg)
+        tokenizer = load_tokenizer(cfg=cfg)
+        train_dataset, val_dataset = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)
         out_dir = to_absolute_path(cfg.out_dir)
-        tokenizer = train_dataset.tokenizer
+
         pad_token_id = tokenizer.token_to_id["<PAD>"]
         config = OmegaConf.to_container(cfg=cfg)
         # init a new model from scratch
@@ -381,6 +383,7 @@ def main(cfg: DictConfig):
                     "config": config,
                     "wandb": wandb_link,
                     "total_tokens": total_tokens,
+                    "tokenizer": tokenizer.to_dict(),
                 }
                 print(f"saving checkpoint to {out_dir}")
                 torch.save(checkpoint, os.path.join(out_dir, run_name + ".pt"))
@@ -395,6 +398,7 @@ def main(cfg: DictConfig):
                 "config": config,
                 "wandb": wandb_link,
                 "total_tokens": total_tokens,
+                "tokenizer": tokenizer.to_dict(),
             }
             print(f"saving checkpoint to {out_dir}")
             torch.save(checkpoint, os.path.join(out_dir, run_name + "last.pt"))
