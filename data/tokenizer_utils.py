@@ -18,8 +18,8 @@ def train_awesome_tokenizer(tokenizer: AwesomeMidiTokenizer, dataset_dict) -> Aw
 
 def hash_tokenizer_desc(tokenizer_cfg: dict) -> str:
     # Special tokens are always the same hence we do not use them for hashing
-    if "special_tokens" in tokenizer_cfg.keys():
-        tokenizer_cfg.pop("special_tokens")
+    if "special_tokens" in tokenizer_cfg["parameters"].keys():
+        tokenizer_cfg["parameters"].pop("special_tokens")
     tokenizer_json = json.dumps(tokenizer_cfg)
     hasher = hashlib.sha256()
     hasher.update(tokenizer_json.encode("utf-8"))
