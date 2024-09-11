@@ -1,0 +1,28 @@
+defaults:
+  - model: gpt2 # "gpt2_minimal", "gpt2_medium", "gpt2_large", "gpt2_xl"
+  - data: default
+  - tokenizer: exponential
+  - dataset: augmented
+  - tasks: all
+  - _self_
+
+dataset:
+  extra_datasets: []
+  augmentation:
+    max_pitch_shift: 0
+    speed_change_factors: []
+
+init_from: midi-gpt2-0M-subsequence-2024-09-10-22-20last.pt # should be 'midi-gpt2*'
+
+task: multi_with_composer
+tasks:
+  list:
+    - "above_median_prediction"  # Pitch tasks
+
+loss_masking: finetuning
+
+system:
+  device: 'cuda'  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
+  dtype: 'float16'  # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
+  compile: true  # use PyTorch 2.0 to compile the model to be faster
+  data_workers: 32

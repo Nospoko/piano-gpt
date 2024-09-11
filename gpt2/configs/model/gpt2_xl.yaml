@@ -1,0 +1,5 @@
+n_layer: 48
+n_head: 25
+n_embd: 1600
+dropout: 0.0  # for pretraining 0 is good, for finetuning try 0.1+
+bias: false  # do we use bias inside LayerNorm and Linear layers?
