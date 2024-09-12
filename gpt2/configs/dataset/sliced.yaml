@@ -1,8 +1,0 @@
-base_dataset_name: "roszcz/maestro-sustain-v2"
-extra_datasets: ["roszcz/giant-midi-sustain-v2", "roszcz/pianofor-ai-sustain-v2"]
-notes_per_record: ${data.notes_per_record}
-step: 48
-pause_detection_threshold: 4
-augmentation:
-  speed_change_factors: [0.95, 0.975, 1.025, 1.05]
-  max_pitch_shift: 5

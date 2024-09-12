@@ -1,0 +1,3 @@
+defaults:
+  - tokenizer: awesome
+  - dataset: augmented

@@ -1,0 +1,8 @@
+name: "AwesomeMidiTokenizer"
+base_tokenizer: ExponentialTimeTokenizer
+base_tokenizer_parameters:
+  min_time_unit: 0.01
+  n_velocity_bins: 32
+parameters:
+  max_vocab_size: 10000
+  max_token_length: 128

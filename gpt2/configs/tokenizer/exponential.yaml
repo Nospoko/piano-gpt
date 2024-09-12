@@ -1,4 +1,4 @@
-tokenizer: "ExponentialTimeTokenizer"
-tokenizer_parameters:
+name: "ExponentialTimeTokenizer"
+parameters:
   min_time_unit: 0.01
   n_velocity_bins: 32

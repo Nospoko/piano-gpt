@@ -1,6 +1,6 @@
 base_dataset_name: "roszcz/maestro-sustain-v2"
 extra_datasets: ["roszcz/giant-midi-sustain-v2", "roszcz/pianofor-ai-sustain-v2"]
-tokenizer_parameters: ${tokenizer.tokenizer_parameters}
+tokenizer_cfg: ${tokenizer}
 pause_detection_threshold: 4
 augmentation:
   speed_change_factors: [0.95, 0.975, 1.025, 1.05]
