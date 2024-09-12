@@ -57,7 +57,6 @@ class MidiTokenizedDatasetConfig(BuilderConfig):
         self.pause_detection_threshold = pause_detection_threshold
         self.augmentation = augmentation
 
-
     @property
     def builder_parameters(self):
         """

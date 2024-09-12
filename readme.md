@@ -124,6 +124,15 @@ tokenizer=awesome \
 logging.wandb_project=piano-awesome-gpt
 ```
 
+`prepare_tokenizer_dataset` will create a text file in `tmp/tokenizer_datasets`, with a dump of tokenized and augmented MAESTRO dataset.
+
+The text will be in a format in which tokenizer will be able to train on.
+`train_tokenizer` script will then train an AwesomeMidiTokenizer on this data and dump json format of the tokenizer to `tmp/tokenizers`
+
+Both of these scripts use `gpt2/configs/tokenizer_training` as a default hydra config. It is equivalent to `dataset` + `tokenizer` training config.
+
+During model training initialization the program will look for a tokenizer saved with the same `dataset` and `tokenizer` configuration as training config.
+
 ### Evaluation
 
 ```
