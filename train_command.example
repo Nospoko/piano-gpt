@@ -1,19 +1,17 @@
-PYTHONPATH=. torchrun --nproc-per-node=2 \
+PYTHONPATH=. torchrun --nproc-per-node=8 \
 gpt2/train.py --config-name=gpt2_pretraining \
-data.batch_size=48 \
+data.batch_size=32 \
 optimizer.gradient_accumulation_steps=8 \
 optimizer.max_iters=30000 \
-data.sequence_length=1024 \
-data.notes_per_record=128 \
-dataset.step=48 \
-dataset.extra_datasets="['roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2']" \
-dataset.augmentation.max_pitch_shift=0 \
-dataset.augmentation.speed_change_factors=[] \
-lr.warmup_iters=4000 \
-lr.learning_rate=6e-5 \
-lr.min_lr=6e-6 \
-model=gpt2 \
-system.data_workers=44 \
-system.compile=false \
+data.sequence_length=4096 \
+dataset.extra_datasets="['roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2', 'roszcz/imslp-midi-v1', 'roszcz/pijamia-midi-v1', 'roszcz/lakh-lmd-full']" \
+dataset.augmentation.max_pitch_shift=5 \
+"dataset.augmentation.speed_change_factors=[0.975, 0.95, 1.025, 1.05]" \
+lr.warmup_iters=1000 \
+lr.learning_rate=1e-5 \
+lr.min_lr=1e-6 \
+model=gpt2_large \
+system.data_workers=64 \
+system.compile=true \
 loss_masking=pretrianing \
 init_from=scratch
