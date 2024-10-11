@@ -1,4 +1,10 @@
+import os
+
+from dotenv import load_dotenv
 from datasets import load_dataset
+
+load_dotenv()
+HF_WRITE_TOKEN = os.environ["HF_WRITE_TOKEN"]
 
 
 def prepare_piano_dataset(extra_datasets: list[str]):
@@ -25,10 +31,10 @@ def prepare_piano_dataset(extra_datasets: list[str]):
 if __name__ == "__main__":
     dataset = prepare_piano_dataset([])
     dataset = dataset["train"]
-    dataset.push_to_hub("wmatejuk/maestro-augmented")
+    dataset.push_to_hub("wmatejuk/maestro-augmented", token=HF_WRITE_TOKEN, private=True)
     dataset = prepare_piano_dataset(["roszcz/giant-midi-sustain-v2"])
     dataset = dataset["train"]
-    dataset.push_to_hub("wmatejuk/giant-midi-augmented")
+    dataset.push_to_hub("wmatejuk/giant-midi-augmented", token=HF_WRITE_TOKEN, private=True)
     dataset = prepare_piano_dataset(["roszcz/pianofor-ai-sustain-v2"])
     dataset = dataset["train"]
-    dataset.push_to_hub("wmatejuk/pianofor-ai-augmented")
+    dataset.push_to_hub("wmatejuk/pianofor-ai-augmented", token=HF_WRITE_TOKEN, private=True)
