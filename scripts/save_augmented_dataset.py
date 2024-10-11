@@ -1,16 +1,10 @@
 from datasets import load_dataset
 
 
-def prepare_piano_dataset():
+def prepare_piano_dataset(extra_datasets: list[str]):
     dataset_config = {
         "base_dataset_name": "roszcz/maestro-sustain-v2",
-        "extra_datasets": [
-            "roszcz/giant-midi-sustain-v2",
-            "roszcz/pianofor-ai-sustain-v2",
-            "roszcz/imslp-midi-v1",
-            "roszcz/pijamia-midi-v1",
-            "roszcz/lakh-lmd-full",
-        ],
+        "extra_datasets": extra_datasets,
         "pause_detection_threshold": 4,
         "augmentation": {
             "speed_change_factors": [0.95, 0.975, 1.025, 1.05],
@@ -29,6 +23,12 @@ def prepare_piano_dataset():
 
 
 if __name__ == "__main__":
-    dataset = prepare_piano_dataset()
+    dataset = prepare_piano_dataset([])
     dataset = dataset["train"]
-    dataset.push_to_hub("wmatejuk/colossal-augmented-dataset")
+    dataset.push_to_hub("wmatejuk/maestro-augmented")
+    dataset = prepare_piano_dataset(["roszcz/giant-midi-sustain-v2"])
+    dataset = dataset["train"]
+    dataset.push_to_hub("wmatejuk/giant-midi-augmented")
+    dataset = prepare_piano_dataset(["roszcz/pianofor-ai-sustain-v2"])
+    dataset = dataset["train"]
+    dataset.push_to_hub("wmatejuk/pianofor-ai-augmented")
