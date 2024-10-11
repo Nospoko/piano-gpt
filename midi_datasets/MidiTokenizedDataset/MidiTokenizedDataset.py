@@ -46,7 +46,6 @@ class MidiTokenizedDataset(GeneratorBasedBuilder):
         # Load the base dataset and additional datasets
         base = datasets.load_dataset(self.config.base_dataset_name)
         other_datasets = [datasets.load_dataset(path, split="train") for path in self.config.extra_datasets]
-        other_datasets.append(base["train"])
 
         # Concatenate all datasets and apply augmentation
         dataset = datasets.concatenate_datasets(other_datasets)
