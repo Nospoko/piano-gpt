@@ -121,6 +121,8 @@ class AugmentedDataset(GeneratorBasedBuilder):
         """
         Method that defines a record in the dataset.
         """
+        if piece.df.pitch.max() > 108:
+            piece.df = None
         record = {
             "notes": piece.df,
             "source": json.dumps(piece.source),
