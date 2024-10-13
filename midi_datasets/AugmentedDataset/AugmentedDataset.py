@@ -113,7 +113,7 @@ class AugmentedDataset(GeneratorBasedBuilder):
     def validate_record(self, record: dict):
         if len(record["notes"]["pitch"]) < 2:
             return False
-        if min(record["notes"]["pitch"]) < 21 or max(record["notes"]["pitch"]) > 109:
+        if min(record["notes"]["pitch"]) < 21 or max(record["notes"]["pitch"]) >= 109:
             return False
         return True
 
@@ -121,8 +121,6 @@ class AugmentedDataset(GeneratorBasedBuilder):
         """
         Method that defines a record in the dataset.
         """
-        if piece.df.pitch.max() > 108:
-            piece.df = None
         record = {
             "notes": piece.df,
             "source": json.dumps(piece.source),
