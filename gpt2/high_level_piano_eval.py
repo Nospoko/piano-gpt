@@ -23,8 +23,8 @@ from gpt2.utils import load_tokenizer
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 from data.piano_composer_dataset import PianoComposerDataset
+from data.random_sampler import MemoryEfficientRandomSampler
 from data.next_token_composer_dataset import NextTokenComposerDataset
-from data.memory_efficient_random_sampler import MemoryEfficientRandomSampler
 
 load_dotenv()
 
