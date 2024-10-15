@@ -24,7 +24,6 @@ from contextlib import nullcontext
 
 import hydra
 import torch
-import wandb
 from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from midi_tokenizers import MidiTokenizer
@@ -33,10 +32,11 @@ from torch.utils.data import Sampler, DataLoader
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 
+import wandb
 from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
 from gpt2.utils import load_tokenizer, get_dataset_for_task
-from data.memory_efficient_random_sampler import MemoryEfficientRandomSampler
+from data.memory_efficient_random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
 
 load_dotenv()
 
@@ -135,7 +135,7 @@ def main(cfg: DictConfig):
         cfg.system.dtype = checkpoint_cfg.system.dtype
 
         tokenizer = MidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
-        train_dataset, val_dataset = get_dataset_for_task(cfg=cfg)
+        train_dataset, val_datasets = get_dataset_for_task(cfg=cfg)
         out_dir = to_absolute_path(cfg.out_dir)
         pad_token_id = tokenizer.token_to_id["<PAD>"]
         config = OmegaConf.to_container(cfg=cfg)
@@ -164,7 +164,7 @@ def main(cfg: DictConfig):
 
     elif cfg.init_from == "scratch":
         tokenizer = load_tokenizer(cfg=cfg)
-        train_dataset, val_dataset = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)
+        train_dataset, val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)
         out_dir = to_absolute_path(cfg.out_dir)
 
         pad_token_id = tokenizer.token_to_id["<PAD>"]
@@ -196,12 +196,29 @@ def main(cfg: DictConfig):
     # note: float16 data type will automatically use a GradScaler
     ptdtype = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}[cfg.system.dtype]
     ctx = nullcontext() if device_type == "cpu" else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
+
+    print(len(val_datasets[0]), len(val_datasets[1]), len(val_datasets[2]), len(val_datasets[3]))
     train_sampler = MemoryEfficientRandomSampler(
         data_source=train_dataset,
         seed=4 + seed_offset,
     )
-    val_sampler = MemoryEfficientRandomSampler(
-        data_source=val_dataset,
+    val_sampler = ValidationRandomSampler(
+        data_source=val_datasets[0],
+        seed=4 + seed_offset,
+        num_samples=cfg.data.batch_size * cfg.eval_iters,
+    )
+    val_sampler_bach = ValidationRandomSampler(
+        data_source=val_datasets[1],
+        seed=4 + seed_offset,
+        num_samples=cfg.data.batch_size * cfg.eval_iters,
+    )
+    val_sampler_chopin = ValidationRandomSampler(
+        data_source=val_datasets[2],
+        seed=4 + seed_offset,
+        num_samples=cfg.data.batch_size * cfg.eval_iters,
+    )
+    val_sampler_mozart = ValidationRandomSampler(
+        data_source=val_datasets[3],
         seed=4 + seed_offset,
         num_samples=cfg.data.batch_size * cfg.eval_iters,
     )
@@ -217,8 +234,37 @@ def main(cfg: DictConfig):
     )
 
     val_loader = CyclicalDataLoader(
-        val_dataset,
+        val_datasets[0],
         sampler=val_sampler,
+        batch_size=cfg.data.batch_size,
+        shuffle=False,
+        pin_memory=device_type == "cuda",
+        num_workers=cfg.system.data_workers // ddp_world_size,
+        device=device,
+    )
+    val_loader_bach = CyclicalDataLoader(
+        val_datasets[1],
+        sampler=val_sampler_bach,
+        batch_size=cfg.data.batch_size,
+        shuffle=False,
+        pin_memory=device_type == "cuda",
+        num_workers=cfg.system.data_workers // ddp_world_size,
+        device=device,
+    )
+
+    val_loader_chopin = CyclicalDataLoader(
+        val_datasets[2],
+        sampler=val_sampler_chopin,
+        batch_size=cfg.data.batch_size,
+        shuffle=False,
+        pin_memory=device_type == "cuda",
+        num_workers=cfg.system.data_workers // ddp_world_size,
+        device=device,
+    )
+
+    val_loader_mozart = CyclicalDataLoader(
+        val_datasets[2],
+        sampler=val_sampler_mozart,
         batch_size=cfg.data.batch_size,
         shuffle=False,
         pin_memory=device_type == "cuda",
@@ -229,8 +275,14 @@ def main(cfg: DictConfig):
     def get_batch(split):
         if split == "train":
             return train_loader.get_batch()
-        else:
+        elif split == "val":
             return val_loader.get_batch()
+        elif split == "bach":
+            return val_loader_bach.get_batch()
+        elif split == "chopin":
+            return val_loader_chopin.get_batch()
+        elif split == "mozart":
+            return val_loader_mozart.get_batch()
 
     # init these up here, can override if init_from='resume' (i.e. from a checkpoint)
     iter_num = 0
@@ -275,7 +327,7 @@ def main(cfg: DictConfig):
     def estimate_loss():
         out = {}
         model.eval()
-        for split in ["train", "val"]:
+        for split in ["train", "val", "bach", "chopin", "mozart"]:
             losses = torch.zeros(cfg.eval_iters)
             for k in range(cfg.eval_iters):
                 X, Y, mask = get_batch(split)
@@ -409,6 +461,9 @@ def main(cfg: DictConfig):
                         "iter": iter_num,
                         "train/loss_batch": losses["train"],
                         "val/loss_batch": losses["val"],
+                        "val/bach": losses["bach"],
+                        "val/chopin": losses["chopin"],
+                        "val/mozart": losses["mozart"],
                         "total_tokens": total_tokens,
                         "best_val_loss": best_val_loss,
                     },

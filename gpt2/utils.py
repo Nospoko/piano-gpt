@@ -1,4 +1,4 @@
-from typing import Any
+import json
 from functools import partial
 
 import torch
@@ -8,6 +8,7 @@ from omegaconf import OmegaConf, DictConfig
 from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
 
 from artifacts import special_tokens
+from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
@@ -80,7 +81,7 @@ def initialize_model(
     return model
 
 
-def get_dataset_for_task(cfg: DictConfig, tokenizer: MidiTokenizer) -> tuple[Any, Any]:
+def get_dataset_for_task(cfg: DictConfig, tokenizer: MidiTokenizer) -> tuple[MidiDataset, tuple]:
     task_to_dataset = {
         "next_token_prediction": partial(prepare_next_token_datasets, tokenizer=tokenizer),
         "next_token_prediction_with_composer": partial(prepare_next_token_composer_datasets, tokenizer=tokenizer),
@@ -93,7 +94,7 @@ def get_dataset_for_task(cfg: DictConfig, tokenizer: MidiTokenizer) -> tuple[Any
     raise ValueError(f"Unknown task: {cfg.task}")
 
 
-def prepare_dataset_base(cfg: DictConfig, dataset_name: str) -> tuple[Dataset, Dataset]:
+def prepare_dataset_base(cfg: DictConfig, dataset_name: str) -> tuple[Dataset, tuple]:
     dataset_config = OmegaConf.to_container(cfg.dataset)
     dataset_path = to_absolute_path(f"./midi_datasets/{dataset_name}")
     if dataset_name == "MidiTokenizedDataset":
@@ -108,17 +109,29 @@ def prepare_dataset_base(cfg: DictConfig, dataset_name: str) -> tuple[Dataset, D
     train_split: Dataset = dataset["train"]
     validation_split: Dataset = dataset["validation"]
     validation_split.shuffle(seed=1337)
+    validation_dataset_bach = validation_split.filter(
+        lambda x: json.loads(x["source"])["composer"] == "Johann Sebastian Bach",
+    )
+    validation_dataset_chopin = validation_split.filter(
+        lambda x: json.loads(x["source"])["composer"] == "Frédéric Chopin",
+    )
+    validation_dataset_mozart = validation_split.filter(
+        lambda x: json.loads(x["source"])["composer"] == "Wolfgang Amadeus Mozart"
+    )
 
-    if validation_split.num_rows > cfg.data.batch_size * cfg.eval_iters:
-        validation_split = validation_split.select(range(cfg.data.batch_size * cfg.eval_iters))
-    return train_split, validation_split
+    return train_split, (
+        validation_split,
+        validation_dataset_bach,
+        validation_dataset_chopin,
+        validation_dataset_mozart,
+    )
 
 
 def prepare_next_token_composer_datasets(
     cfg: DictConfig,
     tokenizer: MidiTokenizer,
-) -> tuple[NextTokenDataset, NextTokenDataset]:
-    train_split, validation_split = prepare_dataset_base(cfg, "MidiTokenizedDataset")
+) -> tuple[NextTokenDataset, tuple]:
+    train_split, validation_splits = prepare_dataset_base(cfg, "MidiTokenizedDataset")
     train_dataset = NextTokenComposerDataset(
         dataset=train_split,
         tokenizer=tokenizer,
@@ -126,19 +139,37 @@ def prepare_next_token_composer_datasets(
         loss_masking=cfg.loss_masking,
     )
     val_dataset = NextTokenComposerDataset(
-        dataset=validation_split,
+        dataset=validation_splits[0],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
     )
-    return train_dataset, val_dataset
+    val_dataset_bach = NextTokenComposerDataset(
+        dataset=validation_splits[1],
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+    )
+    val_dataset_chopin = NextTokenComposerDataset(
+        dataset=validation_splits[2],
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+    )
+    val_dataset_mozart = NextTokenComposerDataset(
+        dataset=validation_splits[3],
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+    )
+    return train_dataset, (val_dataset, val_dataset_bach, val_dataset_chopin, val_dataset_mozart)
 
 
 def prepare_next_token_datasets(
     cfg: DictConfig,
     tokenizer: MidiTokenizer,
 ) -> tuple[NextTokenDataset, NextTokenDataset]:
-    train_split, validation_split = prepare_dataset_base(cfg, "MidiTokenizedDataset")
+    train_split, validation_splits = prepare_dataset_base(cfg, "MidiTokenizedDataset")
     train_dataset = NextTokenDataset(
         dataset=train_split,
         tokenizer=tokenizer,
@@ -146,18 +177,36 @@ def prepare_next_token_datasets(
         loss_masking=cfg.loss_masking,
     )
     val_dataset = NextTokenDataset(
-        dataset=validation_split,
+        dataset=validation_splits[0],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
     )
-    return train_dataset, val_dataset
+    val_dataset_bach = NextTokenDataset(
+        dataset=validation_splits[1],
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+    )
+    val_dataset_chopin = NextTokenDataset(
+        dataset=validation_splits[2],
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+    )
+    val_dataset_mozart = NextTokenDataset(
+        dataset=validation_splits[3],
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+    )
+    return train_dataset, (val_dataset, val_dataset_bach, val_dataset_chopin, val_dataset_mozart)
 
 
 def prepare_piano_dataset(
     cfg: DictConfig,
     tokenizer: MidiTokenizer,
-) -> tuple[PianoDataset, PianoDataset]:
+) -> tuple[PianoDataset, tuple]:
     dataset_config = OmegaConf.to_container(cfg.dataset)
     dataset_path = to_absolute_path("./midi_datasets/AugmentedDataset")
 
@@ -169,6 +218,15 @@ def prepare_piano_dataset(
     )
     train_split: Dataset = dataset["train"]
     validation_split: Dataset = dataset["validation"]
+    validation_dataset_bach = validation_split.filter(
+        lambda x: json.loads(x["source"])["composer"] == "Johann Sebastian Bach",
+    )
+    validation_dataset_chopin = validation_split.filter(
+        lambda x: json.loads(x["source"])["composer"] == "Frédéric Chopin",
+    )
+    validation_dataset_mozart = validation_split.filter(
+        lambda x: json.loads(x["source"])["composer"] == "Wolfgang Amadeus Mozart"
+    )
 
     train_dataset = PianoDataset(
         dataset=train_split,
@@ -186,13 +244,37 @@ def prepare_piano_dataset(
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
     )
-    return train_dataset, val_dataset
+    val_dataset_bach = PianoDataset(
+        dataset=validation_dataset_bach,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+        notes_per_record=cfg.data.notes_per_record,
+        tasks=cfg.tasks.list,
+    )
+    val_dataset_chopin = PianoDataset(
+        dataset=validation_dataset_chopin,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+        notes_per_record=cfg.data.notes_per_record,
+        tasks=cfg.tasks.list,
+    )
+    val_dataset_mozart = PianoDataset(
+        dataset=validation_dataset_mozart,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+        notes_per_record=cfg.data.notes_per_record,
+        tasks=cfg.tasks.list,
+    )
+    return train_dataset, (val_dataset, val_dataset_bach, val_dataset_chopin, val_dataset_mozart)
 
 
 def prepare_piano_composer_dataset(
     cfg: DictConfig,
     tokenizer: MidiTokenizer,
-) -> tuple[PianoComposerDataset, PianoComposerDataset]:
+) -> tuple[PianoComposerDataset, tuple]:
     dataset_config = OmegaConf.to_container(cfg.dataset)
     dataset_path = to_absolute_path("./midi_datasets/AugmentedDataset")
 
@@ -204,6 +286,15 @@ def prepare_piano_composer_dataset(
     )
     train_split: Dataset = dataset["train"]
     validation_split: Dataset = dataset["validation"]
+    validation_dataset_bach = validation_split.filter(
+        lambda x: json.loads(x["source"])["composer"] == "Johann Sebastian Bach",
+    )
+    validation_dataset_chopin = validation_split.filter(
+        lambda x: json.loads(x["source"])["composer"] == "Frédéric Chopin",
+    )
+    validation_dataset_mozart = validation_split.filter(
+        lambda x: json.loads(x["source"])["composer"] == "Wolfgang Amadeus Mozart"
+    )
 
     train_dataset = PianoComposerDataset(
         dataset=train_split,
@@ -221,4 +312,28 @@ def prepare_piano_composer_dataset(
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
     )
-    return train_dataset, val_dataset
+    val_dataset_bach = PianoComposerDataset(
+        dataset=validation_dataset_bach,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+        notes_per_record=cfg.data.notes_per_record,
+        tasks=cfg.tasks.list,
+    )
+    val_dataset_chopin = PianoComposerDataset(
+        dataset=validation_dataset_chopin,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+        notes_per_record=cfg.data.notes_per_record,
+        tasks=cfg.tasks.list,
+    )
+    val_dataset_mozart = PianoComposerDataset(
+        dataset=validation_dataset_mozart,
+        tokenizer=tokenizer,
+        sequence_length=cfg.data.sequence_length,
+        loss_masking=cfg.loss_masking,
+        notes_per_record=cfg.data.notes_per_record,
+        tasks=cfg.tasks.list,
+    )
+    return train_dataset, (val_dataset, val_dataset_bach, val_dataset_chopin, val_dataset_mozart)
