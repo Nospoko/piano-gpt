@@ -36,7 +36,7 @@ import wandb
 from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
 from gpt2.utils import load_tokenizer, get_dataset_for_task
-from data.memory_efficient_random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
+from data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
 
 load_dotenv()
 
