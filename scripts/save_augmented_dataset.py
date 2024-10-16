@@ -37,10 +37,16 @@ if __name__ == "__main__":
     # as an "extra_dataset"
     dataset = prepare_piano_dataset(["roszcz/maestro-sustain-v2"])
     dataset = dataset["train"]
-    dataset.push_to_hub("wmatejuk/maestro-augmented", token=HF_WRITE_TOKEN, private=True)
+    dataset.push_to_hub("epr-labs/maestro-augmented", token=HF_WRITE_TOKEN, private=True)
+
     dataset = prepare_piano_dataset(["roszcz/giant-midi-sustain-v2"])
     dataset = dataset["train"]
-    dataset.push_to_hub("wmatejuk/giant-midi-augmented", token=HF_WRITE_TOKEN, private=True)
+    dataset.push_to_hub("epr-labs/giant-midi-augmented", token=HF_WRITE_TOKEN, private=True)
+
     dataset = prepare_piano_dataset(["roszcz/pianofor-ai-sustain-v2"])
     dataset = dataset["train"]
-    dataset.push_to_hub("wmatejuk/pianofor-ai-augmented", token=HF_WRITE_TOKEN, private=True)
+    dataset.push_to_hub("epr-labs/pianofor-ai-augmented", token=HF_WRITE_TOKEN, private=True)
+
+    dataset = prepare_piano_dataset(["roszcz/imslp-midi-v1"])
+    dataset = dataset["train"]
+    dataset.push_to_hub("epr-labs/imslp-augmented", token=HF_WRITE_TOKEN, private=True)
