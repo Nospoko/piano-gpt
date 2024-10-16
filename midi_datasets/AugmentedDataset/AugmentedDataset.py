@@ -42,7 +42,6 @@ class AugmentedDataset(GeneratorBasedBuilder):
         # Load the base dataset and additional datasets
         base = datasets.load_dataset(self.config.base_dataset_name)
         other_datasets = [datasets.load_dataset(path, split="train") for path in self.config.extra_datasets]
-        other_datasets.append(base["train"])
 
         # Concatenate all datasets and apply augmentation
         dataset = datasets.concatenate_datasets(other_datasets)
@@ -114,7 +113,7 @@ class AugmentedDataset(GeneratorBasedBuilder):
     def validate_record(self, record: dict):
         if len(record["notes"]["pitch"]) < 2:
             return False
-        if min(record["notes"]["pitch"]) < 21 or max(record["notes"]["pitch"]) > 109:
+        if min(record["notes"]["pitch"]) < 21 or max(record["notes"]["pitch"]) >= 109:
             return False
         return True
 

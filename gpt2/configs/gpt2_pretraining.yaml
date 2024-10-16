@@ -9,7 +9,7 @@ defaults:
   - _self_
 
 out_dir: 'checkpoints'
-eval_interval: 100
+eval_interval: 500
 
 eval_iters: 100
 eval_only: false  # if True, script exits right after the first eval
