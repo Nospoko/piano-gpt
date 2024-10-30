@@ -8,7 +8,7 @@ import streamlit as st
 import streamlit_pianoroll
 import matplotlib.pyplot as plt
 from datasets import Dataset, load_dataset
-from midi_tokenizers.no_loss_tokenizer import ExponentialTimeTokenizer
+from midi_tokenizers import ExponentialTimeTokenizer
 
 from artifacts import special_tokens
 from data.tasks import Task, task_map
@@ -143,6 +143,7 @@ def main():
 
     config = {
         "base_dataset_name": base_dataset_name,
+        "extra_datasets": [base_dataset_name],
     }
 
     tokenizer_parameters = {

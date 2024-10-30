@@ -3,9 +3,8 @@ import json
 import datasets
 import numpy as np
 import fortepyan as ff
-from midi_trainable_tokenizers import AwesomeMidiTokenizer
-from midi_tokenizers.no_loss_tokenizer import ExponentialTimeTokenizer
 from datasets import Split, Dataset, DatasetInfo, GeneratorBasedBuilder
+from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from artifacts import special_tokens
 from data.augmentation import augment_dataset

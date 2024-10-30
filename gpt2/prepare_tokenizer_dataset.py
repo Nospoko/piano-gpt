@@ -8,8 +8,8 @@ import pandas as pd
 from datasets import load_dataset
 from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf, DictConfig
-from midi_trainable_tokenizers import AwesomeMidiTokenizer
-from midi_tokenizers_generation.base_tokenizer_generator import generate_tokenizer
+from midi_tokenizers import AwesomeMidiTokenizer
+from midi_tokenizers.midi_tokenizers_generation.base_tokenizer_generator import generate_tokenizer
 
 from artifacts import special_tokens
 from data.augmentation import augment_dataset
