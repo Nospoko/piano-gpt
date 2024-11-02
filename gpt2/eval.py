@@ -21,6 +21,7 @@ from gpt2.utils import load_tokenizer
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 from data.piano_composer_dataset import PianoComposerDataset
+from data.random_sampler import MemoryEfficientRandomSampler
 from data.next_token_composer_dataset import NextTokenComposerDataset
 
 load_dotenv()
@@ -40,10 +41,12 @@ class ValidationDataLoader:
         self.pin_memory = pin_memory
         self.num_workers = num_workers
         self.device = device
+        sampler = MemoryEfficientRandomSampler(data_source=dataset, seed=4)
         self.dataloader = DataLoader(
             dataset=dataset,
             batch_size=self.batch_size,
             pin_memory=self.pin_memory,
+            sampler=sampler,
             num_workers=num_workers,
         )
         self.iterator = iter(self.dataloader)
@@ -115,7 +118,7 @@ def prepare_dataset_base(cfg: DictConfig, dataset_name: str) -> tuple[Dataset, D
     dataset_config = OmegaConf.to_container(cfg.dataset)
     dataset_path = to_absolute_path(f"./midi_datasets/{dataset_name}")
     if dataset_name == "MidiTokenizedDataset":
-        dataset_config["tokenizer_parameters"] = OmegaConf.to_container(cfg.tokenizer.tokenizer_parameters)
+        dataset_config["tokenizer_parameters"] = OmegaConf.to_container(cfg.tokenizer.parameters)
 
     dataset = load_dataset(
         dataset_path,
@@ -276,7 +279,7 @@ def main(cfg: DictConfig):
         accuracies[k] = accuracy
         losses[k] = loss.item()
         if k % 100 == 0:
-            print(f"iter: {k}, loss: {losses[: k + 1].mean()}, accuracy: {accuracy}")
+            print(f"iter: {k}, loss: {losses[:k].mean()}, accuracy: {accuracy}")
     val_loss = losses.mean()
 
     print(f"Validation loss for: \n{run_name} \non {cfg.tasks.list} tasks \nis {val_loss}")

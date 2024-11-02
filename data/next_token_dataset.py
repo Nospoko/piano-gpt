@@ -4,8 +4,7 @@ from multiprocessing import Manager
 
 import torch
 from datasets import Dataset as HuggingFaceDataset
-from midi_trainable_tokenizers import AwesomeMidiTokenizer
-from midi_tokenizers.no_loss_tokenizer import ExponentialTimeTokenizer
+from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
 

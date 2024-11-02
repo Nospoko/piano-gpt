@@ -9,7 +9,7 @@ load_dotenv()
 HF_READ_TOKEN = os.environ.get("HF_READ_TOKEN")
 
 MODELS_DIR = "checkpoints"
-REPO_ID = "wmatejuk/piano-gpt2"
+REPO_ID = "wmatejuk/piano-gpt"
 
 
 def download_model(repo_id, filename):

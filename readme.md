@@ -41,13 +41,13 @@ The PIANO dataset is designed to standardize approaches and provide a benchmark 
 ## Installation
 
 1. Clone the repository:
-   ```
+   ```sh
    git clone https://github.com/your-username/piano-gpt.git
    cd piano-gpt
    ```
 
 2. Install dependencies:
-   ```
+   ```sh
    pip install -r requirements.txt
    ```
 
@@ -55,34 +55,34 @@ The PIANO dataset is designed to standardize approaches and provide a benchmark 
 
 ### Training
 
-```
+```sh
 python -m gpt2.train.py
 ```
 
-You can run the script in DDP mode and with custom configuration, for example
-```
-PYTHONPATH=. torchrun --nproc-per-node=2 \
+You can run the script in DDP mode and with custom configuration. You can change the configuration in
+`gpt2/configs/*.yaml`, or specify the training hyperparameters from command line, for example
+```sh
+PYTHONPATH=. torchrun --nproc-per-node=8 \
 gpt2/train.py --config-name=gpt2_pretraining \
-data.batch_size=48 \
+data.batch_size=32 \
 optimizer.gradient_accumulation_steps=8 \
 optimizer.max_iters=30000 \
-data.sequence_length=1024 \
-data.notes_per_record=128 \
-dataset.extra_datasets="['roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2']" \
-dataset.augmentation.max_pitch_shift=0 \
-dataset.augmentation.speed_change_factors=[] \
-lr.warmup_iters=4000 \
-lr.learning_rate=6e-5 \
-lr.min_lr=6e-6 \
-model=gpt2 \
-system.data_workers=44 \
-system.compile=false \
+data.sequence_length=4096 \
+dataset.extra_datasets="['roszcz/maestro-sustain-v2', 'roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2']" \
+dataset.augmentation.max_pitch_shift=5 \
+"dataset.augmentation.speed_change_factors=[0.975, 0.95, 1.025, 1.05]" \
+lr.warmup_iters=1000 \
+lr.learning_rate=1e-5 \
+lr.min_lr=1e-6 \
+model=gpt2_large \
+system.data_workers=64 \
+system.compile=true \
 loss_masking=pretrianing \
 init_from=scratch
 ```
 
 or, for downstream tasks:
-```
+```sh
 PYTHONPATH=. torchrun --nproc-per-node=4 \
 gpt2/train.py --config-name=gpt2_piano \
 tasks = subsequence \
@@ -91,9 +91,9 @@ optimizer.gradient_accumulation_steps=4 \
 optimizer.max_iters=30000 \
 data.sequence_length=1024 \
 data.notes_per_record=128 \
-dataset.extra_datasets="['roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2']" \
+dataset.extra_datasets="['roszcz/maestro-sustain-v2', 'roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2']" \
 dataset.augmentation.max_pitch_shift=5 \
-dataset.augmentation.speed_change_factors=[0.95, 1.05] \
+dataset.augmentation.speed_change_factors="[0.95, 1.05]" \
 lr.learning_rate=8e-5 \
 system.data_workers=128 \
 system.compile=true \
@@ -101,6 +101,37 @@ loss_masking=finetuning \
 init_from=midi-gpt2-my-awesome-model.pt  # has to be located in checkpoints and the name needs to start with midi-gpt2
 
 ```
+
+### Awesome Tokenizer training
+```sh
+python3.10 -m gpt2.prepare_tokenizer_dataset; \
+python3.10 -m gpt2.train_tokenizer; \
+PYTHONPATH=. torchrun --nproc-per-node=4 \
+gpt2/train.py --config-name=gpt2_pretraining \
+model=gpt2 \
+lr.learning_rate=8e-5 \
+lr.min_lr=8e-6 \
+lr.warmup_iters=1000 \
+system.data_workers=124 \
+optimizer.gradient_accumulation_steps=4 \
+task=next_token_prediction_with_composer \
+eval_iters=200 eval_interval=1000 \
+"dataset.extra_datasets=['roszcz/maestro-sustain-v2', 'roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2']" \
+data.batch_size=20 \
+data.sequence_length=4096 \
+logging.wandb_run_name_suffix=huge-pretraining-4096-ctx \
+tokenizer=awesome \
+logging.wandb_project=piano-awesome-gpt
+```
+
+`prepare_tokenizer_dataset` will create a text file in `tmp/tokenizer_datasets`, with a dump of tokenized and augmented MAESTRO dataset.
+
+The text will be in a format in which tokenizer will be able to train on.
+`train_tokenizer` script will then train an AwesomeMidiTokenizer on this data and dump json format of the tokenizer to `tmp/tokenizers`
+
+Both of these scripts use `gpt2/configs/tokenizer_training` as a default hydra config. It is equivalent to `dataset` + `tokenizer` training config.
+
+During model training initialization the program will look for a tokenizer saved with the same `dataset` and `tokenizer` configuration as training config.
 
 ### Evaluation
 

@@ -5,8 +5,7 @@ from multiprocessing import Manager
 import torch
 import pandas as pd
 from datasets import Dataset as HuggingFaceDataset
-from midi_tokenizers import ExponentialTimeTokenizer
-from midi_trainable_tokenizers import AwesomeMidiTokenizer
+from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.tasks import Task
 from data.dataset import MidiDataset

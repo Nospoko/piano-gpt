@@ -23,8 +23,8 @@ from gpt2.utils import load_tokenizer
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 from data.piano_composer_dataset import PianoComposerDataset
+from data.random_sampler import MemoryEfficientRandomSampler
 from data.next_token_composer_dataset import NextTokenComposerDataset
-from data.memory_efficient_random_sampler import MemoryEfficientRandomSampler
 
 load_dotenv()
 
@@ -121,7 +121,7 @@ def prepare_dataset_base(cfg: DictConfig, dataset_name: str) -> tuple[Dataset, D
     dataset_config = OmegaConf.to_container(cfg.dataset)
     dataset_path = to_absolute_path(f"./midi_datasets/{dataset_name}")
     if dataset_name == "MidiTokenizedDataset":
-        dataset_config["tokenizer_parameters"] = OmegaConf.to_container(cfg.tokenizer.tokenizer_parameters)
+        dataset_config["tokenizer_parameters"] = OmegaConf.to_container(cfg.tokenizer.parameters)
 
     dataset = load_dataset(
         dataset_path,

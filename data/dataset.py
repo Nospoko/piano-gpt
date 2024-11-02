@@ -3,8 +3,7 @@ from abc import abstractmethod
 
 from datasets import Dataset as HuggingFaceDataset
 from torch.utils.data import Dataset as TorchDataset
-from midi_trainable_tokenizers import AwesomeMidiTokenizer
-from midi_tokenizers.no_loss_tokenizer import ExponentialTimeTokenizer
+from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 
 class MidiDataset(TorchDataset):

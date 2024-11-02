@@ -3,11 +3,12 @@ import json
 import datasets
 import numpy as np
 import fortepyan as ff
-from midi_tokenizers.no_loss_tokenizer import ExponentialTimeTokenizer
 from datasets import Split, Dataset, DatasetInfo, GeneratorBasedBuilder
+from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from artifacts import special_tokens
 from data.augmentation import augment_dataset
+from data.tokenizer_utils import load_tokenizer_if_exists
 from midi_datasets.MidiTokenizedDataset.MidiTokenizedDatasetConfig import BUILDER_CONFIGS, MidiTokenizedDatasetConfig
 
 # NOTE: If you make some changes here, you might want to delete your huggingface cache
@@ -44,7 +45,6 @@ class MidiTokenizedDataset(GeneratorBasedBuilder):
         # Load the base dataset and additional datasets
         base = datasets.load_dataset(self.config.base_dataset_name)
         other_datasets = [datasets.load_dataset(path, split="train") for path in self.config.extra_datasets]
-        other_datasets.append(base["train"])
 
         # Concatenate all datasets and apply augmentation
         dataset = datasets.concatenate_datasets(other_datasets)
@@ -130,7 +130,10 @@ class MidiTokenizedDataset(GeneratorBasedBuilder):
 
         return record
 
-    def get_tokenzier(self) -> ExponentialTimeTokenizer:
-        tokenizer_parameters = self.config.tokenizer_parameters
+    def get_tokenzier(self) -> ExponentialTimeTokenizer | AwesomeMidiTokenizer:
+        tokenizer_parameters = self.config.tokenizer_cfg["parameters"]
         tokenizer_parameters |= {"special_tokens": special_tokens}
-        return ExponentialTimeTokenizer(**self.config.tokenizer_parameters)
+        if self.config.tokenizer_cfg["name"] == "ExponentialTimeTokenizer":
+            return ExponentialTimeTokenizer(**tokenizer_parameters)
+        else:
+            return load_tokenizer_if_exists(tokenizer_cfg=self.config.tokenizer_cfg)
