@@ -26,11 +26,11 @@ import hydra
 import torch
 from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
-from midi_tokenizers import MidiTokenizer
 from omegaconf import OmegaConf, DictConfig
 from torch.utils.data import Sampler, DataLoader
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
+from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 import wandb
 from data.dataset import MidiDataset
@@ -134,8 +134,12 @@ def main(cfg: DictConfig):
         cfg.tokenizer = checkpoint_cfg.tokenizer
         cfg.system.dtype = checkpoint_cfg.system.dtype
 
-        tokenizer = MidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
-        train_dataset, val_datasets = get_dataset_for_task(cfg=cfg)
+        if cfg.tokenizer.name == "ExponentialTimeTokenizer":
+            tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+        else:
+            tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+
+        train_dataset, val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)
         out_dir = to_absolute_path(cfg.out_dir)
         pad_token_id = tokenizer.token_to_id["<PAD>"]
         config = OmegaConf.to_container(cfg=cfg)
