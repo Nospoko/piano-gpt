@@ -20,22 +20,15 @@ def calculate_f1(
     Only calculates at note boundary events and weights by duration.
 
     Parameters:
-    -----------
-    target_df : pd.DataFrame
-        DataFrame with columns: pitch, velocity, start, end
-    generated_df : pd.DataFrame
-        DataFrame with columns: pitch, velocity, start, end
-    min_time_step : float
-        Minimum time unit for duration calculations (in seconds)
-    velocity_threshold : float
-        Maximum allowed velocity difference for notes to be considered matching
-    use_pitch_class : bool
-        If True, normalize pitches to pitch classes (0-11), treating octaves as equivalent
+        target_df (pd.DataFrame) : DataFrame with columns: pitch, velocity, start, end
+        generated_df (pd.DataFrame) : DataFrame with columns: pitch, velocity, start, end
+        min_time_step (float) : Minimum time unit for duration calculations (in seconds)
+        velocity_threshold (float) : Maximum allowed velocity difference for notes to be considered matching
+        use_pitch_class (bool) : If True, normalize pitches to pitch classes (0-11), treating octaves as equivalent
 
     Returns:
-    --------
-    float : Duration-weighted average F1 score
-    dict : Detailed metrics including precision, recall per event
+        float : Duration-weighted average F1 score
+        dict : Detailed metrics including precision, recall per event
     """
     # Get all unique time points where notes change (starts or ends)
     time_points = sorted(

@@ -137,7 +137,7 @@ def main():
         ).round(3)
         st.dataframe(df_norm)
 
-    # Pitch mapping visualization
+    # Pitch mapping
     st.subheader("Pitch Classes")
     mapping_data = []
     for i, (t, g) in enumerate(zip(target_df.itertuples(), generated_df.itertuples())):
