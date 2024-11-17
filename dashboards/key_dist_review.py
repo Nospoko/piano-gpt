@@ -144,26 +144,6 @@ def plot_key_correlation_heatmap(
     return fig
 
 
-def analyze_pieces(
-    piece1_notes: pd.DataFrame,
-    piece2_notes: pd.DataFrame,
-    segment_duration: float = 0.125,
-    use_weighted: bool = True,
-) -> Dict:
-    """Analyze two pieces and return key distribution metrics"""
-
-    correlation, metrics = calculate_key_correlation(
-        target_df=piece1_notes, generated_df=piece2_notes, segment_duration=segment_duration, use_weighted=use_weighted
-    )
-
-    return {
-        "correlation": correlation,
-        "key_distributions": {"piece1": metrics["target_distribution"], "piece2": metrics["generated_distribution"]},
-        "top_keys": {"piece1": metrics["target_top_keys"], "piece2": metrics["generated_top_keys"]},
-        "key_names": metrics["key_names"],
-    }
-
-
 def main():
     st.title("Key Distribution Analysis Dashboard")
 
@@ -212,35 +192,32 @@ def main():
 
         # Analyze pieces
         with st.spinner("Analyzing key distributions..."):
-            analysis = analyze_pieces(
-                piece1_notes=piece1.df,
-                piece2_notes=piece2.df,
-                segment_duration=segment_duration,
-                use_weighted=use_weighted,
-            )
+            correlation, metrics = calculate_key_correlation(
+            target_df=piece1.df, generated_df=piece2.df, segment_duration=segment_duration, use_weighted=use_weighted,
+        )
 
         # Display results
         st.header("Analysis Results")
-        st.metric("Correlation Coefficient", f"{analysis['correlation']:.3f}")
+        st.metric("Correlation Coefficient", f"{correlation:.3f}")
 
         # Key distributions
         st.subheader("Key Distributions")
         col1, col2 = st.columns(2)
 
         with col1:
-            st.write("Top keys in first piece:", ", ".join(analysis["top_keys"]["piece1"]))
+            st.write("Top keys in first piece:", ", ".join(metrics["target_top_keys"]))
             fig1 = plot_key_distribution(
-                analysis["key_distributions"]["piece1"],
-                list(analysis["key_names"].values()),
+                metrics["target_distribution"],
+                list(metrics["key_names"].values()),
                 "Key Distribution 1",
             )
             st.plotly_chart(fig1)
 
         with col2:
-            st.write("Top keys in second piece:", ", ".join(analysis["top_keys"]["piece2"]))
+            st.write("Top keys in second piece:", ", ".join(metrics["generated_top_keys"]))
             fig2 = plot_key_distribution(
-                analysis["key_distributions"]["piece2"],
-                list(analysis["key_names"].values()),
+                metrics["generated_distribution"],
+                list(metrics["key_names"].values()),
                 "Key Distribution 2",
             )
             st.plotly_chart(fig2)
@@ -248,10 +225,10 @@ def main():
         # Correlation heatmap
         st.subheader("Key Distribution Correlation")
         fig3 = plot_key_correlation_heatmap(
-            analysis["key_distributions"]["piece1"],
-            analysis["key_distributions"]["piece2"],
+            metrics["target_distribution"],
+            metrics["generated_distribution"],
             list(
-                analysis["key_names"].values(),
+                metrics["key_names"].values(),
             ),
         )
         st.plotly_chart(fig3)
