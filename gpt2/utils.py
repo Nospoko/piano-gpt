@@ -42,14 +42,21 @@ def initialize_model(
     """
     Initializes the GPT model using the given configurations and checkpoint.
 
-    Parameters:
-        cfg (DictConfig): The configuration object.
-        dataset_config (dict): The dataset configuration.
-        checkpoint (dict): The model checkpoint.
-        device (torch.device): The device to load the model on.
+    Parameters
+    ----------
+    cfg : DictConfig
+        The configuration object.
+    dataset_config : dict
+        The dataset configuration.
+    checkpoint : dict
+        The model checkpoint.
+    device : torch.device
+        The device to load the model on.
 
-    Returns:
-        GPT: The initialized GPT model.
+    Returns
+    -------
+    model : GPT
+        The initialized GPT model.
     """
     model_args = {
         "n_layer": cfg.model.n_layer,

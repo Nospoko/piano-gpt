@@ -19,16 +19,25 @@ def calculate_f1(
     Calculate F1 score between target and generated MIDI-like note sequences.
     Only calculates at note boundary events and weights by duration.
 
-    Parameters:
-        target_df (pd.DataFrame) : DataFrame with columns: pitch, velocity, start, end
-        generated_df (pd.DataFrame) : DataFrame with columns: pitch, velocity, start, end
-        min_time_step (float) : Minimum time unit for duration calculations (in seconds)
-        velocity_threshold (float) : Maximum allowed velocity difference for notes to be considered matching
-        use_pitch_class (bool) : If True, normalize pitches to pitch classes (0-11), treating octaves as equivalent
+    Parameters
+    ----------
+    target_df : pd.DataFrame
+        DataFrame containing target notes with columns: pitch, velocity, start, end.
+    generated_df : pd.DataFrame
+        DataFrame containing generated notes with columns: pitch, velocity, start, end.
+    min_time_step : float
+        Minimum time unit for duration calculations (in seconds).
+    velocity_threshold : float
+        Maximum allowed velocity difference for notes to be considered matching.
+    use_pitch_class : bool
+        If True, normalize pitches to pitch classes (0-11), treating octaves as equivalent.
 
-    Returns:
-        float : Duration-weighted average F1 score
-        dict : Detailed metrics including precision, recall per event
+    Returns
+    -------
+    f1_score : float
+        Duration-weighted average F1 score.
+    metrics : dict
+        Detailed metrics including precision and recall per event.
     """
     # Get all unique time points where notes change (starts or ends)
     time_points = sorted(
@@ -105,25 +114,3 @@ def calculate_f1(
     )
 
     return weighted_f1, metrics
-
-
-def create_example():
-    # Create example with notes in different octaves
-    target = pd.DataFrame({"pitch": [60, 72, 67], "velocity": [80, 80, 80], "start": [0.0, 0.5, 1.0], "end": [0.4, 0.9, 1.4]})
-
-    generated = pd.DataFrame(
-        {"pitch": [48, 72, 79], "velocity": [82, 78, 80], "start": [0.02, 0.48, 1.05], "end": [0.38, 0.95, 1.35]}
-    )
-
-    # Compare with and without pitch class normalization
-    f1_with_pitch = calculate_f1(target, generated, use_pitch_class=False)
-    f1_with_pitch_class = calculate_f1(target, generated, use_pitch_class=True)
-
-    return {
-        "with_pitch": f1_with_pitch,
-        "with_pitch_class": f1_with_pitch_class,
-    }
-
-
-if __name__ == "__main__":
-    create_example()

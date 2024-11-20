@@ -182,15 +182,23 @@ def calculate_key_correlation(
     Calculate correlation coefficient between target and generated MIDI sequences
     using Spiral Array key detection algorithm.
 
-    Parameters:
-        target_df (pd.DataFrame): DataFrame with columns: pitch, velocity, start, end
-        generated_df (pd.DataFrame): DataFrame with columns: pitch, velocity, start, end
-        segment_duration (float): Duration of each segment in seconds for key analysis
-        use_weighted (bool): If True, weight pitch contributions by note duration and velocity
+    Parameters
+    ----------
+    target_df : pd.DataFrame
+        DataFrame containing target notes with columns: pitch, velocity, start, end.
+    generated_df : pd.DataFrame
+        DataFrame containing generated notes with columns: pitch, velocity, start, end.
+    segment_duration : float
+        Duration of each segment in seconds for key analysis.
+    use_weighted : bool
+        If True, weight pitch contributions by note duration and velocity.
 
-    Returns:
-        float: Correlation coefficient (-1 to 1)
-        dict: Additional metrics including key distributions
+    Returns
+    -------
+    correlation : float
+        Correlation coefficient ranging from -1 to 1.
+    metrics : dict
+        Additional metrics including key distributions.
     """
 
     def get_piece_duration(df: pd.DataFrame) -> float:
@@ -277,37 +285,3 @@ def calculate_key_correlation(
     }
 
     return correlation, metrics
-
-
-def create_correlation_example():
-    """Create example comparing two similar MIDI sequences"""
-    # Create example with C major scale in different octaves
-    target = pd.DataFrame(
-        {
-            "pitch": [60, 62, 64, 65, 67, 69, 71, 72],  # C4 scale
-            "velocity": [80] * 8,
-            "start": [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5],
-            "end": [0.4, 0.9, 1.4, 1.9, 2.4, 2.9, 3.4, 3.9],
-        }
-    )
-
-    # Similar sequence but with some variations
-    generated = pd.DataFrame(
-        {
-            "pitch": [48, 50, 52, 53, 55, 57, 59, 60],  # C3 scale
-            "velocity": [75] * 8,
-            "start": [0.1, 0.6, 1.1, 1.6, 2.1, 2.6, 3.1, 3.6],
-            "end": [0.4, 0.9, 1.4, 1.9, 2.4, 2.9, 3.4, 3.9],
-        }
-    )
-
-    correlation, metrics = calculate_key_correlation(target, generated)
-
-    return {"correlation": correlation, "metrics": metrics}
-
-
-if __name__ == "__main__":
-    example_results = create_correlation_example()
-    print(f"Correlation coefficient: {example_results['correlation']:.3f}")
-    print("\nTop keys in target:", ", ".join(example_results["metrics"]["target_top_keys"]))
-    print("Top keys in generated:", ", ".join(example_results["metrics"]["generated_top_keys"]))

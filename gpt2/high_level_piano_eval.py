@@ -182,6 +182,7 @@ def main(cfg: DictConfig):
             f1s = torch.zeros(cfg.eval_iters)
             f1s_pitch_class = torch.zeros(cfg.eval_iters)
             key_corrs = torch.zeros(cfg.eval_iters)
+            key_corrs_unweighted = torch.zeros(cfg.eval_iters)
             visualized = False
 
             for k in range(cfg.eval_iters):
@@ -199,6 +200,7 @@ def main(cfg: DictConfig):
                 batch_f1_scores = torch.zeros(cfg.data.batch_size)
                 batch_f1_scores_pitch_class = torch.zeros(cfg.data.batch_size)
                 batch_key_correlations = torch.zeros(cfg.data.batch_size)
+                batch_key_correlations_unweighted = torch.zeros(cfg.data.batch_size)
 
                 for b in range(cfg.data.batch_size):
                     generated_df = tokenizer.decode(token_ids=out_tokens[b, prompt_lengths[b] :].cpu().numpy())
@@ -214,7 +216,11 @@ def main(cfg: DictConfig):
                     key_corr, _ = calculate_key_correlation(
                         target_df=original_df, generated_df=generated_df, segment_duration=0.125, use_weighted=True
                     )
+                    key_corr_unweighted, _ = calculate_key_correlation(
+                        target_df=original_df, generated_df=generated_df, segment_duration=0.125, use_weighted=False
+                    )
                     batch_key_correlations[b] = key_corr
+                    batch_key_correlations_unweighted[b] = key_corr_unweighted
 
                     # Store first example from each split for visualization
                     if not visualized and b == 0:
@@ -225,6 +231,7 @@ def main(cfg: DictConfig):
                 f1s[k] = batch_f1_scores.mean()
                 f1s_pitch_class[k] = batch_f1_scores_pitch_class.mean()
                 key_corrs[k] = batch_key_correlations.mean()
+                key_corrs_unweighted[k] = batch_key_correlations_unweighted.mean()
                 losses[k] = loss.item()
 
                 if k % 5 == 0:
@@ -233,7 +240,8 @@ def main(cfg: DictConfig):
                         f"loss: {loss.item():.4f}, "
                         f"f1: {f1s[k]:.4f}, "
                         f"f1_pitch_class: {f1s_pitch_class[k]:.4f}, "
-                        f"key_corr: {key_corrs[k]:.4f}"
+                        f"key_corr: {key_corrs[k]:.4f}, "
+                        f"key_corr_unweighted: {key_corrs_unweighted[k]:.4f}"
                     )
 
             out[split] = {
@@ -241,6 +249,7 @@ def main(cfg: DictConfig):
                 "f1": f1s.mean().item(),
                 "f1_pitch_class": f1s_pitch_class.mean().item(),
                 "key_correlation": key_corrs.mean().item(),
+                "key_correlation_unweighted": key_corrs_unweighted.mean().item(),
             }
 
         return out, example_generations
