@@ -344,3 +344,14 @@ class GPT(nn.Module):
             idx = torch.cat((idx, idx_next), dim=1)
 
         return idx
+
+    def generate_new_tokens(self, idx, max_new_tokens, temperature=1.0, top_k=None) -> torch.Tensor:
+        initial_length = idx.size(1)
+        output = self.generate(
+            idx=idx,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_k=top_k,
+        )
+        generated_tokens = output[:, initial_length:]
+        return generated_tokens

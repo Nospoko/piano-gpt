@@ -6,13 +6,15 @@ defaults:
   - tasks: all
   - _self_
 
+eval_iters: 50
+
 dataset:
-  extra_datasets: []
+  extra_datasets: ["epr-labs/maestro-sustain-v2"]
   augmentation:
     max_pitch_shift: 0
     speed_change_factors: []
 
-init_from: midi-gpt2-0M-subsequence-2024-09-10-22-20last.pt # should be 'midi-gpt2*'
+init_from: midi-gpt2-0M-subsequence-2024-11-20-16-41last.pt # should be 'midi-gpt2*'
 
 task: multi_with_composer
 tasks:

@@ -52,8 +52,6 @@ def calculate_f1(
         If use_pitch_class is True, normalize pitches to 0-11.
         """
         mask = (df["start"] <= time_point) & (df["end"] >= time_point)
-        if use_pitch_class:
-            return {(normalize_pitch_to_class(pitch), vel) for pitch, vel in zip(df[mask]["pitch"], df[mask]["velocity"])}
         return set(zip(df[mask]["pitch"], df[mask]["velocity"]))
 
     def find_matching_notes(target_notes: Set[tuple], generated_notes: Set[tuple], velocity_threshold: float) -> int:
@@ -62,6 +60,10 @@ def calculate_f1(
         When using pitch classes, notes that are octaves apart can match.
         """
         matches = 0
+        if use_pitch_class:
+            target_notes = {(normalize_pitch_to_class(pitch), vel) for pitch, vel in target_notes}
+            generated_notes = {(normalize_pitch_to_class(pitch), vel) for pitch, vel in generated_notes}
+
         for t_pitch, t_vel in target_notes:
             for g_pitch, g_vel in generated_notes:
                 if t_pitch == g_pitch and abs(t_vel - g_vel) <= velocity_threshold:

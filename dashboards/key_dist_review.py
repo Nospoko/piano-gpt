@@ -1,8 +1,7 @@
-from typing import Dict, List
+from typing import List
 
 import yaml
 import numpy as np
-import pandas as pd
 import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
@@ -193,8 +192,11 @@ def main():
         # Analyze pieces
         with st.spinner("Analyzing key distributions..."):
             correlation, metrics = calculate_key_correlation(
-            target_df=piece1.df, generated_df=piece2.df, segment_duration=segment_duration, use_weighted=use_weighted,
-        )
+                target_df=piece1.df,
+                generated_df=piece2.df,
+                segment_duration=segment_duration,
+                use_weighted=use_weighted,
+            )
 
         # Display results
         st.header("Analysis Results")
