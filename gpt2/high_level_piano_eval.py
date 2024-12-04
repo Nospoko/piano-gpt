@@ -4,7 +4,6 @@ from contextlib import nullcontext
 
 import hydra
 import torch
-import pandas as pd
 import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
@@ -14,11 +13,9 @@ from torch.utils.data import Sampler, DataLoader
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
-from gpt2.metrics import calculate_f1
 from gpt2.model import GPT, GPTConfig
-from gpt2.utils import get_dataset_for_task
 from data.random_sampler import ValidationRandomSampler
-from gpt2.key_correlation import calculate_key_correlation
+from gpt2.utils import get_dataset_for_task, create_metrics_runner
 
 load_dotenv()
 
@@ -59,27 +56,6 @@ class CyclicalDataLoader:
         mask = batch["target_mask"].to(self.device, non_blocking=True)
         prompt_lengths = batch["prompt_length"]
         return x, y, mask, prompt_lengths
-
-
-def process_batch_item(generation, prompt_length, labels, tokenizer):
-    output = generation.cpu().numpy()
-
-    out_tokens = [tokenizer.vocab[token_id] for token_id in output]
-    target_tokens = [tokenizer.vocab[token_id] for token_id in labels]
-
-    generated_tokens = out_tokens[prompt_length:]
-    true_tokens = target_tokens[prompt_length + 1 :]
-
-    generated_notes = tokenizer.untokenize(generated_tokens)
-    true_notes = tokenizer.untokenize(true_tokens)
-    generated_notes = generated_notes.iloc[: len(true_notes)]
-
-    return {
-        "pitch": (generated_notes.pitch == true_notes.pitch).sum() / len(true_notes),
-        "velocity": (generated_notes.velocity == true_notes.velocity).sum() / len(true_notes),
-        "start": (abs(generated_notes.start - true_notes.start) < 0.01).sum() / len(true_notes),
-        "end": (abs(generated_notes.end - true_notes.end) < 0.01).sum() / len(true_notes),
-    }
 
 
 @hydra.main(config_path="configs", config_name="eval", version_base=None)
@@ -170,6 +146,7 @@ def main(cfg: DictConfig):
 
     @torch.no_grad()
     def run_eval():
+        metrics_runner = create_metrics_runner(cfg=cfg)
         out = {}
         model.eval()
         splits = ["val", "bach", "chopin", "mozart"]
@@ -178,79 +155,67 @@ def main(cfg: DictConfig):
         example_generations = {}
 
         for split, loader in zip(splits, val_loaders):
-            losses = torch.zeros(cfg.eval_iters)
-            f1s = torch.zeros(cfg.eval_iters)
-            f1s_pitch_class = torch.zeros(cfg.eval_iters)
-            key_corrs = torch.zeros(cfg.eval_iters)
-            key_corrs_unweighted = torch.zeros(cfg.eval_iters)
+            metric_trackers = {
+                "loss": torch.zeros(cfg.eval_iters),
+            }
             visualized = False
 
             for k in range(cfg.eval_iters):
                 X, Y, mask, prompt_lengths = loader.get_batch()
-                target_prefix_tokens = 1 if cfg.task == "multi" else 2
+                target_prefix_tokens = {"multi": 1, "multi_with_composer": 2}.get(cfg.task, 0)
 
                 with ctx:
                     logits, loss = model(X, Y, mask)
+
+                batch_metrics = {}
+                for b in range(cfg.data.batch_size):
+                    input_token_ids = torch.unsqueeze(X[b, : prompt_lengths[b] + target_prefix_tokens], 0)
                     out_tokens = model.generate(
-                        X[:, : prompt_lengths[0] + target_prefix_tokens],
-                        max_new_tokens=cfg.data.sequence_length - min(prompt_lengths),
+                        input_token_ids,
+                        max_new_tokens=cfg.data.sequence_length - prompt_lengths[b],
                         temperature=1,
                     )
-
-                batch_f1_scores = torch.zeros(cfg.data.batch_size)
-                batch_f1_scores_pitch_class = torch.zeros(cfg.data.batch_size)
-                batch_key_correlations = torch.zeros(cfg.data.batch_size)
-                batch_key_correlations_unweighted = torch.zeros(cfg.data.batch_size)
-
-                for b in range(cfg.data.batch_size):
                     generated_df = tokenizer.decode(token_ids=out_tokens[b, prompt_lengths[b] :].cpu().numpy())
                     original_df = tokenizer.decode(token_ids=Y[b, prompt_lengths[b] :].cpu().numpy())
+                    # Cropping because we have no EOS token
+                    generated_df = generated_df[generated_df.start < original_df.end.max()]
 
-                    # Calculate all metrics
-                    batch_f1_scores[b] = calculate_f1(
-                        target_df=original_df, generated_df=generated_df, velocity_threshold=30, use_pitch_class=False
-                    )[0]
-                    batch_f1_scores_pitch_class[b] = calculate_f1(
-                        target_df=original_df, generated_df=generated_df, velocity_threshold=30, use_pitch_class=True
-                    )[0]
-                    key_corr, _ = calculate_key_correlation(
-                        target_df=original_df, generated_df=generated_df, segment_duration=0.125, use_weighted=True
+                    example_metrics = metrics_runner.calculate_all(
+                        target_df=original_df,
+                        generated_df=generated_df,
                     )
-                    key_corr_unweighted, _ = calculate_key_correlation(
-                        target_df=original_df, generated_df=generated_df, segment_duration=0.125, use_weighted=False
-                    )
-                    batch_key_correlations[b] = key_corr
-                    batch_key_correlations_unweighted[b] = key_corr_unweighted
 
                     # Store first example from each split for visualization
                     if not visualized and b == 0:
                         prompt_df = tokenizer.decode(token_ids=X[b, : prompt_lengths[b]].cpu().numpy())
-                        example_generations[split] = {"prompt": prompt_df, "generated": generated_df, "original": original_df}
+                        example_generations[split] = {
+                            "prompt": prompt_df,
+                            "generated": generated_df,
+                            "original": original_df,
+                        }
                         visualized = True
 
-                f1s[k] = batch_f1_scores.mean()
-                f1s_pitch_class[k] = batch_f1_scores_pitch_class.mean()
-                key_corrs[k] = batch_key_correlations.mean()
-                key_corrs_unweighted[k] = batch_key_correlations_unweighted.mean()
-                losses[k] = loss.item()
+                    # Aggregate metrics across batch
+                    for metric_name, result in example_metrics.items():
+                        if metric_name not in batch_metrics:
+                            batch_metrics[metric_name] = []
+                        batch_metrics[metric_name].append(result.value)
+
+                metric_trackers["loss"][k] = loss.item()
+                for metric_name, values in batch_metrics.items():
+                    if metric_name not in metric_trackers:
+                        metric_trackers[metric_name] = torch.zeros(cfg.eval_iters)
+                    metric_trackers[metric_name][k] = torch.tensor(values).mean()
 
                 if k % 5 == 0:
-                    print(
-                        f"{split}, iter: {k}, "
-                        f"loss: {loss.item():.4f}, "
-                        f"f1: {f1s[k]:.4f}, "
-                        f"f1_pitch_class: {f1s_pitch_class[k]:.4f}, "
-                        f"key_corr: {key_corrs[k]:.4f}, "
-                        f"key_corr_unweighted: {key_corrs_unweighted[k]:.4f}"
-                    )
+                    metrics_str = f"{split}, iter: {k}, loss: {loss.item():.4f}"
+                    for metric_name, tracker in metric_trackers.items():
+                        if metric_name != "loss":
+                            metrics_str += f", {metric_name}: {tracker[k]:.4f}"
+                    print(metrics_str)
 
-            out[split] = {
-                "loss": losses.mean().item(),
-                "f1": f1s.mean().item(),
-                "f1_pitch_class": f1s_pitch_class.mean().item(),
-                "key_correlation": key_corrs.mean().item(),
-                "key_correlation_unweighted": key_corrs_unweighted.mean().item(),
-            }
+            # Compute final metrics for this split
+            out[split] = {name: values.mean().item() for name, values in metric_trackers.items()}
 
         return out, example_generations
 
@@ -269,12 +234,22 @@ def main(cfg: DictConfig):
         # Create fortepyan pieces
         prompt_piece = ff.MidiPiece(data["prompt"])
         generated_piece = ff.MidiPiece(data["generated"])
-        original_piece = ff.MidiPiece(data["original"])
 
-        st.write("#### Prompt (blue) + Generated (orange)")
-        streamlit_pianoroll.from_fortepyan(piece=ff.MidiPiece(data["prompt"]), secondary_piece=ff.MidiPiece(data["generated"]))
+        original_piece = ff.MidiPiece(data["original"])
+        if "next_token_prediction" in cfg.task:
+            generated_piece.time_shift(prompt_piece.end)
+            original_piece.time_shift(prompt_piece.end)
+
+        st.write("#### Prompt + Generated")
+        streamlit_pianoroll.from_fortepyan(
+            piece=ff.MidiPiece(data["prompt"]),
+            secondary_piece=ff.MidiPiece(data["generated"]),
+        )
         st.write("#### Original")
-        streamlit_pianoroll.from_fortepyan(piece=prompt_piece, secondary_piece=original_piece)
+        streamlit_pianoroll.from_fortepyan(
+            piece=prompt_piece,
+            secondary_piece=original_piece,
+        )
 
 
 if __name__ == "__main__":

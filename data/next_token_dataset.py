@@ -21,6 +21,7 @@ class NextTokenDataset(MidiDataset):
         tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
         sequence_length: int,
         loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
+        num_proc: int = 16,
     ):
         """
         Initialize the NextTokenDataset.
@@ -35,6 +36,7 @@ class NextTokenDataset(MidiDataset):
         self.sequence_length = sequence_length
         self.length = 0
         self.record_lengths = {}
+        self.num_proc = num_proc
         self._build_record_lengths()
 
     def _build_record_lengths(self):
@@ -55,7 +57,7 @@ class NextTokenDataset(MidiDataset):
 
             self.dataset.map(
                 get_length_partial,
-                num_proc=32,
+                num_proc=self.num_proc,
                 desc="Building record lengths",
                 with_indices=True,
             )
@@ -128,5 +130,8 @@ class NextTokenDataset(MidiDataset):
             "target_token_ids": target_token_ids,
             "target_mask": target_mask,
             "source": record["source"],
+            # In PIANO dataset this is the length of the prompt part of the sequence
+            # Here we consider half of the sequence to be a prompt part for validation purpouses
+            "prompt_length": self.sequence_length // 2,
         }
         return out

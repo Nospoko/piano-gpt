@@ -1,0 +1,16 @@
+names: 
+  - f1
+  - f1_pitch_class
+  - key_correlation
+  - key_correlation_unweighted
+configs:
+  f1:
+    velocity_threshold: 30
+    min_time_unit: 0.01
+  f1_pitch_class:
+    velocity_threshold: 30
+    min_time_unit: 0.01
+  key_correlation:
+    segment_duration: 0.125
+  key_correlation_unweighted:
+    segment_duration: 0.125

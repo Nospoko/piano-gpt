@@ -6,6 +6,7 @@ from hydra.utils import to_absolute_path
 from datasets import Dataset, load_dataset
 from omegaconf import OmegaConf, DictConfig
 from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
+from piano_metrics.piano_metric import F1Metric, PianoMetric, MetricsRunner, KeyCorrelationMetric
 
 from artifacts import special_tokens
 from data.dataset import MidiDataset
@@ -15,6 +16,40 @@ from data.next_token_dataset import NextTokenDataset
 from data.tokenizer_utils import load_tokenizer_if_exists
 from data.piano_composer_dataset import PianoComposerDataset
 from data.next_token_composer_dataset import NextTokenComposerDataset
+
+
+def create_metric(name: str, metric_config: dict) -> PianoMetric:
+    """Create a single metric with its configuration"""
+
+    if name.startswith("f1"):
+        use_pitch_class = name == "f1_pitch_class"
+        return F1Metric(
+            use_pitch_class=use_pitch_class,
+            velocity_threshold=metric_config.get("velocity_threshold", 30),
+            min_time_unit=metric_config.get("min_time_unit", 0.01),
+        )
+
+    elif name.startswith("key_correlation"):
+        use_weighted = name == "key_correlation"
+        return KeyCorrelationMetric(
+            segment_duration=metric_config.get("segment_duration", 0.125),
+            use_weighted=use_weighted,
+        )
+
+    else:
+        raise ValueError(f"Unknown metric: {name}")
+
+
+def create_metrics(cfg: DictConfig) -> list[PianoMetric]:
+    """Create all metrics from config"""
+    metric_configs = cfg.metrics.configs
+    return [create_metric(name, metric_configs.get(name, {})) for name in cfg.metrics.names]
+
+
+def create_metrics_runner(cfg: DictConfig) -> MetricsRunner:
+    """Create metrics runner based on config"""
+    metrics = create_metrics(cfg)
+    return MetricsRunner(metrics)
 
 
 def load_cfg(checkpoint: dict) -> DictConfig:

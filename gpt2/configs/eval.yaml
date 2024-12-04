@@ -4,6 +4,7 @@ defaults:
   - tokenizer: exponential
   - dataset: augmented
   - tasks: all
+  - metrics: default
   - _self_
 
 eval_iters: 50

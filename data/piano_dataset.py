@@ -20,7 +20,7 @@ class PianoDataset(MidiDataset):
         notes_per_record: int,
         tasks: list,
         loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
-        num_proc: int = 32,
+        num_proc: int = 16,
     ):
         # Initialize the parent class and set instance variables
         super().__init__(dataset=dataset, tokenizer=tokenizer, loss_masking=loss_masking)
@@ -146,6 +146,7 @@ class PianoDataset(MidiDataset):
             "target_mask": target_mask,
             "prediction_task": "high_median_prediction",
             "source": record["source"],
+            # The length of the prompt part of the sequence
             "prompt_length": prompt_length,
         }
         return out

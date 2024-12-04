@@ -6,11 +6,11 @@ import hydra
 import torch
 from dotenv import load_dotenv
 from omegaconf import OmegaConf, DictConfig
+from piano_metrics.f1_piano import calculate_f1
 from torch.utils.data import Sampler, DataLoader
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
-from gpt2.metrics import calculate_f1
 from gpt2.model import GPT, GPTConfig
 from gpt2.utils import get_dataset_for_task
 from data.random_sampler import ValidationRandomSampler
@@ -172,6 +172,8 @@ def main(cfg: DictConfig):
                     generated_tokens = token_ids[control_position:]
                     generated_df = tokenizer.decode(token_ids=generated_tokens.numpy())
                     original_df = tokenizer.decode(token_ids=y_token_ids[y_control_position:].numpy())
+                    # Cropping because we have no EOS token
+                    generated_df = generated_df[generated_df.start < original_df.end.max()]
                     f1_scores[b] = calculate_f1(target_df=original_df, generated_df=generated_df, velocity_threshold=30)[0]
                 f1s[k] = f1_scores.mean()
                 losses[k] = loss.item()
