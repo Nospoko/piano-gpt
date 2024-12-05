@@ -6,7 +6,16 @@ from hydra.utils import to_absolute_path
 from datasets import Dataset, load_dataset
 from omegaconf import OmegaConf, DictConfig
 from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
-from piano_metrics.piano_metric import F1Metric, PianoMetric, MetricsRunner, KeyCorrelationMetric
+from piano_metrics.piano_metric import (
+    F1Metric,
+    PianoMetric,
+    MetricsRunner,
+    KeyCorrelationMetric,
+    PitchCorrelationMetric,
+    DstartCorrelationMetric,
+    DurationCorrelationMetric,
+    VelocityCorrelationMetric,
+)
 
 from artifacts import special_tokens
 from data.dataset import MidiDataset
@@ -21,23 +30,50 @@ from data.next_token_composer_dataset import NextTokenComposerDataset
 def create_metric(name: str, metric_config: dict) -> PianoMetric:
     """Create a single metric with its configuration"""
 
-    if name.startswith("f1"):
-        use_pitch_class = name == "f1_pitch_class"
-        return F1Metric(
-            use_pitch_class=use_pitch_class,
-            velocity_threshold=metric_config.get("velocity_threshold", 30),
-            min_time_unit=metric_config.get("min_time_unit", 0.01),
-        )
+    metric_creators = {
+        "f1": lambda cfg: F1Metric(
+            use_pitch_class=False,
+            velocity_threshold=cfg.get("velocity_threshold", 30),
+            min_time_unit=cfg.get("min_time_unit", 0.01),
+        ),
+        "f1_pitch_class": lambda cfg: F1Metric(
+            use_pitch_class=True,
+            velocity_threshold=cfg.get("velocity_threshold", 30),
+            min_time_unit=cfg.get("min_time_unit", 0.01),
+        ),
+        "key_correlation": lambda cfg: KeyCorrelationMetric(
+            segment_duration=cfg.get("segment_duration", 0.125),
+            use_weighted=True,
+        ),
+        "key_correlation_unweighted": lambda cfg: KeyCorrelationMetric(
+            segment_duration=cfg.get("segment_duration", 0.125),
+            use_weighted=False,
+        ),
+        "dstart_correlation": lambda cfg: DstartCorrelationMetric(
+            n_bins=cfg.get("n_bins", 50),
+        ),
+        "duration_correlation": lambda cfg: DurationCorrelationMetric(
+            n_bins=cfg.get("n_bins", 50),
+        ),
+        "velocity_correlation_weighted": lambda cfg: VelocityCorrelationMetric(
+            use_weighted=True,
+        ),
+        "velocity_correlation_unweighted": lambda cfg: VelocityCorrelationMetric(
+            use_weighted=False,
+        ),
+        "pitch_correlation_weighted": lambda cfg: PitchCorrelationMetric(
+            use_weighted=True,
+        ),
+        "pitch_correlation_unweighted": lambda cfg: PitchCorrelationMetric(
+            use_weighted=False,
+        ),
+    }
 
-    elif name.startswith("key_correlation"):
-        use_weighted = name == "key_correlation"
-        return KeyCorrelationMetric(
-            segment_duration=metric_config.get("segment_duration", 0.125),
-            use_weighted=use_weighted,
-        )
-
-    else:
+    creator = metric_creators.get(name)
+    if creator is None:
         raise ValueError(f"Unknown metric: {name}")
+
+    return creator(metric_config)
 
 
 def create_metrics(cfg: DictConfig) -> list[PianoMetric]:
