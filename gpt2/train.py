@@ -17,8 +17,10 @@ $ torchrun --nproc_per_node=8 --nnodes=2 --node_rank=1 --master_addr=123.456.123
 """
 
 import os
+import json
 import math
 import time
+import hashlib
 import datetime
 from contextlib import nullcontext
 
@@ -361,7 +363,11 @@ def main(cfg: DictConfig):
     run_name = f"midi-gpt2-{milion_params:.0f}M-{cfg.logging.wandb_run_name_suffix}-{cfg.logging.wandb_time_suffix}"
     # logging
     if cfg.logging.wandb_log and master_process:
-        wandb.init(project=cfg.logging.wandb_project, name=run_name, config=config)
+        wandb.init(
+            project=cfg.logging.wandb_project,
+            name=run_name,
+            config=config,
+        )
         # define our custom x axis metric
         wandb.define_metric("total_tokens")
         # define which metrics will be plotted against it
@@ -439,6 +445,7 @@ def main(cfg: DictConfig):
                     "train_loss": losses["train"].item(),
                     "config": config,
                     "wandb": wandb_link,
+                    "wandb_id": wandb.run.id,
                     "total_tokens": total_tokens,
                     "tokenizer": tokenizer.to_dict(),
                 }
@@ -454,6 +461,7 @@ def main(cfg: DictConfig):
                 "train_loss": losses["train"].item(),
                 "config": config,
                 "wandb": wandb_link,
+                "wandb_id": wandb.run.id,
                 "total_tokens": total_tokens,
                 "tokenizer": tokenizer.to_dict(),
             }

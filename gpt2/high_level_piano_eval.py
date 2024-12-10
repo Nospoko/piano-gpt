@@ -12,6 +12,7 @@ from omegaconf import OmegaConf, DictConfig
 from torch.utils.data import Sampler, DataLoader
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
+import wandb
 from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
 from data.random_sampler import ValidationRandomSampler
@@ -149,7 +150,7 @@ def main(cfg: DictConfig):
         metrics_runner = create_metrics_runner(cfg=cfg)
         out = {}
         model.eval()
-        splits = ["val", "bach", "chopin", "mozart"]
+        splits = ["val"]  # , "bach", "chopin", "mozart"]
 
         # For visualization
         example_generations = {}
@@ -158,7 +159,6 @@ def main(cfg: DictConfig):
             metric_trackers = {
                 "loss": torch.zeros(cfg.eval_iters),
             }
-            visualized = False
 
             for k in range(cfg.eval_iters):
                 X, Y, mask, prompt_lengths = loader.get_batch()
@@ -168,17 +168,19 @@ def main(cfg: DictConfig):
                     logits, loss = model(X, Y, mask)
 
                 batch_metrics = {}
-                for b in range(cfg.data.batch_size):
+                for b in range(X.shape[0]):
                     input_token_ids = torch.unsqueeze(X[b, : prompt_lengths[b] + target_prefix_tokens], 0)
                     out_tokens = model.generate(
                         input_token_ids,
                         max_new_tokens=cfg.data.sequence_length - prompt_lengths[b],
                         temperature=1,
                     )
-                    generated_df = tokenizer.decode(token_ids=out_tokens[b, prompt_lengths[b] :].cpu().numpy())
-                    original_df = tokenizer.decode(token_ids=Y[b, prompt_lengths[b] :].cpu().numpy())
+                    generated_df = tokenizer.decode(token_ids=out_tokens[0, prompt_lengths[b] :].cpu().numpy())
+                    original_df = tokenizer.decode(token_ids=Y[0, prompt_lengths[b] :].cpu().numpy())
+
                     # Cropping because we have no EOS token
-                    generated_df = generated_df[generated_df.start < original_df.end.max()]
+                    if not generated_df.empty:
+                        generated_df = generated_df[generated_df.start < original_df.end.max()]
 
                     example_metrics = metrics_runner.calculate_all(
                         target_df=original_df,
@@ -186,21 +188,20 @@ def main(cfg: DictConfig):
                     )
 
                     # Store first example from each split for visualization
-                    if not visualized and b == 0:
+                    if not k == 0 and b == 0:
                         prompt_df = tokenizer.decode(token_ids=X[b, : prompt_lengths[b]].cpu().numpy())
                         example_generations[split] = {
                             "prompt": prompt_df,
                             "generated": generated_df,
                             "original": original_df,
                         }
-                        visualized = True
 
                     # Aggregate metrics across batch
                     for metric_name, result in example_metrics.items():
                         if metric_name not in batch_metrics:
                             batch_metrics[metric_name] = []
                         batch_metrics[metric_name].append(result.value)
-
+                print(loss)
                 metric_trackers["loss"][k] = loss.item()
                 for metric_name, values in batch_metrics.items():
                     if metric_name not in metric_trackers:
@@ -220,6 +221,23 @@ def main(cfg: DictConfig):
         return out, example_generations
 
     metrics, example_generations = run_eval()
+
+    if cfg.logging.wandb_log:
+        wandb.init(id=checkpoint["wandb_id"], resume="must")
+        metrics_flat = {}
+        for split in metrics:
+            metrics_flat |= {
+                f"metrics/{split}_{metric_name}": metric_value for metric_name, metric_value in metrics[split].items()
+            }
+
+        wandb_logs = {
+            "iter": checkpoint["iter_num"],
+            "total_tokens": checkpoint["total_tokens"],
+            **metrics_flat,
+        }
+        wandb.log(wandb_logs)
+        print(f"wandb logged: {wandb_logs}")
+
     print("\nFinal metrics:")
     for split, split_metrics in metrics.items():
         print(f"\n{split}:")

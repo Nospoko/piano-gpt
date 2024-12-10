@@ -29,63 +29,31 @@ from data.next_token_composer_dataset import NextTokenComposerDataset
 
 def create_metric(name: str, metric_config: dict) -> PianoMetric:
     """Create a single metric with its configuration"""
-
-    metric_creators = {
-        "f1": lambda cfg: F1Metric(
-            use_pitch_class=False,
-            velocity_threshold=cfg.get("velocity_threshold", 30),
-            min_time_unit=cfg.get("min_time_unit", 0.01),
-        ),
-        "f1_pitch_class": lambda cfg: F1Metric(
-            use_pitch_class=True,
-            velocity_threshold=cfg.get("velocity_threshold", 30),
-            min_time_unit=cfg.get("min_time_unit", 0.01),
-        ),
-        "key_correlation": lambda cfg: KeyCorrelationMetric(
-            segment_duration=cfg.get("segment_duration", 0.125),
-            use_weighted=True,
-        ),
-        "key_correlation_unweighted": lambda cfg: KeyCorrelationMetric(
-            segment_duration=cfg.get("segment_duration", 0.125),
-            use_weighted=False,
-        ),
-        "dstart_correlation": lambda cfg: DstartCorrelationMetric(
-            n_bins=cfg.get("n_bins", 50),
-        ),
-        "duration_correlation": lambda cfg: DurationCorrelationMetric(
-            n_bins=cfg.get("n_bins", 50),
-        ),
-        "velocity_correlation_weighted": lambda cfg: VelocityCorrelationMetric(
-            use_weighted=True,
-        ),
-        "velocity_correlation_unweighted": lambda cfg: VelocityCorrelationMetric(
-            use_weighted=False,
-        ),
-        "pitch_correlation_weighted": lambda cfg: PitchCorrelationMetric(
-            use_weighted=True,
-        ),
-        "pitch_correlation_unweighted": lambda cfg: PitchCorrelationMetric(
-            use_weighted=False,
-        ),
+    base_metrics = {
+        "f1": F1Metric,
+        "key_correlation": KeyCorrelationMetric,
+        "dstart_correlation": DstartCorrelationMetric,
+        "duration_correlation": DurationCorrelationMetric,
+        "velocity_correlation": VelocityCorrelationMetric,
+        "pitch_correlation": PitchCorrelationMetric,
     }
 
-    creator = metric_creators.get(name)
-    if creator is None:
+    # The matching metric name has to be a prefix to the key in config
+    base_name = next((base for base in base_metrics if name.startswith(base)), None)
+    if not base_name:
         raise ValueError(f"Unknown metric: {name}")
 
-    return creator(metric_config)
+    return base_metrics[base_name](**metric_config)
 
 
 def create_metrics(cfg: DictConfig) -> list[PianoMetric]:
     """Create all metrics from config"""
-    metric_configs = cfg.metrics.configs
-    return [create_metric(name, metric_configs.get(name, {})) for name in cfg.metrics.names]
+    return [create_metric(name, config) for name, config in cfg.metrics.configs.items()]
 
 
 def create_metrics_runner(cfg: DictConfig) -> MetricsRunner:
     """Create metrics runner based on config"""
-    metrics = create_metrics(cfg)
-    return MetricsRunner(metrics)
+    return MetricsRunner(create_metrics(cfg))
 
 
 def load_cfg(checkpoint: dict) -> DictConfig:

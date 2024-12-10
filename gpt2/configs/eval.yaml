@@ -3,8 +3,9 @@ defaults:
   - data: default
   - tokenizer: exponential
   - dataset: augmented
-  - tasks: all
+  - tasks: subsequence
   - metrics: default
+  - logging: eval
   - _self_
 
 eval_iters: 50
@@ -18,14 +19,11 @@ dataset:
 init_from: midi-gpt2-0M-subsequence-2024-11-20-16-41last.pt # should be 'midi-gpt2*'
 
 task: multi_with_composer
-tasks:
-  list:
-    - "above_median_prediction"  # Pitch tasks
 
-loss_masking: finetuning
+loss_masking: pretraining
 
 system:
   device: 'cuda'  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
   dtype: 'float16'  # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
   compile: true  # use PyTorch 2.0 to compile the model to be faster
-  data_workers: 32
+  data_workers: 8
