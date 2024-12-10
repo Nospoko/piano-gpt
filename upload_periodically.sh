@@ -2,11 +2,11 @@
 
 run_commands() {
     echo "Starting model upload at $(date)"
-    
+
     command1="python3.10 -m scripts.upload_models"
-    
+
     eval "$command1"
-    
+
     echo "Finished command at $(date)"
 }
 
@@ -14,14 +14,14 @@ run_commands() {
 while true; do
     # Record start time
     start_time=$(date +%s)
-    
+
     # Run the commands
     run_commands
-    
+
     # Calculate how long the commands took
     end_time=$(date +%s)
     duration=$((end_time - start_time))
-    
+
     # If duration was less than 30 minutes, sleep for the remaining time
     if [ $duration -lt 1800 ]; then
         sleep_time=$((1800 - duration))

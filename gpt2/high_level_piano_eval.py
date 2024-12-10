@@ -150,7 +150,7 @@ def main(cfg: DictConfig):
         metrics_runner = create_metrics_runner(cfg=cfg)
         out = {}
         model.eval()
-        splits = ["val"]  # , "bach", "chopin", "mozart"]
+        splits = ["val", "bach", "chopin", "mozart"]
 
         # For visualization
         example_generations = {}
