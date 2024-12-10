@@ -1,10 +1,8 @@
 #!/bin/bash
 
-# Function to run the commands
 run_commands() {
     echo "Starting metrics calculation at $(date)"
     
-    # Replace these with your actual commands
     command1="python3.10 -m scripts.download_model [model_name]"
     command2="python3.10 -m gpt2.high_level_piano_eval logging.wandb_log=true task=pretraining data.batch_size=4 init_from=[model name].pt"
     
