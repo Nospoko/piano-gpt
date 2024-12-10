@@ -172,7 +172,7 @@ def main(cfg: DictConfig):
                     input_token_ids = torch.unsqueeze(X[b, : prompt_lengths[b] + target_prefix_tokens], 0)
                     out_tokens = model.generate(
                         input_token_ids,
-                        max_new_tokens=cfg.data.sequence_length - prompt_lengths[b],
+                        max_new_tokens=2048 - prompt_lengths[b],
                         temperature=1,
                     )
                     generated_df = tokenizer.decode(token_ids=out_tokens[0, prompt_lengths[b] :].cpu().numpy())

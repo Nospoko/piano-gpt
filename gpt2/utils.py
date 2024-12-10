@@ -183,30 +183,35 @@ def prepare_next_token_composer_datasets(
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset = NextTokenComposerDataset(
         dataset=validation_splits[0],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_bach = NextTokenComposerDataset(
         dataset=validation_splits[1],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_chopin = NextTokenComposerDataset(
         dataset=validation_splits[2],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_mozart = NextTokenComposerDataset(
         dataset=validation_splits[3],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     return train_dataset, (val_dataset, val_dataset_bach, val_dataset_chopin, val_dataset_mozart)
 
@@ -221,30 +226,35 @@ def prepare_next_token_datasets(
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset = NextTokenDataset(
         dataset=validation_splits[0],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_bach = NextTokenDataset(
         dataset=validation_splits[1],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_chopin = NextTokenDataset(
         dataset=validation_splits[2],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_mozart = NextTokenDataset(
         dataset=validation_splits[3],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     return train_dataset, (val_dataset, val_dataset_bach, val_dataset_chopin, val_dataset_mozart)
 
@@ -281,6 +291,7 @@ def prepare_piano_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset = PianoDataset(
         dataset=validation_split,
@@ -289,6 +300,7 @@ def prepare_piano_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_bach = PianoDataset(
         dataset=validation_dataset_bach,
@@ -297,6 +309,7 @@ def prepare_piano_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_chopin = PianoDataset(
         dataset=validation_dataset_chopin,
@@ -305,6 +318,7 @@ def prepare_piano_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_mozart = PianoDataset(
         dataset=validation_dataset_mozart,
@@ -313,6 +327,7 @@ def prepare_piano_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     return train_dataset, (val_dataset, val_dataset_bach, val_dataset_chopin, val_dataset_mozart)
 
@@ -349,6 +364,7 @@ def prepare_piano_composer_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset = PianoComposerDataset(
         dataset=validation_split,
@@ -357,6 +373,7 @@ def prepare_piano_composer_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_bach = PianoComposerDataset(
         dataset=validation_dataset_bach,
@@ -365,6 +382,7 @@ def prepare_piano_composer_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_chopin = PianoComposerDataset(
         dataset=validation_dataset_chopin,
@@ -373,6 +391,7 @@ def prepare_piano_composer_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_mozart = PianoComposerDataset(
         dataset=validation_dataset_mozart,
@@ -381,5 +400,6 @@ def prepare_piano_composer_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     return train_dataset, (val_dataset, val_dataset_bach, val_dataset_chopin, val_dataset_mozart)
