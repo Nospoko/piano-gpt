@@ -6,6 +6,16 @@ from hydra.utils import to_absolute_path
 from datasets import Dataset, load_dataset
 from omegaconf import OmegaConf, DictConfig
 from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
+from piano_metrics.piano_metric import (
+    F1Metric,
+    PianoMetric,
+    MetricsRunner,
+    KeyCorrelationMetric,
+    PitchCorrelationMetric,
+    DstartCorrelationMetric,
+    DurationCorrelationMetric,
+    VelocityCorrelationMetric,
+)
 
 from artifacts import special_tokens
 from data.dataset import MidiDataset
@@ -15,6 +25,35 @@ from data.next_token_dataset import NextTokenDataset
 from data.tokenizer_utils import load_tokenizer_if_exists
 from data.piano_composer_dataset import PianoComposerDataset
 from data.next_token_composer_dataset import NextTokenComposerDataset
+
+
+def create_metric(name: str, metric_config: dict) -> PianoMetric:
+    """Create a single metric with its configuration"""
+    base_metrics = {
+        "f1": F1Metric,
+        "key_correlation": KeyCorrelationMetric,
+        "dstart_correlation": DstartCorrelationMetric,
+        "duration_correlation": DurationCorrelationMetric,
+        "velocity_correlation": VelocityCorrelationMetric,
+        "pitch_correlation": PitchCorrelationMetric,
+    }
+
+    # The matching metric name has to be a prefix to the key in config
+    base_name = next((base for base in base_metrics if name.startswith(base)), None)
+    if not base_name:
+        raise ValueError(f"Unknown metric: {name}")
+
+    return base_metrics[base_name](**metric_config)
+
+
+def create_metrics(cfg: DictConfig) -> list[PianoMetric]:
+    """Create all metrics from config"""
+    return [create_metric(name, config) for name, config in cfg.metrics.configs.items()]
+
+
+def create_metrics_runner(cfg: DictConfig) -> MetricsRunner:
+    """Create metrics runner based on config"""
+    return MetricsRunner(create_metrics(cfg))
 
 
 def load_cfg(checkpoint: dict) -> DictConfig:
@@ -42,14 +81,21 @@ def initialize_model(
     """
     Initializes the GPT model using the given configurations and checkpoint.
 
-    Parameters:
-        cfg (DictConfig): The configuration object.
-        dataset_config (dict): The dataset configuration.
-        checkpoint (dict): The model checkpoint.
-        device (torch.device): The device to load the model on.
+    Parameters
+    ----------
+    cfg : DictConfig
+        The configuration object.
+    dataset_config : dict
+        The dataset configuration.
+    checkpoint : dict
+        The model checkpoint.
+    device : torch.device
+        The device to load the model on.
 
-    Returns:
-        GPT: The initialized GPT model.
+    Returns
+    -------
+    model : GPT
+        The initialized GPT model.
     """
     model_args = {
         "n_layer": cfg.model.n_layer,
@@ -137,30 +183,35 @@ def prepare_next_token_composer_datasets(
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset = NextTokenComposerDataset(
         dataset=validation_splits[0],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_bach = NextTokenComposerDataset(
         dataset=validation_splits[1],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_chopin = NextTokenComposerDataset(
         dataset=validation_splits[2],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_mozart = NextTokenComposerDataset(
         dataset=validation_splits[3],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     return train_dataset, (val_dataset, val_dataset_bach, val_dataset_chopin, val_dataset_mozart)
 
@@ -175,30 +226,35 @@ def prepare_next_token_datasets(
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset = NextTokenDataset(
         dataset=validation_splits[0],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_bach = NextTokenDataset(
         dataset=validation_splits[1],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_chopin = NextTokenDataset(
         dataset=validation_splits[2],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_mozart = NextTokenDataset(
         dataset=validation_splits[3],
         tokenizer=tokenizer,
         sequence_length=cfg.data.sequence_length,
         loss_masking=cfg.loss_masking,
+        num_proc=cfg.system.data_workers,
     )
     return train_dataset, (val_dataset, val_dataset_bach, val_dataset_chopin, val_dataset_mozart)
 
@@ -235,6 +291,7 @@ def prepare_piano_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset = PianoDataset(
         dataset=validation_split,
@@ -243,6 +300,7 @@ def prepare_piano_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_bach = PianoDataset(
         dataset=validation_dataset_bach,
@@ -251,6 +309,7 @@ def prepare_piano_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_chopin = PianoDataset(
         dataset=validation_dataset_chopin,
@@ -259,6 +318,7 @@ def prepare_piano_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_mozart = PianoDataset(
         dataset=validation_dataset_mozart,
@@ -267,6 +327,7 @@ def prepare_piano_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     return train_dataset, (val_dataset, val_dataset_bach, val_dataset_chopin, val_dataset_mozart)
 
@@ -303,6 +364,7 @@ def prepare_piano_composer_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset = PianoComposerDataset(
         dataset=validation_split,
@@ -311,6 +373,7 @@ def prepare_piano_composer_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_bach = PianoComposerDataset(
         dataset=validation_dataset_bach,
@@ -319,6 +382,7 @@ def prepare_piano_composer_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_chopin = PianoComposerDataset(
         dataset=validation_dataset_chopin,
@@ -327,6 +391,7 @@ def prepare_piano_composer_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     val_dataset_mozart = PianoComposerDataset(
         dataset=validation_dataset_mozart,
@@ -335,5 +400,6 @@ def prepare_piano_composer_dataset(
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         tasks=cfg.tasks.list,
+        num_proc=cfg.system.data_workers,
     )
     return train_dataset, (val_dataset, val_dataset_bach, val_dataset_chopin, val_dataset_mozart)
