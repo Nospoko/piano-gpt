@@ -17,15 +17,14 @@ $ torchrun --nproc_per_node=8 --nnodes=2 --node_rank=1 --master_addr=123.456.123
 """
 
 import os
-import json
 import math
 import time
-import hashlib
 import datetime
 from contextlib import nullcontext
 
 import hydra
 import torch
+import wandb
 from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf, DictConfig
@@ -34,7 +33,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
-import wandb
 from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
 from gpt2.utils import load_tokenizer, get_dataset_for_task
