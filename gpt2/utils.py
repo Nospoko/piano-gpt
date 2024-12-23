@@ -15,15 +15,29 @@ from piano_metrics.piano_metric import (
     DurationCorrelationMetric,
     VelocityCorrelationMetric,
 )
-
+import torch.nn as nn
 from artifacts import special_tokens
 from data.dataset import MidiDataset
 from models.model import GPT, GPTConfig
+from models.temporal_model import TempoGPT ,TempoGPTConfig
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 from data.tokenizer_utils import load_tokenizer_if_exists
 from data.piano_composer_dataset import PianoComposerDataset
 from data.next_token_composer_dataset import NextTokenComposerDataset
+
+
+def get_model(cfg: DictConfig, pad_token_id: int, model_args: dict) -> nn.Module:
+    """
+    Initialize appropriate model type based on config.
+    """
+    if hasattr(cfg.model, "max_time_steps"):
+        model_args["max_time_steps"] = cfg.model.max_time_steps
+        gptconf = TempoGPTConfig(**model_args)
+        return TempoGPT(config=gptconf, pad_token_id=pad_token_id)
+    else:
+        gptconf = GPTConfig(**model_args)
+        return GPT(config=gptconf, pad_token_id=pad_token_id)
 
 
 def create_metric(name: str, metric_config: dict) -> PianoMetric:

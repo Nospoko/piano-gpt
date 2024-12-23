@@ -10,9 +10,8 @@ from piano_metrics.f1_piano import calculate_f1
 from torch.utils.data import Sampler, DataLoader
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
-from gpt2.train import get_model
 from data.dataset import MidiDataset
-from gpt2.utils import get_dataset_for_task
+from gpt2.utils import get_dataset_for_task, get_model
 from data.random_sampler import ValidationRandomSampler
 
 load_dotenv()

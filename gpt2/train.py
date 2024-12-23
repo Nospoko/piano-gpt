@@ -25,7 +25,7 @@ from contextlib import nullcontext
 import hydra
 import torch
 import wandb
-import torch.nn as nn
+
 from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf, DictConfig
@@ -35,9 +35,7 @@ from torch.distributed import init_process_group, destroy_process_group
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
-from models.model import GPT, GPTConfig
-from models.temporal_model import TempoGPT, TempoGPTConfig
-from gpt2.utils import load_tokenizer, get_dataset_for_task
+from gpt2.utils import load_tokenizer, get_dataset_for_task, get_model
 from data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
 
 load_dotenv()
@@ -91,19 +89,6 @@ def setup_device(cfg: DictConfig):
         torch.cuda.set_device(local_rank)
         return f"cuda:{local_rank}", True
     return cfg.system.device, False
-
-
-def get_model(cfg: DictConfig, pad_token_id: int, model_args: dict) -> nn.Module:
-    """
-    Initialize appropriate model type based on config.
-    """
-    if hasattr(cfg.model, "max_time_steps"):
-        model_args["max_time_steps"] = cfg.model.max_time_steps
-        gptconf = TempoGPTConfig(**model_args)
-        return TempoGPT(config=gptconf, pad_token_id=pad_token_id)
-    else:
-        gptconf = GPTConfig(**model_args)
-        return GPT(config=gptconf, pad_token_id=pad_token_id)
 
 
 @hydra.main(config_path="configs", config_name="gpt2_pretraining", version_base=None)

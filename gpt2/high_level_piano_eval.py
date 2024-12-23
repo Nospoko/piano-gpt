@@ -13,10 +13,9 @@ from torch.utils.data import Sampler, DataLoader
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 import wandb
-from gpt2.train import get_model
 from data.dataset import MidiDataset
 from data.random_sampler import ValidationRandomSampler
-from gpt2.utils import get_dataset_for_task, create_metrics_runner
+from gpt2.utils import get_dataset_for_task, create_metrics_runner, get_model
 
 load_dotenv()
 
