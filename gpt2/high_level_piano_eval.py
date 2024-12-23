@@ -193,6 +193,7 @@ def main(cfg: DictConfig):
                     # Store first example from each split for visualization
                     if k == 0 and b == 0:
                         prompt_df = tokenizer.decode(token_ids=X[b, : prompt_lengths[b]].cpu().numpy())
+                        st.write(f"\n### {split} Split Example")
                         example_generations[split] = {
                             "prompt": prompt_df,
                             "generated": generated_df,
@@ -200,16 +201,16 @@ def main(cfg: DictConfig):
                         }
                         prompt_piece = ff.MidiPiece(prompt_df)
                         generated_piece = ff.MidiPiece(generated_df)
-
                         original_piece = ff.MidiPiece(original_df)
+
                         if "next_token_prediction" in cfg.task:
                             generated_piece.time_shift(prompt_piece.end)
                             original_piece.time_shift(prompt_piece.end)
 
                         st.write("#### Prompt + Generated")
                         streamlit_pianoroll.from_fortepyan(
-                            piece=ff.MidiPiece(data["prompt"]),
-                            secondary_piece=ff.MidiPiece(data["generated"]),
+                            piece=prompt_piece,
+                            secondary_piece=generated_piece,
                         )
                         st.write("#### Original")
                         streamlit_pianoroll.from_fortepyan(
@@ -264,31 +265,6 @@ def main(cfg: DictConfig):
         print(f"\n{split}:")
         for metric, value in split_metrics.items():
             print(f"{metric}: {value:.4f}")
-
-    st.title("Generation Examples")
-
-    for split, data in example_generations.items():
-        st.write(f"\n### {split} Split Example")
-
-        # Create fortepyan pieces
-        prompt_piece = ff.MidiPiece(data["prompt"])
-        generated_piece = ff.MidiPiece(data["generated"])
-
-        original_piece = ff.MidiPiece(data["original"])
-        if "next_token_prediction" in cfg.task:
-            generated_piece.time_shift(prompt_piece.end)
-            original_piece.time_shift(prompt_piece.end)
-
-        st.write("#### Prompt + Generated")
-        streamlit_pianoroll.from_fortepyan(
-            piece=ff.MidiPiece(data["prompt"]),
-            secondary_piece=ff.MidiPiece(data["generated"]),
-        )
-        st.write("#### Original")
-        streamlit_pianoroll.from_fortepyan(
-            piece=prompt_piece,
-            secondary_piece=original_piece,
-        )
 
 
 if __name__ == "__main__":
