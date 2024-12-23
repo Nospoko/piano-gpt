@@ -1,6 +1,7 @@
 import json
 
 import torch
+import torch.nn as nn
 from hydra.utils import to_absolute_path
 from datasets import Dataset, load_dataset
 from omegaconf import OmegaConf, DictConfig
@@ -15,14 +16,14 @@ from piano_metrics.piano_metric import (
     DurationCorrelationMetric,
     VelocityCorrelationMetric,
 )
-import torch.nn as nn
+
 from artifacts import special_tokens
 from data.dataset import MidiDataset
 from models.model import GPT, GPTConfig
-from models.temporal_model import TempoGPT ,TempoGPTConfig
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 from data.tokenizer_utils import load_tokenizer_if_exists
+from models.temporal_model import TempoGPT, TempoGPTConfig
 from data.piano_composer_dataset import PianoComposerDataset
 from data.next_token_composer_dataset import NextTokenComposerDataset
 

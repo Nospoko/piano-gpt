@@ -15,7 +15,7 @@ from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 import wandb
 from data.dataset import MidiDataset
 from data.random_sampler import ValidationRandomSampler
-from gpt2.utils import get_dataset_for_task, create_metrics_runner, get_model
+from gpt2.utils import get_model, get_dataset_for_task, create_metrics_runner
 
 load_dotenv()
 
@@ -191,17 +191,17 @@ def main(cfg: DictConfig):
                     )
 
                     # Store first example from each split for visualization
-                    if not k == 0 and b == 0:
+                    if k == 0 and b == 0:
                         prompt_df = tokenizer.decode(token_ids=X[b, : prompt_lengths[b]].cpu().numpy())
                         example_generations[split] = {
                             "prompt": prompt_df,
                             "generated": generated_df,
                             "original": original_df,
                         }
-                        prompt_piece = ff.MidiPiece(data["prompt"])
-                        generated_piece = ff.MidiPiece(data["generated"])
+                        prompt_piece = ff.MidiPiece(prompt_df)
+                        generated_piece = ff.MidiPiece(generated_df)
 
-                        original_piece = ff.MidiPiece(data["original"])
+                        original_piece = ff.MidiPiece(original_df)
                         if "next_token_prediction" in cfg.task:
                             generated_piece.time_shift(prompt_piece.end)
                             original_piece.time_shift(prompt_piece.end)

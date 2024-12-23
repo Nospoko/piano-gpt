@@ -24,8 +24,6 @@ from contextlib import nullcontext
 
 import hydra
 import torch
-import wandb
-
 from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf, DictConfig
@@ -34,8 +32,9 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
+import wandb
 from data.dataset import MidiDataset
-from gpt2.utils import load_tokenizer, get_dataset_for_task, get_model
+from gpt2.utils import get_model, load_tokenizer, get_dataset_for_task
 from data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
 
 load_dotenv()
