@@ -135,6 +135,7 @@ class GPT(nn.Module):
             dict(
                 wte=nn.Embedding(config.vocab_size, config.n_embd, padding_idx=self.pad_token_id),
                 wpe=nn.Embedding(config.block_size, config.n_embd, padding_idx=self.pad_token_id),
+                wtime=nn.Linear(1, config.n_embd, bias=True),  # Linear layer for time values
                 drop=nn.Dropout(config.dropout),
                 h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
                 ln_f=LayerNorm(config.n_embd, bias=config.bias),
@@ -177,7 +178,8 @@ class GPT(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, targets=None, target_mask=None):
+    # `time_steps` is for compatibility with temporal model only
+    def forward(self, idx, targets=None, target_mask=None, time_steps=None):
         device = idx.device
         b, t = idx.size()
         msg = f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"

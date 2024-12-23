@@ -9,6 +9,7 @@ from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.tasks import Task
 from data.dataset import MidiDataset
+from data.tokenizer_utils import get_time_passage
 
 
 class PianoDataset(MidiDataset):
@@ -113,14 +114,17 @@ class PianoDataset(MidiDataset):
             prefix_tokens=[target_prefix],
         )
 
-        return prompt_token_ids, target_token_ids
+        prompt_time_steps = get_time_passage([self.tokenizer.vocab[token_id] for token_id in prompt_token_ids])
+        target_time_steps = get_time_passage([self.tokenizer.vocab[token_id] for token_id in target_token_ids])
+
+        return prompt_token_ids, target_token_ids, prompt_time_steps, target_time_steps
 
     def __getitem__(self, idx: int) -> dict:
         # Get the record ID and start point for the given index
         record_id, start_point, task = self._index_to_record(idx)
         record = self.dataset[record_id]
 
-        prompt_token_ids, target_token_ids = self.prepare_encodings(
+        prompt_token_ids, target_token_ids, prompt_time_steps, target_time_steps = self.prepare_encodings(
             record=record,
             start_point=start_point,
             task=task,
@@ -132,15 +136,17 @@ class PianoDataset(MidiDataset):
         padding_size = self.sequence_length - len(encoding) + 1
         padding = [self.tokenizer.pad_token_id] * padding_size
         encoding = encoding + padding
+        time_passage = prompt_time_steps + target_time_steps + [target_token_ids[-1]] * padding_size
 
         # Create source and target encodings
         source_encoding = encoding[:-1]
         target_encoding = encoding[1:]
+        time_passage = time_passage[:-1]
 
         # Convert encodings to tensors
         source_token_ids = torch.tensor(source_encoding[: self.sequence_length], dtype=torch.int64)
         target_token_ids = torch.tensor(target_encoding[: self.sequence_length], dtype=torch.int64)
-
+        time_passage = torch.tensor(time_passage[: self.sequence_length], dtype=torch.int64)
         # Create target mask
         target_mask = target_token_ids != self.tokenizer.pad_token_id
         if self.loss_masking == "finetuning":
@@ -155,6 +161,7 @@ class PianoDataset(MidiDataset):
             "task": task,
             "prediction_task": "high_median_prediction",
             "source": record["source"],
+            "time_steps": time_passage,
             # The length of the prompt part of the sequence
             "prompt_length": prompt_length,
         }

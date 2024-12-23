@@ -5,6 +5,7 @@ import pandas as pd
 from data.tasks import Task
 from artifacts import get_composer_token
 from data.piano_dataset import PianoDataset
+from data.tokenizer_utils import get_time_passage
 
 
 class PianoComposerDataset(PianoDataset):
@@ -44,5 +45,7 @@ class PianoComposerDataset(PianoDataset):
             notes=target_notes,
             prefix_tokens=[target_prefix, composer_token],
         )
+        prompt_time_steps = get_time_passage([self.tokenizer.vocab[token_id] for token_id in prompt_token_ids])
+        target_time_steps = get_time_passage([self.tokenizer.vocab[token_id] for token_id in target_token_ids])
 
-        return prompt_token_ids, target_token_ids
+        return prompt_token_ids, target_token_ids, prompt_time_steps, target_time_steps

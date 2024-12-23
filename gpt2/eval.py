@@ -10,8 +10,8 @@ from piano_metrics.f1_piano import calculate_f1
 from torch.utils.data import Sampler, DataLoader
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
+from gpt2.train import get_model
 from data.dataset import MidiDataset
-from gpt2.model import GPT, GPTConfig
 from gpt2.utils import get_dataset_for_task
 from data.random_sampler import ValidationRandomSampler
 
@@ -84,13 +84,15 @@ def main(cfg: DictConfig):
             tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
 
         val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)[1]
-        pad_token_id = tokenizer.token_to_id["<PAD>"]
 
         for k in ["n_layer", "n_head", "n_embd", "block_size", "bias", "vocab_size"]:
             model_args[k] = checkpoint_model_args[k]
 
-        gptconf = GPTConfig(**model_args)
-        model = GPT(config=gptconf, pad_token_id=pad_token_id)
+        model = get_model(
+            checkpoint_cfg,
+            pad_token_id=tokenizer.pad_token_id,
+            model_args=model_args,
+        )
         state_dict = checkpoint["model"]
 
         unwanted_prefix = "_orig_mod."
@@ -174,7 +176,11 @@ def main(cfg: DictConfig):
                     original_df = tokenizer.decode(token_ids=y_token_ids[y_control_position:].numpy())
                     # Cropping because we have no EOS token
                     generated_df = generated_df[generated_df.start < original_df.end.max()]
-                    f1_scores[b] = calculate_f1(target_df=original_df, generated_df=generated_df, velocity_threshold=30)[0]
+                    f1_scores[b] = calculate_f1(
+                        target_df=original_df,
+                        generated_df=generated_df,
+                        velocity_threshold=30,
+                    )[0]
                 f1s[k] = f1_scores.mean()
                 losses[k] = loss.item()
                 print(f1s[k], losses[k])

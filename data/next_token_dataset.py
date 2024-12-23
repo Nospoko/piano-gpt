@@ -7,6 +7,7 @@ from datasets import Dataset as HuggingFaceDataset
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
+from data.tokenizer_utils import get_time_passage
 
 
 class NextTokenDataset(MidiDataset):
@@ -37,6 +38,7 @@ class NextTokenDataset(MidiDataset):
         self.length = 0
         self.record_lengths = {}
         self.num_proc = num_proc
+        self.tokenizer = tokenizer
         self._build_record_lengths()
 
     def __rich_repr__(self):
@@ -122,14 +124,17 @@ class NextTokenDataset(MidiDataset):
 
         # Extract the relevant sequence
         encoding = full_encoding[start_point : start_point + self.sequence_length + 1]
+        time_passage = get_time_passage([self.tokenizer.vocab[token_id] for token_id in encoding])
 
         # Create source and target encodings
         source_encoding = encoding[:-1]
         target_encoding = encoding[1:]
+        time_passage = time_passage[:-1]
 
         # Convert to tensors
         source_token_ids = torch.tensor(source_encoding[: self.sequence_length], dtype=torch.int64)
         target_token_ids = torch.tensor(target_encoding[: self.sequence_length], dtype=torch.int64)
+        time_passage = torch.tensor(time_passage[: self.sequence_length], dtype=torch.int64)
 
         # Create target mask
         target_mask = target_token_ids != self.tokenizer.pad_token_id
@@ -141,6 +146,7 @@ class NextTokenDataset(MidiDataset):
             "target_mask": target_mask,
             "start_point": start_point,
             "source": record["source"],
+            "time_steps": time_passage,
             # In PIANO dataset this is the length of the prompt part of the sequence
             # Here we consider half of the sequence to be a prompt part for validation purpouses
             "prompt_length": self.sequence_length // 2,

@@ -8,7 +8,7 @@ defaults:
   - logging: eval
   - _self_
 
-eval_iters: 50
+eval_iters: 1
 
 dataset:
   extra_datasets: ["epr-labs/maestro-sustain-v2"]
@@ -16,7 +16,7 @@ dataset:
     max_pitch_shift: 0
     speed_change_factors: []
 
-init_from: midi-gpt2-0M-subsequence-2024-11-20-16-41last.pt # should be 'midi-gpt2*'
+init_from: midi-gpt2-4M-pretraining-2024-12-22-23-30last.pt # should be 'midi-gpt2*'
 
 task: multi_with_composer
 

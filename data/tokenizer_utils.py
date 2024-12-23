@@ -48,3 +48,51 @@ def load_tokenizer_if_exists(tokenizer_cfg: dict) -> AwesomeMidiTokenizer:
         return AwesomeMidiTokenizer.from_dict(cached_tokenizer_desc)
     else:
         raise FileNotFoundError("Tokenizer not found. Run tokenizer scripts.")
+
+
+def get_time_passage(tokens: list[str]) -> list[int]:
+    """
+    Extract time steps from a list of tokens, maintaining the sequence order and accumulating
+    time values. For non-time tokens, repeats the previous time value.
+
+    Example:
+        tokens = ['1T', 'NOTE', '2T', 'VELOCITY', '4T', 'NOTE']
+        get_time_steps(tokens) -> [1, 1, 3, 3, 7, 7]
+    """
+    time_steps = []
+    current_time = 0
+
+    for token in tokens:
+        if token.endswith("T"):
+            try:
+                time_value = int(token[:-1])
+                current_time += time_value
+            except ValueError:
+                pass
+        time_steps.append(current_time)
+
+    return time_steps
+
+
+def get_time_steps(tokens: list[str]) -> list[int]:
+    """
+    Extract time steps from a list of tokens. For time tokens extracts the value,
+    for non-time tokens outputs 0.
+
+    Example:
+        tokens = ['1T', 'NOTE', '2T', 'VELOCITY', '4T', 'NOTE']
+        get_time_steps(tokens) -> [1, 0, 2, 0, 4, 0]
+    """
+    time_steps = []
+
+    for token in tokens:
+        if token.endswith("T"):
+            try:
+                time_value = int(token[:-1])
+                time_steps.append(time_value)
+            except ValueError:
+                time_steps.append(0)
+        else:
+            time_steps.append(0)
+
+    return time_steps

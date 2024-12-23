@@ -25,6 +25,7 @@ from contextlib import nullcontext
 import hydra
 import torch
 import wandb
+import torch.nn as nn
 from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf, DictConfig
@@ -34,7 +35,8 @@ from torch.distributed import init_process_group, destroy_process_group
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
-from gpt2.model import GPT, GPTConfig
+from models.model import GPT, GPTConfig
+from models.temporal_model import TempoGPT, TempoGPTConfig
 from gpt2.utils import load_tokenizer, get_dataset_for_task
 from data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
 
@@ -78,7 +80,8 @@ class CyclicalDataLoader:
         x = batch["source_token_ids"].to(self.device, non_blocking=True)
         y = batch["target_token_ids"].to(self.device, non_blocking=True)
         mask = batch["target_mask"].to(self.device, non_blocking=True)
-        return x, y, mask
+        tempotal_tokens = batch["time_steps"].to(self.device, non_blocking=True)
+        return x, y, mask, tempotal_tokens
 
 
 def setup_device(cfg: DictConfig):
@@ -88,6 +91,19 @@ def setup_device(cfg: DictConfig):
         torch.cuda.set_device(local_rank)
         return f"cuda:{local_rank}", True
     return cfg.system.device, False
+
+
+def get_model(cfg: DictConfig, pad_token_id: int, model_args: dict) -> nn.Module:
+    """
+    Initialize appropriate model type based on config.
+    """
+    if hasattr(cfg.model, "max_time_steps"):
+        model_args["max_time_steps"] = cfg.model.max_time_steps
+        gptconf = TempoGPTConfig(**model_args)
+        return TempoGPT(config=gptconf, pad_token_id=pad_token_id)
+    else:
+        gptconf = GPTConfig(**model_args)
+        return GPT(config=gptconf, pad_token_id=pad_token_id)
 
 
 @hydra.main(config_path="configs", config_name="gpt2_pretraining", version_base=None)
@@ -101,7 +117,7 @@ def main(cfg: DictConfig):
         bias=cfg.model.bias,
         vocab_size=None,
         dropout=cfg.model.dropout,
-    )  # start with model_args from command line
+    )
 
     device, ddp = setup_device(cfg=cfg)
     if ddp:
@@ -141,7 +157,6 @@ def main(cfg: DictConfig):
 
         train_dataset, val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)
         out_dir = to_absolute_path(cfg.out_dir)
-        pad_token_id = tokenizer.token_to_id["<PAD>"]
         config = OmegaConf.to_container(cfg=cfg)
         # model init
 
@@ -151,8 +166,12 @@ def main(cfg: DictConfig):
             model_args[k] = checkpoint_model_args[k]
 
         # create the model
-        gptconf = GPTConfig(**model_args)
-        model = GPT(config=gptconf, pad_token_id=pad_token_id)
+        model = get_model(
+            cfg,
+            tokenizer.token_to_id["<PAD>"],
+            model_args=model_args,
+        )
+
         state_dict = checkpoint["model"]
         checkpoint = None  # free up memory
 
@@ -170,15 +189,16 @@ def main(cfg: DictConfig):
         tokenizer = load_tokenizer(cfg=cfg)
         train_dataset, val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)
         out_dir = to_absolute_path(cfg.out_dir)
-
-        pad_token_id = tokenizer.token_to_id["<PAD>"]
         config = OmegaConf.to_container(cfg=cfg)
         # init a new model from scratch
         print("Initializing a new model from scratch")
         # determine the vocab size we'll use for from-scratch training
         model_args["vocab_size"] = tokenizer.vocab_size
-        gptconf = GPTConfig(**model_args)
-        model = GPT(config=gptconf, pad_token_id=pad_token_id)
+        model = get_model(
+            cfg,
+            tokenizer.token_to_id["<PAD>"],
+            model_args=model_args,
+        )
 
     tokens_per_batch = cfg.data.batch_size * cfg.data.sequence_length
     tokens_per_iter = cfg.optimizer.gradient_accumulation_steps * ddp_world_size * tokens_per_batch
@@ -206,26 +226,6 @@ def main(cfg: DictConfig):
         data_source=train_dataset,
         seed=4 + seed_offset,
     )
-    val_sampler = ValidationRandomSampler(
-        data_source=val_datasets[0],
-        seed=4 + seed_offset,
-        num_samples=cfg.data.batch_size * cfg.eval_iters,
-    )
-    val_sampler_bach = ValidationRandomSampler(
-        data_source=val_datasets[1],
-        seed=4 + seed_offset,
-        num_samples=cfg.data.batch_size * cfg.eval_iters,
-    )
-    val_sampler_chopin = ValidationRandomSampler(
-        data_source=val_datasets[2],
-        seed=4 + seed_offset,
-        num_samples=cfg.data.batch_size * cfg.eval_iters,
-    )
-    val_sampler_mozart = ValidationRandomSampler(
-        data_source=val_datasets[3],
-        seed=4 + seed_offset,
-        num_samples=cfg.data.batch_size * cfg.eval_iters,
-    )
     # Create the loaders
     train_loader = CyclicalDataLoader(
         train_dataset,
@@ -237,56 +237,38 @@ def main(cfg: DictConfig):
         device=device,
     )
 
-    val_loader = CyclicalDataLoader(
-        val_datasets[0],
-        sampler=val_sampler,
-        batch_size=cfg.data.batch_size,
-        shuffle=False,
-        pin_memory=device_type == "cuda",
-        num_workers=cfg.system.data_workers // ddp_world_size,
-        device=device,
-    )
-    val_loader_bach = CyclicalDataLoader(
-        val_datasets[1],
-        sampler=val_sampler_bach,
-        batch_size=cfg.data.batch_size,
-        shuffle=False,
-        pin_memory=device_type == "cuda",
-        num_workers=cfg.system.data_workers // ddp_world_size,
-        device=device,
-    )
+    val_samplers = [
+        ValidationRandomSampler(
+            data_source=dataset,
+            seed=4,
+            num_samples=cfg.data.batch_size * cfg.eval_iters,
+        )
+        for dataset in val_datasets
+    ]
 
-    val_loader_chopin = CyclicalDataLoader(
-        val_datasets[2],
-        sampler=val_sampler_chopin,
-        batch_size=cfg.data.batch_size,
-        shuffle=False,
-        pin_memory=device_type == "cuda",
-        num_workers=cfg.system.data_workers // ddp_world_size,
-        device=device,
-    )
-
-    val_loader_mozart = CyclicalDataLoader(
-        val_datasets[2],
-        sampler=val_sampler_mozart,
-        batch_size=cfg.data.batch_size,
-        shuffle=False,
-        pin_memory=device_type == "cuda",
-        num_workers=cfg.system.data_workers // ddp_world_size,
-        device=device,
-    )
+    val_loaders = [
+        CyclicalDataLoader(
+            dataset,
+            sampler=sampler,
+            batch_size=cfg.data.batch_size,
+            pin_memory=device_type == "cuda",
+            num_workers=cfg.system.data_workers,
+            device=device,
+        )
+        for dataset, sampler in zip(val_datasets, val_samplers)
+    ]
 
     def get_batch(split):
         if split == "train":
             return train_loader.get_batch()
         elif split == "val":
-            return val_loader.get_batch()
+            return val_loaders[0].get_batch()
         elif split == "bach":
-            return val_loader_bach.get_batch()
+            return val_loaders[1].get_batch()
         elif split == "chopin":
-            return val_loader_chopin.get_batch()
+            return val_loaders[2].get_batch()
         elif split == "mozart":
-            return val_loader_mozart.get_batch()
+            return val_loaders[3].get_batch()
 
     # init these up here, can override if init_from='resume' (i.e. from a checkpoint)
     iter_num = 0
@@ -334,9 +316,9 @@ def main(cfg: DictConfig):
         for split in ["train", "val", "bach", "chopin", "mozart"]:
             losses = torch.zeros(cfg.eval_iters)
             for k in range(cfg.eval_iters):
-                X, Y, mask = get_batch(split)
+                X, Y, mask, time_steps = get_batch(split)
                 with ctx:
-                    logits, loss = model(X, Y, mask)
+                    logits, loss = model(X, Y, mask, time_steps)
                 losses[k] = loss.item()
             out[split] = losses.mean()
         model.train()
@@ -376,7 +358,7 @@ def main(cfg: DictConfig):
 
     total_tokens = 0
     # training loop
-    X, Y, mask = get_batch("train")  # fetch the very first batch
+    X, Y, mask, time_steps = get_batch("train")  # fetch the very first batch
     t0 = time.time()
     local_iter_num = 0  # number of iterations in the lifetime of this process
     raw_model = model.module if ddp else model  # unwrap DDP container if needed
@@ -401,12 +383,12 @@ def main(cfg: DictConfig):
                 model.require_backward_grad_sync = micro_step == cfg.optimizer.gradient_accumulation_steps - 1
             with ctx:
                 n_iter_tokens += X.numel()
-                logits, loss = model(X, Y, mask)
+                logits, loss = model(X, Y, mask, time_steps)
                 # scale the loss to account for gradient accumulation
                 loss = loss / cfg.optimizer.gradient_accumulation_steps
 
             # immediately async prefetch next batch while model is doing the forward pass on the GPU
-            X, Y, mask = get_batch("train")
+            X, Y, mask, time_steps = get_batch("train")
             # backward pass, with gradient scaling if training in fp16
             scaler.scale(loss).backward()
 

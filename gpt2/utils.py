@@ -18,7 +18,7 @@ from piano_metrics.piano_metric import (
 
 from artifacts import special_tokens
 from data.dataset import MidiDataset
-from gpt2.model import GPT, GPTConfig
+from models.model import GPT, GPTConfig
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 from data.tokenizer_utils import load_tokenizer_if_exists

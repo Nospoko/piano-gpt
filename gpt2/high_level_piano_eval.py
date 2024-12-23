@@ -13,8 +13,8 @@ from torch.utils.data import Sampler, DataLoader
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 import wandb
+from gpt2.train import get_model
 from data.dataset import MidiDataset
-from gpt2.model import GPT, GPTConfig
 from data.random_sampler import ValidationRandomSampler
 from gpt2.utils import get_dataset_for_task, create_metrics_runner
 
@@ -56,7 +56,8 @@ class CyclicalDataLoader:
         y = batch["target_token_ids"].to(self.device, non_blocking=True)
         mask = batch["target_mask"].to(self.device, non_blocking=True)
         prompt_lengths = batch["prompt_length"]
-        return x, y, mask, prompt_lengths
+        time_steps = batch["time_steps"]
+        return x, y, mask, prompt_lengths, time_steps
 
 
 @hydra.main(config_path="configs", config_name="eval", version_base=None)
@@ -94,8 +95,11 @@ def main(cfg: DictConfig):
         for k in ["n_layer", "n_head", "n_embd", "block_size", "bias", "vocab_size"]:
             model_args[k] = checkpoint_model_args[k]
 
-        gptconf = GPTConfig(**model_args)
-        model = GPT(config=gptconf, pad_token_id=pad_token_id)
+        model = get_model(
+            cfg=checkpoint_cfg,
+            pad_token_id=pad_token_id,
+            model_args=model_args,
+        )
         state_dict = checkpoint["model"]
 
         unwanted_prefix = "_orig_mod."
@@ -161,11 +165,11 @@ def main(cfg: DictConfig):
             }
 
             for k in range(cfg.eval_iters):
-                X, Y, mask, prompt_lengths = loader.get_batch()
+                X, Y, mask, prompt_lengths, time_steps = loader.get_batch()
                 target_prefix_tokens = {"multi": 1, "multi_with_composer": 2}.get(cfg.task, 0)
 
                 with ctx:
-                    logits, loss = model(X, Y, mask)
+                    logits, loss = model(X, Y, mask, time_steps)
 
                 batch_metrics = {}
                 for b in range(X.shape[0]):
@@ -195,6 +199,24 @@ def main(cfg: DictConfig):
                             "generated": generated_df,
                             "original": original_df,
                         }
+                        prompt_piece = ff.MidiPiece(data["prompt"])
+                        generated_piece = ff.MidiPiece(data["generated"])
+
+                        original_piece = ff.MidiPiece(data["original"])
+                        if "next_token_prediction" in cfg.task:
+                            generated_piece.time_shift(prompt_piece.end)
+                            original_piece.time_shift(prompt_piece.end)
+
+                        st.write("#### Prompt + Generated")
+                        streamlit_pianoroll.from_fortepyan(
+                            piece=ff.MidiPiece(data["prompt"]),
+                            secondary_piece=ff.MidiPiece(data["generated"]),
+                        )
+                        st.write("#### Original")
+                        streamlit_pianoroll.from_fortepyan(
+                            piece=prompt_piece,
+                            secondary_piece=original_piece,
+                        )
 
                     # Aggregate metrics across batch
                     for metric_name, result in example_metrics.items():
