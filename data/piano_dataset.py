@@ -144,6 +144,8 @@ class PianoDataset(MidiDataset):
             "source_token_ids": source_token_ids,
             "target_token_ids": target_token_ids,
             "target_mask": target_mask,
+            "start_point": start_point,
+            "task": task,
             "prediction_task": "high_median_prediction",
             "source": record["source"],
             # The length of the prompt part of the sequence

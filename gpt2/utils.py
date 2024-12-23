@@ -1,5 +1,4 @@
 import json
-from functools import partial
 
 import torch
 from hydra.utils import to_absolute_path
@@ -129,15 +128,21 @@ def initialize_model(
 
 def get_dataset_for_task(cfg: DictConfig, tokenizer: MidiTokenizer) -> tuple[MidiDataset, tuple]:
     task_to_dataset = {
-        "next_token_prediction": partial(prepare_next_token_datasets, tokenizer=tokenizer),
-        "next_token_prediction_with_composer": partial(prepare_next_token_composer_datasets, tokenizer=tokenizer),
-        "multi": partial(prepare_piano_dataset, tokenizer=tokenizer),
-        "multi_with_composer": partial(prepare_piano_composer_dataset, tokenizer=tokenizer),
+        "next_token_prediction": prepare_next_token_datasets,
+        "next_token_prediction_with_composer": prepare_next_token_composer_datasets,
+        "multi": prepare_piano_dataset,
+        "multi_with_composer": prepare_piano_composer_dataset,
     }
     prepare_function = task_to_dataset.get(cfg.task)
+
     if prepare_function:
-        return prepare_function(cfg)
-    raise ValueError(f"Unknown task: {cfg.task}")
+        train_dataset, all_other_datasets = prepare_function(
+            cfg=cfg,
+            tokenizer=tokenizer,
+        )
+        return train_dataset, all_other_datasets
+    else:
+        raise ValueError(f"Unknown task: {cfg.task}")
 
 
 def prepare_dataset_base(cfg: DictConfig, dataset_name: str) -> tuple[Dataset, tuple]:

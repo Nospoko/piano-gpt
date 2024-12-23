@@ -58,6 +58,8 @@ class NextTokenComposerDataset(NextTokenDataset):
             "source_token_ids": source_token_ids,
             "target_token_ids": target_token_ids,
             "target_mask": target_mask,
+            "composer_token": composer_token,
+            "start_point": start_point,
             "source": record["source"],
         }
         return out
