@@ -33,6 +33,13 @@ class PianoDataset(MidiDataset):
         self.num_proc = num_proc
         self._build_records()
 
+    def __rich_repr__(self):
+        yield "size", len(self)
+        yield "n_midi_records", len(self.record_lengths)
+        yield "notes_per_record", self.notes_per_record
+        yield "sequence_length", self.sequence_length
+        yield "piano_tasks", self.tasks
+
     def _build_records(self):
         # Helper function to calculate the length of each record
         def get_record_definition(record, idx, notes_per_record, shared_dict):
