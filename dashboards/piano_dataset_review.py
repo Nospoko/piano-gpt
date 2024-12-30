@@ -6,7 +6,7 @@ import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
 import matplotlib.pyplot as plt
-from datasets import load_dataset
+from datasets import Dataset, load_dataset
 from midi_tokenizers import ExponentialTimeTokenizer
 
 from artifacts import special_tokens
@@ -64,9 +64,7 @@ def load_piano_dataset(
     loss_masking: str,
     selected_composers: list[str],
     selected_title: str,
-):
-    tokenizer = ExponentialTimeTokenizer(**tokenizer_parameters)
-
+) -> tuple[PianoComposerDataset, Dataset]:
     dataset = load_hf_dataset(
         config=config,
         dataset_name=dataset_name,
@@ -82,6 +80,7 @@ def load_piano_dataset(
 
     filtered_dataset = dataset.filter(filter_dataset)
 
+    tokenizer = ExponentialTimeTokenizer(**tokenizer_parameters)
     piano_dataset = PianoComposerDataset(
         dataset=filtered_dataset,
         tokenizer=tokenizer,
@@ -180,7 +179,7 @@ def main():
     selected_composers = st.multiselect("Filter by Composer", options=composers, default=["Johann Sebastian Bach"])
     selected_title = st.selectbox("Filter by Title", options=["All"] + titles, index=0)
 
-    piano_dataset, dataset = load_piano_dataset(
+    piano_dataset, filtered_dataset = load_piano_dataset(
         tokenizer_parameters=tokenizer_parameters,
         config=config,
         dataset_name=dataset_name,
@@ -259,7 +258,7 @@ def main():
     target_notes = piano_dataset.tokenizer.untokenize(target_tokens)
     record_id, start_point, _ = piano_dataset._index_to_record(idx)
 
-    piece = ff.MidiPiece.from_huggingface(dataset[record_id])
+    piece = ff.MidiPiece.from_huggingface(filtered_dataset[record_id])
     piece = piece[start_point : start_point + piano_dataset.notes_per_record]
     st.write(piece.source)
 
