@@ -1,5 +1,4 @@
 import json
-from functools import partial
 
 import torch
 import pandas as pd
@@ -31,9 +30,22 @@ def load_hf_dataset(
     return dataset
 
 
-def plot_target_mask(target_mask):
+def plot_target_mask(target_mask: torch.Tensor) -> plt.Figure:
     fig, ax = plt.subplots(figsize=(12, 2))
-    ax.imshow(target_mask.unsqueeze(0), cmap="binary", aspect="auto")
+    cmap = plt.get_cmap("viridis")
+    from matplotlib.colors import Normalize
+
+    norm = Normalize(vmin=0, vmax=1)
+    ax.imshow(target_mask.unsqueeze(0), cmap=cmap, aspect="auto")
+    legend_elements = [
+        plt.Line2D([0], [0], color=cmap(norm(0)), lw=4, label="False"),
+        plt.Line2D([0], [0], color=cmap(norm(1)), lw=4, label="True"),
+    ]
+    ax.legend(
+        handles=legend_elements,
+        loc="upper right",
+        bbox_to_anchor=(1.1, 1.0),
+    )
     ax.set_yticks([])
     ax.set_xlabel("Token Position")
     ax.set_title("Target Mask")
@@ -42,19 +54,17 @@ def plot_target_mask(target_mask):
 
 @st.cache_data()
 def load_piano_dataset(
-    tokenizer_parameters,
-    config,
-    dataset_name,
-    dataset_split,
-    sequence_length,
-    notes_per_record,
-    tasks,
-    loss_masking,
-    selected_composers,
-    selected_title,
-):
-    tokenizer = ExponentialTimeTokenizer(**tokenizer_parameters)
-
+    tokenizer_parameters: dict,
+    config: dict,
+    dataset_name: str,
+    dataset_split: str,
+    sequence_length: int,
+    notes_per_record: int,
+    tasks: list[str],
+    loss_masking: str,
+    selected_composers: list[str],
+    selected_title: str,
+) -> tuple[PianoComposerDataset, Dataset]:
     dataset = load_hf_dataset(
         config=config,
         dataset_name=dataset_name,
@@ -70,19 +80,16 @@ def load_piano_dataset(
 
     filtered_dataset = dataset.filter(filter_dataset)
 
-    def gen_from_iterable_dataset(iterable_ds):
-        yield from iterable_ds
-
-    dataset = Dataset.from_generator(partial(gen_from_iterable_dataset, filtered_dataset), features=filtered_dataset.features)
+    tokenizer = ExponentialTimeTokenizer(**tokenizer_parameters)
     piano_dataset = PianoComposerDataset(
-        dataset=dataset,
+        dataset=filtered_dataset,
         tokenizer=tokenizer,
         sequence_length=sequence_length,
         notes_per_record=notes_per_record,
         tasks=tasks,
         loss_masking=loss_masking,
     )
-    return piano_dataset, dataset
+    return piano_dataset, filtered_dataset
 
 
 def main():
@@ -95,7 +102,7 @@ def main():
         with col1:
             base_dataset_name = st.text_input(
                 label="Base Dataset Name",
-                value="roszcz/maestro-sustain-v2",
+                value="epr-labs/maestro-sustain-v2",
             )
             notes_per_record = st.number_input(
                 label="Notes per Record",
@@ -172,7 +179,7 @@ def main():
     selected_composers = st.multiselect("Filter by Composer", options=composers, default=["Johann Sebastian Bach"])
     selected_title = st.selectbox("Filter by Title", options=["All"] + titles, index=0)
 
-    piano_dataset, dataset = load_piano_dataset(
+    piano_dataset, filtered_dataset = load_piano_dataset(
         tokenizer_parameters=tokenizer_parameters,
         config=config,
         dataset_name=dataset_name,
@@ -216,9 +223,11 @@ def main():
     with col1:
         st.write("Source Tokens:")
         st.write(src_token_ids)
+        st.write("N tokens:", len(src_token_ids))
     with col2:
         st.write("Target Tokens:")
         st.write(tgt_token_ids)
+        st.write("N tokens:", len(tgt_token_ids))
 
     st.write("### Target Mask Visualization")
     target_mask_fig = plot_target_mask(sample["target_mask"])
@@ -248,18 +257,22 @@ def main():
     source_notes = piano_dataset.tokenizer.untokenize(source_tokens)
     target_notes = piano_dataset.tokenizer.untokenize(target_tokens)
     record_id, start_point, _ = piano_dataset._index_to_record(idx)
-    all_notes = ff.MidiPiece.from_huggingface(dataset[record_id])
-    all_notes.df = all_notes.df.iloc[start_point : start_point + piano_dataset.notes_per_record]
-    streamlit_pianoroll.from_fortepyan(piece=all_notes)
-    st.write(pd.concat([source_notes, target_notes]).sort_values(by="start").reset_index(drop=True))
-    st.write(piano_dataset.tokenizer.untokenize(piano_dataset.tokenizer.tokenize(all_notes.df)))
+
+    piece = ff.MidiPiece.from_huggingface(filtered_dataset[record_id])
+    piece = piece[start_point : start_point + piano_dataset.notes_per_record]
+    st.write(piece.source)
+
+    streamlit_pianoroll.from_fortepyan(piece=piece)
 
     source_piece = ff.MidiPiece(source_notes)
     target_piece = ff.MidiPiece(target_notes)
 
     st.write("### Visualizations")
     st.write("#### Combined View:")
-    streamlit_pianoroll.from_fortepyan(piece=source_piece, secondary_piece=target_piece)
+    streamlit_pianoroll.from_fortepyan(
+        piece=source_piece,
+        secondary_piece=target_piece,
+    )
 
     col1, col2 = st.columns(2)
     with col1:
@@ -268,6 +281,21 @@ def main():
     with col2:
         st.write(f"#### {target_token}:")
         streamlit_pianoroll.from_fortepyan(piece=target_piece)
+
+    st.write("### Dataframe review")
+    cols = st.columns(3)
+    columns = ["pitch", "start", "end", "velocity"]
+    with cols[0]:
+        st.write("### Piece")
+        st.write(piece.df[columns])
+    with cols[1]:
+        st.write("### Source + Target")
+        joined_piece_df = pd.concat([source_notes, target_notes]).sort_values(by="start").reset_index(drop=True)
+        st.write(joined_piece_df[columns])
+    with cols[2]:
+        st.write("### Detokenization")
+        tokenization_check_df = piano_dataset.tokenizer.untokenize(piano_dataset.tokenizer.tokenize(piece.df))
+        st.write(tokenization_check_df[columns])
 
 
 if __name__ == "__main__":
