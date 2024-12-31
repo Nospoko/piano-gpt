@@ -1,15 +1,21 @@
 #!/bin/bash
 
+# Check if model name argument is provided
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <model_name>"
+    exit 1
+fi
+
+model_name=$1
+
 run_commands() {
     echo "Starting metrics calculation at $(date)"
-
-    command1="python3.10 -m scripts.download_model [model_name]"
-    command2="python3.10 -m gpt2.high_level_piano_eval logging.wandb_log=true task=pretraining data.batch_size=4 init_from=[model name].pt"
+    command1="python3.10 -m scripts.download_model $model_name"
+    command2="python3.10 -m gpt2.high_level_piano_eval logging.wandb_log=true task=pretraining data.batch_size=4 init_from=$model_name.pt"
 
     # Run the commands sequentially
     eval "$command1"
     eval "$command2"
-
     echo "Finished commands at $(date)"
 }
 

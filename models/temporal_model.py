@@ -28,7 +28,7 @@ class TempoGPTConfig:
     n_embd: int = 768
     dropout: float = 0.0
     bias: bool = True  # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
-    max_time_steps: int = 4096
+    max_time_steps: int = 4096  # maximum duration in min_time_units of a sequence
 
 
 class TempoGPT(nn.Module):

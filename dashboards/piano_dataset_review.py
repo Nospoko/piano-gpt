@@ -229,6 +229,9 @@ def main():
         st.write(tgt_token_ids)
         st.write("N tokens:", len(tgt_token_ids))
 
+    st.write("Temporal embedding")
+    st.write(sample["time_steps"])
+
     st.write("### Target Mask Visualization")
     target_mask_fig = plot_target_mask(sample["target_mask"])
     st.pyplot(target_mask_fig)

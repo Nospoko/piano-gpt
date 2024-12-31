@@ -136,7 +136,7 @@ class PianoDataset(MidiDataset):
         padding_size = self.sequence_length - len(encoding) + 1
         padding = [self.tokenizer.pad_token_id] * padding_size
         encoding = encoding + padding
-        time_passage = prompt_time_steps + target_time_steps + [target_token_ids[-1]] * padding_size
+        time_passage = prompt_time_steps + target_time_steps + [target_time_steps[-1]] * padding_size
 
         # Create source and target encodings
         source_encoding = encoding[:-1]

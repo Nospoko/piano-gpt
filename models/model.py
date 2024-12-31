@@ -135,7 +135,6 @@ class GPT(nn.Module):
             dict(
                 wte=nn.Embedding(config.vocab_size, config.n_embd, padding_idx=self.pad_token_id),
                 wpe=nn.Embedding(config.block_size, config.n_embd, padding_idx=self.pad_token_id),
-                wtime=nn.Linear(1, config.n_embd, bias=True),  # Linear layer for time values
                 drop=nn.Dropout(config.dropout),
                 h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
                 ln_f=LayerNorm(config.n_embd, bias=config.bias),

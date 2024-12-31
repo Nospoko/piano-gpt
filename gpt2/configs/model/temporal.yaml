@@ -1,7 +1,7 @@
 # ~85M parameters with 219 vocab size
-n_layer: 4
-n_head: 4
-n_embd: 256
+n_layer: 12
+n_head: 12
+n_embd: 768
 dropout: 0.0  # for pretraining 0 is good, for finetuning try 0.1+
 bias: false  # do we use bias inside LayerNorm and Linear layers?
-max_time_steps: 2048
+max_time_steps: 16384

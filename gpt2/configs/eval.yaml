@@ -16,7 +16,7 @@ dataset:
     max_pitch_shift: 0
     speed_change_factors: []
 
-init_from: midi-gpt2-4M-pretraining-2024-12-22-23-30last.pt # should be 'midi-gpt2*'
+init_from: midi-gpt2-3M-subsequence-2024-11-25-07-48.pt # should be 'midi-gpt2*'
 
 task: multi_with_composer
 
