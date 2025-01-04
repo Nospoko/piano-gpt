@@ -31,7 +31,7 @@ class PianoComposerDataset(PianoDataset):
         source_prefix = task_generator.source_token
 
         # TODO: Maybe there's no reason to tell GPT what
-        # task it's solving, since it knows it from the ifrst token?
+        # task it's solving, since it knows it from the first token?
         # If that's the case, this could be unified into <ANSWER> token common for all tasks
         target_prefix = task_generator.target_token
 

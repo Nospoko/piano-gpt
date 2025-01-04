@@ -130,6 +130,8 @@ def main(cfg: DictConfig):
         checkpoint_model_args = checkpoint["model_args"]
         checkpoint_cfg = OmegaConf.create(checkpoint["config"])
 
+        # FIXME Configs should not be modified, if your loading
+        # a checkpoint, reuse its config
         cfg.model = checkpoint_cfg.model
         cfg.tokenizer = checkpoint_cfg.tokenizer
         cfg.system.dtype = checkpoint_cfg.system.dtype
@@ -300,7 +302,8 @@ def main(cfg: DictConfig):
     # crop down the model block size if desired, using model surgery
     if cfg.data.sequence_length < model.config.block_size:
         model.crop_block_size(cfg.data.sequence_length)
-        model_args["block_size"] = cfg.data.sequence_length  # so that the checkpoint will have the right value
+        # so that the checkpoint will have the right value
+        model_args["block_size"] = cfg.data.sequence_length
     model.to(device)
 
     # initialize a GradScaler. If enabled=False scaler is a no-op
@@ -487,7 +490,10 @@ def main(cfg: DictConfig):
             # get loss as float. note: this is a CPU-GPU sync point
             # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
             lossf = loss.item() * cfg.optimizer.gradient_accumulation_steps
-            mfu = raw_model.estimate_mfu(cfg.data.batch_size * cfg.optimizer.gradient_accumulation_steps, dt)
+            mfu = raw_model.estimate_mfu(
+                fwdbwd_per_iter=cfg.data.batch_size * cfg.optimizer.gradient_accumulation_steps,
+                df=dt,
+            )
             running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
             tps = tokens_in_step / t_forward_backward
 

@@ -45,14 +45,10 @@ def create_metric(name: str, metric_config: dict) -> PianoMetric:
     return base_metrics[base_name](**metric_config)
 
 
-def create_metrics(cfg: DictConfig) -> list[PianoMetric]:
-    """Create all metrics from config"""
-    return [create_metric(name, config) for name, config in cfg.metrics.configs.items()]
-
-
 def create_metrics_runner(cfg: DictConfig) -> MetricsRunner:
     """Create metrics runner based on config"""
-    return MetricsRunner(create_metrics(cfg))
+    metrics = [create_metric(name, config) for name, config in cfg.metrics.configs.items()]
+    return MetricsRunner(metrics)
 
 
 def load_cfg(checkpoint: dict) -> DictConfig:
@@ -63,6 +59,8 @@ def load_cfg(checkpoint: dict) -> DictConfig:
 def load_tokenizer(cfg: DictConfig):
     tokenizer_cfg = OmegaConf.to_container(cfg.tokenizer)
     tokenizer_parameters = tokenizer_cfg["parameters"]
+    # FIXME This is not a good way to pass special tokens
+    # it should be explicit somewhere in the training flow
     tokenizer_parameters |= {"special_tokens": special_tokens}
 
     if cfg.tokenizer.name == "AwesomeMidiTokenizer":
