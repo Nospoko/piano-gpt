@@ -88,7 +88,6 @@ def main(cfg: DictConfig):
 
         # TODO Manage data structures in a way that doesn't require a magic [1]
         val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)[1]
-        pad_token_id = tokenizer.token_to_id["<PAD>"]
 
         # I think this should look more like:
         # model_args = checkpoint_cfg.model_args
@@ -108,6 +107,7 @@ def main(cfg: DictConfig):
             model_args[k] = checkpoint_model_args[k]
 
         gptconf = GPTConfig(**model_args)
+        pad_token_id = tokenizer.token_to_id["<PAD>"]
         model = GPT(config=gptconf, pad_token_id=pad_token_id)
         state_dict = checkpoint["model"]
 
@@ -160,6 +160,7 @@ def main(cfg: DictConfig):
         print("compiling the model... (takes a ~minute)")
         model = torch.compile(model)
 
+    # TODO: What's the point of nesting this function? Separate functions with many arguments is better
     # This is a nested *no_grad*, does it have any effect?
     @torch.no_grad()
     def run_eval():

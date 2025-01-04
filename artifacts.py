@@ -106,6 +106,10 @@ composer_regex_map: dict[re.Pattern, str] = create_composer_regex_map()
 
 
 def get_composer_token(composer: str) -> str:
+    # TODO This should be more refined - we know that composer
+    # informaion is stored in many ways across different datasets
+    # and we should use that knowledge:
+    # def get_composer_token(dataset_name: str, piece_source: dict): ...
     matches: list[tuple[re.Match, str]] = [
         (match, token) for pattern, token in composer_regex_map.items() if (match := pattern.search(composer))
     ]

@@ -18,6 +18,7 @@ class PianoComposerDataset(PianoDataset):
         notes_df = pd.DataFrame(record["notes"])
         source = json.loads(record["source"])
         composer = source.get("composer", "")
+
         composer_token = get_composer_token(composer=composer)
         notes_df = notes_df.iloc[start_point : start_point + self.notes_per_record]
 
@@ -27,8 +28,7 @@ class PianoComposerDataset(PianoDataset):
         notes_df.end = notes_df.end - offset
 
         task_generator = Task.get_task(task_name=task)
-        source_notes, target_notes = task_generator.generate(notes=notes_df)
-        source_prefix = task_generator.source_token
+        source_notes, target_notes = task_generator.generate(notes_df=notes_df)
 
         # TODO: Maybe there's no reason to tell GPT what
         # task it's solving, since it knows it from the first token?
@@ -36,12 +36,13 @@ class PianoComposerDataset(PianoDataset):
         target_prefix = task_generator.target_token
 
         # Encode source and target notes
+        source_prefix = task_generator.source_token
         prompt_token_ids = self.tokenizer.encode(
-            notes=source_notes,
+            notes_df=source_notes,
             prefix_tokens=[source_prefix],
         )
         target_token_ids = self.tokenizer.encode(
-            notes=target_notes,
+            notes_df=target_notes,
             prefix_tokens=[target_prefix, composer_token],
         )
 

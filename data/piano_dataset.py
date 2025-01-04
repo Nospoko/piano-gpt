@@ -90,26 +90,26 @@ class PianoDataset(MidiDataset):
         task: str,
     ):
         # Convert notes to a DataFrame and select the desired range
-        notes = pd.DataFrame(record["notes"])
-        notes = notes.iloc[start_point : start_point + self.notes_per_record]
+        notes_df = pd.DataFrame(record["notes"])
+        notes_df = notes_df.iloc[start_point : start_point + self.notes_per_record]
 
         # Normalize start and end times
-        offset = notes.start.min()
-        notes.start = notes.start - offset
-        notes.end = notes.end - offset
+        offset = notes_df.start.min()
+        notes_df.start = notes_df.start - offset
+        notes_df.end = notes_df.end - offset
 
         task_generator = Task.get_task(task_name=task)
-        source_notes, target_notes = task_generator.generate(notes=notes)
+        source_notes_df, target_notes_df = task_generator.generate(notes=notes_df)
         source_prefix = task_generator.source_token
         target_prefix = task_generator.target_token
 
         # Encode source and target notes
         prompt_token_ids = self.tokenizer.encode(
-            notes=source_notes,
+            notes_df=source_notes_df,
             prefix_tokens=[source_prefix],
         )
         target_token_ids = self.tokenizer.encode(
-            notes=target_notes,
+            notes_df=target_notes_df,
             prefix_tokens=[target_prefix],
         )
 
@@ -128,6 +128,7 @@ class PianoDataset(MidiDataset):
         prompt_length = len(prompt_token_ids)
         encoding = prompt_token_ids + target_token_ids
 
+        # TODO Why is padding here and inside tokenizer.encode?
         # Add padding to reach the desired sequence length
         padding_size = self.sequence_length - len(encoding) + 1
         padding = [self.tokenizer.pad_token_id] * padding_size

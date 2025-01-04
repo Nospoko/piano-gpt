@@ -11,7 +11,7 @@ class Task(ABC):
         self.target_token = target_token
 
     @abstractmethod
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         pass
 
     @classmethod
@@ -23,10 +23,10 @@ class AboveMedianPrediction(Task):
     def __init__(self):
         super().__init__("<LOW_FROM_MEDIAN>", "<HIGH_FROM_MEDIAN>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        median = notes.pitch.median()
-        source_notes = notes[notes.pitch < median]
-        target_notes = notes[notes.pitch >= median]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        median = notes_df.pitch.median()
+        source_notes = notes_df[notes_df.pitch < median]
+        target_notes = notes_df[notes_df.pitch >= median]
         return source_notes, target_notes
 
 
@@ -34,10 +34,10 @@ class AboveLowQuartilePrediction(Task):
     def __init__(self):
         super().__init__("<BELOW_LOW_QUARTILE>", "<ABOVE_LOW_QUARTILE>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        q1 = notes.pitch.quantile(0.25)
-        source_notes = notes[notes.pitch < q1]
-        target_notes = notes[notes.pitch >= q1]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        q1 = notes_df.pitch.quantile(0.25)
+        source_notes = notes_df[notes_df.pitch < q1]
+        target_notes = notes_df[notes_df.pitch >= q1]
         return source_notes, target_notes
 
 
@@ -45,10 +45,10 @@ class AboveHighQuartilePrediction(Task):
     def __init__(self):
         super().__init__("<BELOW_HIGH_QUARTILE>", "<ABOVE_HIGH_QUARTILE>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        q3 = notes.pitch.quantile(0.75)
-        source_notes = notes[notes.pitch < q3]
-        target_notes = notes[notes.pitch >= q3]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        q3 = notes_df.pitch.quantile(0.75)
+        source_notes = notes_df[notes_df.pitch < q3]
+        target_notes = notes_df[notes_df.pitch >= q3]
         return source_notes, target_notes
 
 
@@ -56,10 +56,10 @@ class BelowLowQuartilePrediction(Task):
     def __init__(self):
         super().__init__("<ABOVE_LOW_QUARTILE>", "<BELOW_LOW_QUARTILE>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        q1 = notes.pitch.quantile(0.25)
-        source_notes = notes[notes.pitch >= q1]
-        target_notes = notes[notes.pitch < q1]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        q1 = notes_df.pitch.quantile(0.25)
+        source_notes = notes_df[notes_df.pitch >= q1]
+        target_notes = notes_df[notes_df.pitch < q1]
         return source_notes, target_notes
 
 
@@ -67,10 +67,10 @@ class BelowHighQuartilePrediction(Task):
     def __init__(self):
         super().__init__("<ABOVE_HIGH_QUARTILE>", "<BELOW_HIGH_QUARTILE>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        q3 = notes.pitch.quantile(0.75)
-        source_notes = notes[notes.pitch >= q3]
-        target_notes = notes[notes.pitch < q3]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        q3 = notes_df.pitch.quantile(0.75)
+        source_notes = notes_df[notes_df.pitch >= q3]
+        target_notes = notes_df[notes_df.pitch < q3]
         return source_notes, target_notes
 
 
@@ -78,10 +78,10 @@ class BelowMedianPrediction(Task):
     def __init__(self):
         super().__init__("<HIGH_FROM_MEDIAN>", "<LOW_FROM_MEDIAN>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        median = notes.pitch.median()
-        source_notes = notes[notes.pitch >= median]
-        target_notes = notes[notes.pitch < median]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        median = notes_df.pitch.median()
+        source_notes = notes_df[notes_df.pitch >= median]
+        target_notes = notes_df[notes_df.pitch < median]
         return source_notes, target_notes
 
 
@@ -89,11 +89,11 @@ class MiddleQuartilesPrediction(Task):
     def __init__(self):
         super().__init__("<EXTREME_QUARTILES>", "<MIDDLE_QUARTILES>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        q1 = notes.pitch.quantile(0.25)
-        q3 = notes.pitch.quantile(0.75)
-        source_notes = notes[(notes.pitch < q1) | (notes.pitch >= q3)]
-        target_notes = notes[(notes.pitch >= q1) & (notes.pitch < q3)]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        q1 = notes_df.pitch.quantile(0.25)
+        q3 = notes_df.pitch.quantile(0.75)
+        source_notes = notes_df[(notes_df.pitch < q1) | (notes_df.pitch >= q3)]
+        target_notes = notes_df[(notes_df.pitch >= q1) & (notes_df.pitch < q3)]
         return source_notes, target_notes
 
 
@@ -101,11 +101,11 @@ class ExtremeQuartilesPrediction(Task):
     def __init__(self):
         super().__init__("<MIDDLE_QUARTILES>", "<EXTREME_QUARTILES>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        q1 = notes.pitch.quantile(0.25)
-        q3 = notes.pitch.quantile(0.75)
-        target_notes = notes[(notes.pitch < q1) | (notes.pitch >= q3)]
-        source_notes = notes[(notes.pitch >= q1) & (notes.pitch < q3)]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        q1 = notes_df.pitch.quantile(0.25)
+        q3 = notes_df.pitch.quantile(0.75)
+        target_notes = notes_df[(notes_df.pitch < q1) | (notes_df.pitch >= q3)]
+        source_notes = notes_df[(notes_df.pitch >= q1) & (notes_df.pitch < q3)]
         return source_notes, target_notes
 
 
@@ -113,10 +113,10 @@ class LoudPrediction(Task):
     def __init__(self):
         super().__init__("<SOFT>", "<LOUD>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        median = notes.velocity.median()
-        soft_notes = notes[notes.velocity < median]
-        loud_notes = notes[notes.velocity >= median]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        median = notes_df.velocity.median()
+        soft_notes = notes_df[notes_df.velocity < median]
+        loud_notes = notes_df[notes_df.velocity >= median]
         return soft_notes, loud_notes
 
 
@@ -124,10 +124,10 @@ class VerySoftPrediction(Task):
     def __init__(self):
         super().__init__("<ABOVE_VERY_SOFT>", "<VERY_SOFT>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        q1 = notes.velocity.quantile(0.25)
-        source_notes = notes[notes.velocity >= q1]
-        target_notes = notes[notes.velocity < q1]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        q1 = notes_df.velocity.quantile(0.25)
+        source_notes = notes_df[notes_df.velocity >= q1]
+        target_notes = notes_df[notes_df.velocity < q1]
         return source_notes, target_notes
 
 
@@ -135,10 +135,10 @@ class VeryLoudPrediction(Task):
     def __init__(self):
         super().__init__("<BELOW_VERY_LOUD>", "<VERY_LOUD>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        q3 = notes.velocity.quantile(0.75)
-        source_notes = notes[notes.velocity < q3]
-        target_notes = notes[notes.velocity >= q3]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        q3 = notes_df.velocity.quantile(0.75)
+        source_notes = notes_df[notes_df.velocity < q3]
+        target_notes = notes_df[notes_df.velocity >= q3]
         return source_notes, target_notes
 
 
@@ -146,10 +146,10 @@ class SoftPrediction(Task):
     def __init__(self):
         super().__init__("<LOUD>", "<SOFT>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        median = notes.velocity.median()
-        source_notes = notes[notes.velocity >= median]
-        target_notes = notes[notes.velocity < median]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        median = notes_df.velocity.median()
+        source_notes = notes_df[notes_df.velocity >= median]
+        target_notes = notes_df[notes_df.velocity < median]
         return source_notes, target_notes
 
 
@@ -157,11 +157,11 @@ class ModerateVelocityPrediction(Task):
     def __init__(self):
         super().__init__("<EXTREME_VOLUME>", "<MODERATE_VOLUME>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        q1 = notes.velocity.quantile(0.25)
-        q3 = notes.velocity.quantile(0.75)
-        source_notes = notes[(notes.velocity < q1) | (notes.velocity >= q3)]
-        target_notes = notes[(notes.velocity >= q1) & (notes.velocity < q3)]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        q1 = notes_df.velocity.quantile(0.25)
+        q3 = notes_df.velocity.quantile(0.75)
+        source_notes = notes_df[(notes_df.velocity < q1) | (notes_df.velocity >= q3)]
+        target_notes = notes_df[(notes_df.velocity >= q1) & (notes_df.velocity < q3)]
         return source_notes, target_notes
 
 
@@ -169,11 +169,11 @@ class ExtremeVelocityPrediction(Task):
     def __init__(self):
         super().__init__("<MODERATE_VOLUME>", "<EXTREME_VOLUME>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        q1 = notes.velocity.quantile(0.25)
-        q3 = notes.velocity.quantile(0.75)
-        target_notes = notes[(notes.velocity < q1) | (notes.velocity >= q3)]
-        source_notes = notes[(notes.velocity >= q1) & (notes.velocity < q3)]
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        q1 = notes_df.velocity.quantile(0.25)
+        q3 = notes_df.velocity.quantile(0.75)
+        target_notes = notes_df[(notes_df.velocity < q1) | (notes_df.velocity >= q3)]
+        source_notes = notes_df[(notes_df.velocity >= q1) & (notes_df.velocity < q3)]
         return source_notes, target_notes
 
 
@@ -181,18 +181,18 @@ class VelocityDenoising(Task):
     def __init__(self):
         super().__init__("<NOISY_VOLUME>", "<CLEAN_VOLUME>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         noisy_notes = self._add_noise_to_notes(
-            notes,
+            notes_df,
         )
-        return noisy_notes, notes
+        return noisy_notes, notes_df
 
     @staticmethod
     def _add_noise_to_notes(
-        notes: pd.DataFrame,
+        notes_df: pd.DataFrame,
         max_velocity_change: int = 30,
     ) -> pd.DataFrame:
-        noisy_notes = notes.copy()
+        noisy_notes = notes_df.copy()
         noise = np.random.normal(0, max_velocity_change, len(noisy_notes))
         noisy_notes["velocity"] += noise.astype(int)
         noisy_notes["velocity"] = noisy_notes["velocity"].clip(0, 127)
@@ -203,19 +203,19 @@ class PitchDenoising(Task):
     def __init__(self):
         super().__init__("<NOISY_PITCH>", "<CLEAN_PITCH>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         noisy_notes = self._add_noise_to_notes(
-            notes,
+            notes_df,
             max_pitch_shift=5,
         )
-        return noisy_notes, notes
+        return noisy_notes, notes_df
 
     @staticmethod
     def _add_noise_to_notes(
-        notes: pd.DataFrame,
+        notes_df: pd.DataFrame,
         max_pitch_shift: int,
     ) -> pd.DataFrame:
-        noisy_notes = notes.copy()
+        noisy_notes = notes_df.copy()
         noise = np.random.normal(0, max_pitch_shift, len(noisy_notes))
         noisy_notes["pitch"] += noise.astype(int)
         noisy_notes["pitch"] = noisy_notes["pitch"].clip(21, 108)
@@ -226,17 +226,17 @@ class StartTimeDenoising(Task):
     def __init__(self):
         super().__init__("<NOISY_START_TIME>", "<CLEAN_TIME>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         noisy_notes = self._add_noise_to_notes(
-            notes,
+            notes_df,
             max_time_change=0.3,
         )
         noisy_notes.sort_values(by="start").reset_index(drop=True)
-        return noisy_notes, notes
+        return noisy_notes, notes_df
 
     @staticmethod
-    def _add_noise_to_notes(notes: pd.DataFrame, max_time_change: float) -> pd.DataFrame:
-        noisy_notes = notes.copy()
+    def _add_noise_to_notes(notes_df: pd.DataFrame, max_time_change: float) -> pd.DataFrame:
+        noisy_notes = notes_df.copy()
         noise = np.random.normal(0, max_time_change, len(noisy_notes))
         noisy_notes["start"] += noise
         noisy_notes["start"] = noisy_notes["start"].clip(0)
@@ -248,17 +248,17 @@ class TimeDenoising(Task):
     def __init__(self):
         super().__init__("<NOISY_TIME>", "<CLEAN_TIME>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         noisy_notes = self._add_noise_to_notes(
-            notes,
+            notes_df,
             max_time_change=0.3,
         )
         noisy_notes.sort_values(by="start").reset_index(drop=True)
-        return noisy_notes, notes
+        return noisy_notes, notes_df
 
     @staticmethod
-    def _add_noise_to_notes(notes: pd.DataFrame, max_time_change: float) -> pd.DataFrame:
-        noisy_notes = notes.copy()
+    def _add_noise_to_notes(notes_df: pd.DataFrame, max_time_change: float) -> pd.DataFrame:
+        noisy_notes = notes_df.copy()
 
         start_noise = np.random.normal(0, max_time_change, len(noisy_notes))
         duration_noise = np.random.normal(0, max_time_change, len(noisy_notes))
@@ -275,24 +275,24 @@ class ComprehensiveDenoising(Task):
     def __init__(self):
         super().__init__("<NOISY>", "<CLEAN_EVERYTHING>")
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         noisy_notes = self._add_comprehensive_noise(
-            notes,
+            notes_df,
             max_pitch_shift=5,
             max_time_change=0.3,
             max_velocity_change=30,
         )
         noisy_notes.sort_values(by="start").reset_index(drop=True)
-        return noisy_notes, notes
+        return noisy_notes, notes_df
 
     @staticmethod
     def _add_comprehensive_noise(
-        notes: pd.DataFrame,
+        notes_df: pd.DataFrame,
         max_pitch_shift: int,
         max_time_change: float,
         max_velocity_change: int,
     ) -> pd.DataFrame:
-        noisy_notes = notes.copy()
+        noisy_notes = notes_df.copy()
 
         # Add noise to velocity
         velocity_noise = np.random.normal(0, max_velocity_change, len(noisy_notes))
@@ -321,17 +321,17 @@ class PerformanceTask(Task):
     def __init__(self):
         super().__init__("<SCORES>", "<PERFORMANCE>")
 
-    def simplify_notes(self, notes: pd.DataFrame):
-        notes = notes.copy()
+    def simplify_notes(self, notes_df: pd.DataFrame):
+        notes_df = notes_df.copy()
         dt = 0.2
-        notes.start = np.cumsum(np.ones(len(notes)) * dt) - dt
-        notes.end = notes.start + dt
-        notes.duration = dt
-        notes.velocity = 80
-        return notes
+        notes_df.start = np.cumsum(np.ones(len(notes_df)) * dt) - dt
+        notes_df.end = notes_df.start + dt
+        notes_df.duration = dt
+        notes_df.velocity = 80
+        return notes_df
 
-    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        return self.simplify_notes(notes=notes), notes
+    def generate(self, notes_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        return self.simplify_notes(notes_df=notes_df), notes_df
 
 
 task_map: Dict[str, Type[Task]] = {
