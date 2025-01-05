@@ -24,6 +24,7 @@ class NextTokenComposerDataset(NextTokenDataset):
         if "composer" in source.keys():
             composer_token = get_composer_token(composer=source["composer"])
         else:
+            # FIXME This logic seems to be duplicated in artifacts.py :/
             composer_token = "<UNKNOWN_COMPOSER>"
         # Get the full encoding for the record
         full_encoding = record["note_token_ids"]
@@ -35,6 +36,8 @@ class NextTokenComposerDataset(NextTokenDataset):
 
         # Add padding if necessary
         if n_tokens <= self.sequence_length:
+            # TODO Use tokenizer for padding
+            # TODO Never write a magic +1 without a comment
             padding = [self.tokenizer.pad_token_id] * (self.sequence_length + 1 - n_tokens)
             full_encoding = full_encoding + padding
             n_tokens = self.sequence_length + 1

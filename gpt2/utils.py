@@ -9,12 +9,12 @@ from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
 from piano_metrics.piano_metric import (
     F1Metric,
     PianoMetric,
-    MetricsRunner,
-    KeyCorrelationMetric,
-    PitchCorrelationMetric,
-    DstartCorrelationMetric,
-    DurationCorrelationMetric,
-    VelocityCorrelationMetric,
+    MetricsManager,
+    KeyDistributionMetric,
+    PitchDistributionMetric,
+    DStartDistributionMetric,
+    DurationDistributionMetric,
+    VelocityDistributionMetric,
 )
 
 from data.dataset import MidiDataset
@@ -30,11 +30,11 @@ def create_metric(name: str, metric_config: dict) -> PianoMetric:
     """Create a single metric with its configuration"""
     base_metrics = {
         "f1": F1Metric,
-        "key_correlation": KeyCorrelationMetric,
-        "dstart_correlation": DstartCorrelationMetric,
-        "duration_correlation": DurationCorrelationMetric,
-        "velocity_correlation": VelocityCorrelationMetric,
-        "pitch_correlation": PitchCorrelationMetric,
+        "key_correlation": KeyDistributionMetric,
+        "dstart_correlation": DStartDistributionMetric,
+        "duration_correlation": DurationDistributionMetric,
+        "velocity_correlation": VelocityDistributionMetric,
+        "pitch_correlation": PitchDistributionMetric,
     }
 
     # The matching metric name has to be a prefix to the key in config
@@ -45,10 +45,10 @@ def create_metric(name: str, metric_config: dict) -> PianoMetric:
     return base_metrics[base_name](**metric_config)
 
 
-def create_metrics_runner(cfg: DictConfig) -> MetricsRunner:
+def create_metrics_runner(cfg: DictConfig) -> MetricsManager:
     """Create metrics runner based on config"""
     metrics = [create_metric(name, config) for name, config in cfg.metrics.configs.items()]
-    return MetricsRunner(metrics)
+    return MetricsManager(metrics)
 
 
 def load_cfg(checkpoint: dict) -> DictConfig:
@@ -163,10 +163,15 @@ def get_dataset_for_task(
     raise ValueError(f"Unknown task: {cfg.task}")
 
 
+# FIXME Why is dataset name not a part of the config?
 def prepare_dataset_base(cfg: DictConfig, dataset_name: str) -> tuple[Dataset, tuple]:
     dataset_config = OmegaConf.to_container(cfg.dataset)
     dataset_path = to_absolute_path(f"./midi_datasets/{dataset_name}")
+
+    # TODO So is this a dataset name, or dataset class?
     if dataset_name == "MidiTokenizedDataset":
+        # TODO At this point tokenizer was already created, what's
+        # the point of tokenizer config shuffling here?
         dataset_config["tokenizer_cfg"] = OmegaConf.to_container(cfg.tokenizer)
 
     dataset = load_dataset(
@@ -200,7 +205,10 @@ def prepare_next_token_composer_datasets(
     cfg: DictConfig,
     tokenizer: MidiTokenizer,
 ) -> tuple[NextTokenDataset, tuple]:
-    train_split, validation_splits = prepare_dataset_base(cfg, "MidiTokenizedDataset")
+    train_split, validation_splits = prepare_dataset_base(
+        cfg=cfg,
+        dataset_name="MidiTokenizedDataset",
+    )
     train_dataset = NextTokenComposerDataset(
         dataset=train_split,
         tokenizer=tokenizer,
@@ -243,7 +251,10 @@ def prepare_next_token_datasets(
     cfg: DictConfig,
     tokenizer: MidiTokenizer,
 ) -> tuple[NextTokenDataset, NextTokenDataset]:
-    train_split, validation_splits = prepare_dataset_base(cfg, "MidiTokenizedDataset")
+    train_split, validation_splits = prepare_dataset_base(
+        cfg=cfg,
+        dataset_name="MidiTokenizedDataset",
+    )
     train_dataset = NextTokenDataset(
         dataset=train_split,
         tokenizer=tokenizer,

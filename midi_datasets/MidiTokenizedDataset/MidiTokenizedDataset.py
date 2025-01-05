@@ -132,6 +132,7 @@ class MidiTokenizedDataset(GeneratorBasedBuilder):
 
     def get_tokenzier(self) -> ExponentialTimeTokenizer | AwesomeMidiTokenizer:
         tokenizer_parameters = self.config.tokenizer_cfg["parameters"]
+        # FIXME ...
         tokenizer_parameters |= {"special_tokens": special_tokens}
         if self.config.tokenizer_cfg["name"] == "ExponentialTimeTokenizer":
             return ExponentialTimeTokenizer(**tokenizer_parameters)
