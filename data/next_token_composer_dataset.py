@@ -17,6 +17,7 @@ class NextTokenComposerDataset(NextTokenDataset):
         Returns:
             dict: A dictionary containing the source and target token ids for next token prediction.
         """
+        # FIXME This is a 90+% copied code :(
         # Get the record ID and start point for the given index
         record_id, start_point = self._index_to_record_and_start(idx)
         record = self.dataset[record_id]

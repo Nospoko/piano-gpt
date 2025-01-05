@@ -164,24 +164,29 @@ def get_dataset_for_task(
 
 
 # FIXME Why is dataset name not a part of the config?
-def prepare_dataset_base(cfg: DictConfig, dataset_name: str) -> tuple[Dataset, tuple]:
-    dataset_config = OmegaConf.to_container(cfg.dataset)
+def prepare_dataset_base(
+    cfg: DictConfig,
+    tokenizer: ExponentialTimeTokenizer,
+    dataset_name: str,
+) -> tuple[Dataset, tuple]:
+    dataset_builder_config = OmegaConf.to_container(cfg.dataset)
     dataset_path = to_absolute_path(f"./midi_datasets/{dataset_name}")
 
     # TODO So is this a dataset name, or dataset class?
     if dataset_name == "MidiTokenizedDataset":
         # TODO At this point tokenizer was already created, what's
         # the point of tokenizer config shuffling here?
-        dataset_config["tokenizer_cfg"] = OmegaConf.to_container(cfg.tokenizer)
+        # dataset_config["tokenizer_cfg"] = OmegaConf.to_container(cfg.tokenizer)
+        dataset_builder_config["tokenizer_dict"] = tokenizer.to_dict()
 
     dataset = load_dataset(
         dataset_path,
         trust_remote_code=True,
         num_proc=cfg.system.data_workers,
-        **dataset_config,
+        **dataset_builder_config,
     )
-    train_split: Dataset = dataset["train"]
-    validation_split: Dataset = dataset["validation"]
+    train_split = dataset["train"]
+    validation_split = dataset["validation"]
     validation_split.shuffle(seed=1337)
     validation_dataset_bach = validation_split.filter(
         lambda x: json.loads(x["source"])["composer"] == "Johann Sebastian Bach",
@@ -207,6 +212,7 @@ def prepare_next_token_composer_datasets(
 ) -> tuple[NextTokenDataset, tuple]:
     train_split, validation_splits = prepare_dataset_base(
         cfg=cfg,
+        tokenizer=tokenizer,
         dataset_name="MidiTokenizedDataset",
     )
     train_dataset = NextTokenComposerDataset(
@@ -253,6 +259,7 @@ def prepare_next_token_datasets(
 ) -> tuple[NextTokenDataset, NextTokenDataset]:
     train_split, validation_splits = prepare_dataset_base(
         cfg=cfg,
+        tokenizer=tokenizer,
         dataset_name="MidiTokenizedDataset",
     )
     train_dataset = NextTokenDataset(
