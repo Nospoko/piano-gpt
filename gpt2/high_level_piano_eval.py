@@ -98,7 +98,6 @@ def main(cfg: DictConfig):
             n_layer=cfg.model.n_layer,
             n_head=cfg.model.n_head,
             n_embd=cfg.model.n_embd,
-            # TODO Naming consistency pls
             block_size=cfg.data.sequence_length,
             bias=cfg.model.bias,
             vocab_size=None,
@@ -151,6 +150,7 @@ def main(cfg: DictConfig):
         for dataset, sampler in zip(val_datasets, val_samplers)
     ]
 
+    # TODO Why would this happen?
     if cfg.data.sequence_length < model.config.block_size:
         model.crop_block_size(cfg.data.sequence_length)
         model_args["block_size"] = cfg.data.sequence_length
@@ -177,6 +177,7 @@ def main(cfg: DictConfig):
         example_generations = {}
 
         for split, loader in zip(splits, val_loaders):
+            # FIXME Not a good way to initialize
             metric_trackers = {
                 "loss": torch.zeros(cfg.eval_iters),
             }
@@ -246,9 +247,11 @@ def main(cfg: DictConfig):
                     # so this may break something. I did try to recreate the same
                     # storage in "batch_metrics", but with new names coming from the PIANO package
                     for metric_result in metric_results:
+                        # Each PIANO metric calculates multiple numbers we can track
                         for it, (sub_metric_name, metric_value) in enumerate(metric_result.metrics.items()):
                             metric_name = f"{metric_result.name}/{sub_metric_name}"
 
+                            # FIXME Not a good way to initialize
                             if metric_name not in batch_metrics:
                                 batch_metrics[metric_name] = []
 
