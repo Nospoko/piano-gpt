@@ -16,9 +16,10 @@ class PianoDataset(MidiDataset):
         self,
         dataset: HuggingFaceDataset,
         tokenizer: AwesomeMidiTokenizer | ExponentialTimeTokenizer,
+        # TODO How can I find out what's the relation between *sequence_length* and *notes_per_record*?
         sequence_length: int,
         notes_per_record: int,
-        tasks: list,
+        task_names: list[str],
         loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
         num_proc: int = 16,
     ):
@@ -28,8 +29,8 @@ class PianoDataset(MidiDataset):
         self.notes_per_record = notes_per_record
         self.length = 0
         self.record_lengths = {}
-        self.tasks = tasks
-        self.num_tasks = len(self.tasks)
+        self.task_names = task_names
+        self.num_tasks = len(self.task_names)
         self.num_proc = num_proc
         self._build_records()
 
@@ -38,7 +39,7 @@ class PianoDataset(MidiDataset):
         yield "n_midi_records", len(self.record_lengths)
         yield "notes_per_record", self.notes_per_record
         yield "sequence_length", self.sequence_length
-        yield "piano_tasks", self.tasks
+        yield "piano_tasks", self.task_names
 
     def _build_records(self):
         # Helper function to calculate the length of each record
@@ -74,12 +75,12 @@ class PianoDataset(MidiDataset):
         # Convert global index to record ID and start point within that record
         # First get the task number
         task_number = idx % self.num_tasks
-        task = self.tasks[task_number]
+        task_name = self.task_names[task_number]
         idx = idx // self.num_tasks
 
         for record_id, record_length in self.record_lengths.items():
             if idx < record_length:
-                return record_id, idx, task
+                return record_id, idx, task_name
             idx -= record_length
         raise IndexError("Index out of range")
 
@@ -87,7 +88,7 @@ class PianoDataset(MidiDataset):
         self,
         record: dict,
         start_point: int,
-        task: str,
+        task_name: str,
     ):
         # Convert notes to a DataFrame and select the desired range
         notes_df = pd.DataFrame(record["notes"])
@@ -98,49 +99,59 @@ class PianoDataset(MidiDataset):
         notes_df.start = notes_df.start - offset
         notes_df.end = notes_df.end - offset
 
-        task_generator = Task.get_task(task_name=task)
-        source_notes_df, target_notes_df = task_generator.generate(notes=notes_df)
+        task_generator = Task.get_task(task_name=task_name)
+        source_notes_df, target_notes_df = task_generator.generate(notes_df=notes_df)
         source_prefix = task_generator.source_token
         target_prefix = task_generator.target_token
 
         # Encode source and target notes
-        prompt_token_ids = self.tokenizer.encode(
+        source_token_ids = self.tokenizer.encode_notes_df(
             notes_df=source_notes_df,
-            prefix_tokens=[source_prefix],
         )
-        target_token_ids = self.tokenizer.encode(
-            notes_df=target_notes_df,
-            prefix_tokens=[target_prefix],
-        )
+        prefix_token_ids = self.tokenizer.encode_tokens([source_prefix])
+        prompt_token_ids = prefix_token_ids + source_token_ids
 
-        return prompt_token_ids, target_token_ids
+        target_token_ids = self.tokenizer.encode_notes_df(
+            notes_df=target_notes_df,
+        )
+        target_prefix_token_ids = self.tokenizer.encode_tokens([target_prefix])
+        answer_token_ids = target_prefix_token_ids + target_token_ids
+
+        return prompt_token_ids, answer_token_ids
 
     def __getitem__(self, idx: int) -> dict:
         # Get the record ID and start point for the given index
-        record_id, start_point, task = self._index_to_record(idx)
+        record_id, start_point, task_name = self._index_to_record(idx)
         record = self.dataset[record_id]
 
+        # I think we need the info about source and target as well
+        # to track more precise metrics
         prompt_token_ids, target_token_ids = self.prepare_encodings(
             record=record,
             start_point=start_point,
-            task=task,
+            task_name=task_name,
         )
         prompt_length = len(prompt_token_ids)
         encoding = prompt_token_ids + target_token_ids
 
         # TODO Why is padding here and inside tokenizer.encode?
         # Add padding to reach the desired sequence length
-        padding_size = self.sequence_length - len(encoding) + 1
-        padding = [self.tokenizer.pad_token_id] * padding_size
-        encoding = encoding + padding
+        # padding_size = self.sequence_length - len(encoding) + 1
+        # padding = [self.tokenizer.pad_token_id] * padding_size
+        # encoding = encoding + padding
+        encoding_padded = self.tokenizer.pad_to_size(
+            token_ids=encoding,
+            target_size=self.sequence_length,
+        )
+        print(encoding_padded[:10])
 
         # Create source and target encodings
-        source_encoding = encoding[:-1]
-        target_encoding = encoding[1:]
+        source_encoding = encoding_padded[:-1]
+        target_encoding = encoding_padded[1:]
 
         # Convert encodings to tensors
-        source_token_ids = torch.tensor(source_encoding[: self.sequence_length], dtype=torch.int64)
-        target_token_ids = torch.tensor(target_encoding[: self.sequence_length], dtype=torch.int64)
+        source_token_ids = torch.tensor(source_encoding, dtype=torch.int64)
+        target_token_ids = torch.tensor(target_encoding, dtype=torch.int64)
 
         # Create target mask
         target_mask = target_token_ids != self.tokenizer.pad_token_id
@@ -153,7 +164,7 @@ class PianoDataset(MidiDataset):
             "target_token_ids": target_token_ids,
             "target_mask": target_mask,
             "start_point": start_point,
-            "task": task,
+            "task": task_name,
             "prediction_task": "high_median_prediction",
             "source": record["source"],
             # The length of the prompt part of the sequence

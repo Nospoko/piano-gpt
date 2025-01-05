@@ -360,8 +360,10 @@ task_map: Dict[str, Type[Task]] = {
 
 all_tasks = [
     # Dynamically calculated pitch tasks
+    # FIXME this one is not present in the task map?
     "high_median_prediction",
     "above_median_prediction",
+    # FIXME this one is not present in the task map? ...
     "low_median_prediction",
     "above_low_quartile_prediction",
     "above_high_quartile_prediction",

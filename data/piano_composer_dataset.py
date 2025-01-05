@@ -8,6 +8,7 @@ from data.piano_dataset import PianoDataset
 
 
 class PianoComposerDataset(PianoDataset):
+    # FIXME This is 90+% repeated code ...
     def prepare_encodings(
         self,
         record: dict,

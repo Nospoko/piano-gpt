@@ -1,5 +1,6 @@
 import re
 
+# TODO How is this different from the manually defined sentinel tokens below?
 placeholder_tokens = [f"<SENTINEL_{idx}>" for idx in range(64)]
 composer_tokens = [
     "<SCRIABIN>",
@@ -18,6 +19,37 @@ composer_tokens = [
     "<UNKNOWN_COMPOSER>",
     "<BACH>",
 ]
+
+piano_task_tokens = [
+    "<CLEAN_TIME>",
+    "<CLEAN_EVERYTHING>",
+    "<CLEAN_VOLUME>",
+    "<CLEAN_PITCH>",
+    "<LOW_FROM_MEDIAN>",
+    "<HIGH_FROM_MEDIAN>",
+    "<ABOVE_LOW_QUARTILE>",
+    "<BELOW_LOW_QUARTILE>",
+    "<ABOVE_HIGH_QUARTILE>",
+    "<BELOW_HIGH_QUARTILE>",
+    "<MIDDLE_QUARTILES>",
+    "<EXTREME_QUARTILES>",
+    "<LOUD>",
+    "<SOFT>",
+    "<ABOVE_VERY_SOFT>",
+    "<VERY_SOFT>",
+    "<VERY_LOUD>",
+    "<BELOW_VERY_LOUD>",
+    "<MODERATE_VOLUME>",
+    "<EXTREME_VOLUME>",
+    "<CLEAN>",
+    "<NOISY_VOLUME>",
+    "<NOISY_PITCH>",
+    "<NOISY_START_TIME>",
+    "<NOISY_TIME>",
+    "<NOISY>",
+]
+
+# FIXME Not a good way to pass special tokens
 special_tokens = (
     [
         "<PAD>",
@@ -43,33 +75,8 @@ special_tokens = (
         "<SENTINEL_95>",
         "<SCORES>",
         "<PERFORMANCE>",
-        "<CLEAN_TIME>",
-        "<CLEAN_EVERYTHING>",
-        "<CLEAN_VOLUME>",
-        "<CLEAN_PITCH>",
-        "<LOW_FROM_MEDIAN>",
-        "<HIGH_FROM_MEDIAN>",
-        "<ABOVE_LOW_QUARTILE>",
-        "<BELOW_LOW_QUARTILE>",
-        "<ABOVE_HIGH_QUARTILE>",
-        "<BELOW_HIGH_QUARTILE>",
-        "<MIDDLE_QUARTILES>",
-        "<EXTREME_QUARTILES>",
-        "<LOUD>",
-        "<SOFT>",
-        "<ABOVE_VERY_SOFT>",
-        "<VERY_SOFT>",
-        "<VERY_LOUD>",
-        "<BELOW_VERY_LOUD>",
-        "<MODERATE_VOLUME>",
-        "<EXTREME_VOLUME>",
-        "<CLEAN>",
-        "<NOISY_VOLUME>",
-        "<NOISY_PITCH>",
-        "<NOISY_START_TIME>",
-        "<NOISY_TIME>",
-        "<NOISY>",
     ]
+    + piano_task_tokens
     + composer_tokens
     + placeholder_tokens
 )
