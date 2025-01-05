@@ -29,6 +29,7 @@ from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf, DictConfig
 from torch.utils.data import Sampler, DataLoader
+from piano_dataset.piano_tasks import ParametricTaskManager
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
@@ -169,8 +170,18 @@ def main(cfg: DictConfig):
         state_dict = None
 
     elif cfg.init_from == "scratch":
-        tokenizer = load_tokenizer(cfg=cfg)
-        train_dataset, val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)
+        # TODO We'll need more elaborate configs to control piano tasks
+        # For now let's see what will happen with the default setup
+        piano_task_manager = ParametricTaskManager.load_default()
+        tokenizer = load_tokenizer(
+            cfg=cfg,
+            special_tokens=piano_task_manager.get_special_tokens(),
+        )
+        train_dataset, val_datasets = get_dataset_for_task(
+            cfg=cfg,
+            tokenizer=tokenizer,
+            piano_task_manager=piano_task_manager,
+        )
         out_dir = to_absolute_path(cfg.out_dir)
 
         pad_token_id = tokenizer.token_to_id["<PAD>"]
@@ -464,6 +475,7 @@ def main(cfg: DictConfig):
                 "wandb": wandb_link,
                 "wandb_id": wandb.run.id,
                 "total_tokens": total_tokens,
+                "piano_tasks_config": piano_task_manager.tasks_config,
                 "tokenizer": tokenizer.to_dict(),
             }
             print(f"saving checkpoint to {out_dir}")

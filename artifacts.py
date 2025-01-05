@@ -61,11 +61,12 @@ piano_task_tokens = [
 ]
 
 # FIXME Not a good way to pass special tokens
-special_tokens = (
+special_tokens_in_the_wrong_place = (
     [
         "<PAD>",
         "<CLS>",
         "<EOS>",
+        "<GENAI>",
         "<SENTINEL_78>",
         "<SENTINEL_79>",
         "<SENTINEL_80>",

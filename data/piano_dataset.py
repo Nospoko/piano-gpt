@@ -6,9 +6,9 @@ from multiprocessing import Manager
 import torch
 import pandas as pd
 from datasets import Dataset as HuggingFaceDataset
+from piano_dataset.piano_tasks import ParametricTaskManager
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
-from data.tasks import Task
 from data.dataset import MidiDataset
 from artifacts import get_dataset_token, get_composer_token
 
@@ -21,7 +21,7 @@ class PianoDataset(MidiDataset):
         # TODO How can I find out what's the relation between *sequence_length* and *notes_per_record*?
         sequence_length: int,
         notes_per_record: int,
-        task_names: list[str],
+        piano_task_manager: ParametricTaskManager,
         loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
         num_proc: int = 16,
     ):
@@ -31,8 +31,12 @@ class PianoDataset(MidiDataset):
         self.notes_per_record = notes_per_record
         self.length = 0
         self.record_lengths = {}
-        self.task_names = task_names
-        self.num_tasks = len(self.task_names)
+
+        self.piano_task_manager = piano_task_manager
+        # TODO Maybe a .get_task(task_id) would be better for task management
+        self.piano_task_names = piano_task_manager.list_task_names()
+        self.num_tasks = len(self.piano_task_manager.tasks)
+
         self.num_proc = num_proc
         self._build_records()
 
@@ -77,7 +81,7 @@ class PianoDataset(MidiDataset):
         # Convert global index to record ID and start point within that record
         # First get the task number
         task_number = idx % self.num_tasks
-        task_name = self.task_names[task_number]
+        task_name = self.piano_task_names[task_number]
         idx = idx // self.num_tasks
 
         for record_id, record_length in self.record_lengths.items():
@@ -102,12 +106,12 @@ class PianoDataset(MidiDataset):
         notes_df.end = notes_df.end - offset
 
         # Break the music into prompt and target parts
-        task_generator = Task.get_task(task_name=task_name)
-        source_notes_df, target_notes_df = task_generator.generate(notes_df=notes_df)
+        piano_task = self.piano_task_manager.get_task(task_name=task_name)
+        piece_split = piano_task.prompt_target_split(notes_df=notes_df)
 
         # Encode prompt part ...
         source_token_ids = self.tokenizer.encode_notes_df(
-            notes_df=source_notes_df,
+            notes_df=piece_split.source_df,
         )
         # ... add special tokens ...
         composer_token = get_composer_token(
@@ -116,7 +120,7 @@ class PianoDataset(MidiDataset):
         dataset_token = get_dataset_token(
             piece_source=piece_source,
         )
-        source_prefix_tokens = [dataset_token, composer_token, task_generator.source_token]
+        source_prefix_tokens = [dataset_token, composer_token] + piano_task.prefix_tokens
         prefix_token_ids = self.tokenizer.encode_tokens(source_prefix_tokens)
 
         # ... and join into a single promp sequence of token ids
@@ -124,9 +128,10 @@ class PianoDataset(MidiDataset):
 
         # Same for the target sequence
         target_token_ids = self.tokenizer.encode_notes_df(
-            notes_df=target_notes_df,
+            notes_df=piece_split.target_df,
         )
-        target_prefix_tokens = [task_generator.target_token]
+        # TODO I think this should be a tokenizer-level special token, similar to <PAD>?
+        target_prefix_tokens = ["<GENAI>"]
         target_prefix_token_ids = self.tokenizer.encode_tokens(target_prefix_tokens)
         answer_token_ids = target_prefix_token_ids + target_token_ids
 
