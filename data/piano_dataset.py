@@ -1,3 +1,4 @@
+import json
 from typing import Literal
 from functools import partial
 from multiprocessing import Manager
@@ -9,6 +10,7 @@ from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.tasks import Task
 from data.dataset import MidiDataset
+from artifacts import get_dataset_token, get_composer_token
 
 
 class PianoDataset(MidiDataset):
@@ -84,12 +86,12 @@ class PianoDataset(MidiDataset):
             idx -= record_length
         raise IndexError("Index out of range")
 
-    def prepare_encodings(
-        self,
-        record: dict,
-        start_point: int,
-        task_name: str,
-    ):
+    def __getitem__(self, idx: int) -> dict:
+        # Get the record ID and start point for the given index
+        record_id, start_point, task_name = self._index_to_record(idx)
+        record = self.dataset[record_id]
+        piece_source = json.loads(record["source"])
+
         # Convert notes to a DataFrame and select the desired range
         notes_df = pd.DataFrame(record["notes"])
         notes_df = notes_df.iloc[start_point : start_point + self.notes_per_record]
@@ -99,53 +101,43 @@ class PianoDataset(MidiDataset):
         notes_df.start = notes_df.start - offset
         notes_df.end = notes_df.end - offset
 
+        # Break the music into prompt and target parts
         task_generator = Task.get_task(task_name=task_name)
         source_notes_df, target_notes_df = task_generator.generate(notes_df=notes_df)
-        source_prefix = task_generator.source_token
-        target_prefix = task_generator.target_token
 
-        # Encode source and target notes
+        # Encode prompt part ...
         source_token_ids = self.tokenizer.encode_notes_df(
             notes_df=source_notes_df,
         )
-        prefix_token_ids = self.tokenizer.encode_tokens([source_prefix])
+        # ... add special tokens ...
+        composer_token = get_composer_token(
+            composer=piece_source.get("composer", ""),
+        )
+        dataset_token = get_dataset_token(
+            piece_source=piece_source,
+        )
+        source_prefix_tokens = [dataset_token, composer_token, task_generator.source_token]
+        prefix_token_ids = self.tokenizer.encode_tokens(source_prefix_tokens)
+
+        # ... and join into a single promp sequence of token ids
         prompt_token_ids = prefix_token_ids + source_token_ids
 
+        # Same for the target sequence
         target_token_ids = self.tokenizer.encode_notes_df(
             notes_df=target_notes_df,
         )
-        target_prefix_token_ids = self.tokenizer.encode_tokens([target_prefix])
+        target_prefix_tokens = [task_generator.target_token]
+        target_prefix_token_ids = self.tokenizer.encode_tokens(target_prefix_tokens)
         answer_token_ids = target_prefix_token_ids + target_token_ids
 
-        return prompt_token_ids, answer_token_ids
-
-    def __getitem__(self, idx: int) -> dict:
-        # Get the record ID and start point for the given index
-        record_id, start_point, task_name = self._index_to_record(idx)
-        record = self.dataset[record_id]
-
-        # I think we need the info about source and target as well
-        # to track more precise metrics
-        prompt_token_ids, target_token_ids = self.prepare_encodings(
-            record=record,
-            start_point=start_point,
-            task_name=task_name,
-        )
-        prompt_length = len(prompt_token_ids)
-        encoding = prompt_token_ids + target_token_ids
-
-        # TODO Why is padding here and inside tokenizer.encode?
-        # Add padding to reach the desired sequence length
-        # padding_size = self.sequence_length - len(encoding) + 1
-        # padding = [self.tokenizer.pad_token_id] * padding_size
-        # encoding = encoding + padding
+        # Join both input and output into a single sequence
+        encoding = prompt_token_ids + answer_token_ids
         encoding_padded = self.tokenizer.pad_to_size(
             token_ids=encoding,
             target_size=self.sequence_length,
         )
-        print(encoding_padded[:10])
 
-        # Create source and target encodings
+        # Convert into next-token-prediction task
         source_encoding = encoding_padded[:-1]
         target_encoding = encoding_padded[1:]
 
@@ -160,14 +152,13 @@ class PianoDataset(MidiDataset):
 
         # Prepare the output dictionary
         out = {
-            "source_token_ids": source_token_ids,
-            "target_token_ids": target_token_ids,
+            "task": task_name,
             "target_mask": target_mask,
             "start_point": start_point,
-            "task": task_name,
-            "prediction_task": "high_median_prediction",
-            "source": record["source"],
-            # The length of the prompt part of the sequence
-            "prompt_length": prompt_length,
+            "piece_source": piece_source,
+            "source_token_ids": source_token_ids,
+            "target_token_ids": target_token_ids,
+            "prompt_length": len(prompt_token_ids),
+            "source_prefix_tokens": source_prefix_tokens,
         }
         return out

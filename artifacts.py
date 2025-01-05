@@ -2,6 +2,17 @@ import re
 
 # TODO How is this different from the manually defined sentinel tokens below?
 placeholder_tokens = [f"<SENTINEL_{idx}>" for idx in range(64)]
+dataset_tokens = [
+    "<MAESTRO>",
+    "<PIJAMA>",
+    "<VGMIDI>",
+    "<MUSIC-NET>",
+    "<PIANO-MIDI-DE>",
+    "<LAKH-LMD-FULL>",
+    "<GIANT-MIDI>",
+    "<IMSLP>",
+    "<ATEPP-1.1>",
+]
 composer_tokens = [
     "<SCRIABIN>",
     "<FRANCK>",
@@ -78,6 +89,7 @@ special_tokens = (
     ]
     + piano_task_tokens
     + composer_tokens
+    + dataset_tokens
     + placeholder_tokens
 )
 
@@ -97,6 +109,20 @@ composer_token_map: dict[str, str] = {
     "Sergei Rachmaninoff": "<RACHMANIOFF>",
     "Johann Sebastian Bach": "<BACH>",
 }
+
+
+def get_dataset_token(piece_source: dict) -> str:
+    dataset_name = piece_source.get("dataset")
+
+    for dataset_token in dataset_tokens:
+        dataset_token_name = dataset_token[1:-1]
+        if dataset_token_name.lower() == dataset_name.lower():
+            return dataset_token
+
+    # FIXME Our internal dataset is the only one without the name
+    # stored as part of the source. This should change with the next
+    # dataset version, then we can add <UNKNOWN_DATASET> here
+    return "<PIANO_FOR_AI>"
 
 
 def create_composer_regex_map() -> dict[re.Pattern, str]:
