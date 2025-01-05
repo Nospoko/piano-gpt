@@ -30,6 +30,7 @@ class NextTokenComposerDataset(NextTokenDataset):
         # Get the full encoding for the record
         full_encoding = record["note_token_ids"]
 
+        # FIXME We use tokenizers to tokenize, not to store vocabs
         composer_token_id = self.tokenizer.token_to_id[composer_token]
         full_encoding = [composer_token_id] + full_encoding
 
@@ -43,6 +44,7 @@ class NextTokenComposerDataset(NextTokenDataset):
             full_encoding = full_encoding + padding
             n_tokens = self.sequence_length + 1
 
+        # FIXME What happens to the composer token if start_point =/= 0?
         # Extract the relevant sequence
         encoding = full_encoding[start_point : start_point + self.sequence_length + 1]
 

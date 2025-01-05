@@ -168,7 +168,7 @@ def prepare_dataset_base(
     cfg: DictConfig,
     tokenizer: ExponentialTimeTokenizer,
     dataset_name: str,
-) -> tuple[Dataset, tuple]:
+) -> tuple[Dataset, tuple[Dataset, Dataset, Dataset, Dataset]]:
     dataset_builder_config = OmegaConf.to_container(cfg.dataset)
     dataset_path = to_absolute_path(f"./midi_datasets/{dataset_name}")
 
@@ -177,6 +177,9 @@ def prepare_dataset_base(
         # TODO At this point tokenizer was already created, what's
         # the point of tokenizer config shuffling here?
         # dataset_config["tokenizer_cfg"] = OmegaConf.to_container(cfg.tokenizer)
+
+        # TODO It might be better to provide the tokenizer object itself
+        # if thats compatible with hf builders
         dataset_builder_config["tokenizer_dict"] = tokenizer.to_dict()
 
     dataset = load_dataset(
