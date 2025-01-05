@@ -23,7 +23,6 @@ from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 from artifacts import special_tokens_in_the_wrong_place
 from data.tokenizer_utils import load_tokenizer_if_exists
-from data.next_token_composer_dataset import NextTokenComposerDataset
 
 
 def create_metric(name: str, metric_config: dict) -> PianoMetric:
@@ -136,12 +135,8 @@ def get_dataset_for_task(
     piano_task_manager: ParametricTaskManager,
 ) -> tuple[MidiDataset, tuple]:
     if "next_token" in cfg.task:
-        task_to_dataset = {
-            "next_token_prediction": prepare_next_token_datasets,
-            "next_token_prediction_with_composer": prepare_next_token_composer_datasets,
-        }
-        prepare_function = task_to_dataset.get(cfg.task)
-        train_dataset, all_other_datasets = prepare_function(
+        # Pretraining stage
+        train_dataset, all_other_datasets = prepare_next_token_datasets(
             cfg=cfg,
             tokenizer=tokenizer,
         )
@@ -149,6 +144,7 @@ def get_dataset_for_task(
 
     # TODO "multi" what?
     if "multi" in cfg.task:
+        # PIANO stage
         train_dataset, all_other_datasets = prepare_piano_dataset(
             cfg=cfg,
             tokenizer=tokenizer,
@@ -207,53 +203,6 @@ def prepare_dataset_base(
         validation_dataset_chopin,
         validation_dataset_mozart,
     )
-
-
-def prepare_next_token_composer_datasets(
-    cfg: DictConfig,
-    tokenizer: MidiTokenizer,
-) -> tuple[NextTokenDataset, tuple]:
-    train_split, validation_splits = prepare_dataset_base(
-        cfg=cfg,
-        tokenizer=tokenizer,
-        dataset_name="MidiTokenizedDataset",
-    )
-    train_dataset = NextTokenComposerDataset(
-        dataset=train_split,
-        tokenizer=tokenizer,
-        sequence_length=cfg.data.sequence_length,
-        loss_masking=cfg.loss_masking,
-        num_proc=cfg.system.data_workers,
-    )
-    val_dataset = NextTokenComposerDataset(
-        dataset=validation_splits[0],
-        tokenizer=tokenizer,
-        sequence_length=cfg.data.sequence_length,
-        loss_masking=cfg.loss_masking,
-        num_proc=cfg.system.data_workers,
-    )
-    val_dataset_bach = NextTokenComposerDataset(
-        dataset=validation_splits[1],
-        tokenizer=tokenizer,
-        sequence_length=cfg.data.sequence_length,
-        loss_masking=cfg.loss_masking,
-        num_proc=cfg.system.data_workers,
-    )
-    val_dataset_chopin = NextTokenComposerDataset(
-        dataset=validation_splits[2],
-        tokenizer=tokenizer,
-        sequence_length=cfg.data.sequence_length,
-        loss_masking=cfg.loss_masking,
-        num_proc=cfg.system.data_workers,
-    )
-    val_dataset_mozart = NextTokenComposerDataset(
-        dataset=validation_splits[3],
-        tokenizer=tokenizer,
-        sequence_length=cfg.data.sequence_length,
-        loss_masking=cfg.loss_masking,
-        num_proc=cfg.system.data_workers,
-    )
-    return train_dataset, (val_dataset, val_dataset_bach, val_dataset_chopin, val_dataset_mozart)
 
 
 def prepare_next_token_datasets(

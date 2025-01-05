@@ -127,6 +127,7 @@ class NextTokenDataset(MidiDataset):
         full_encoding = record["note_token_ids"]
 
         # Extract the relevant sequence
+        # FIXME "sequence_length + 1" situation is very confusing
         # TODO What's up with the +1?
         encoding = full_encoding[start_point : start_point + self.sequence_length]
 
