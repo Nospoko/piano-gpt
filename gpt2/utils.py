@@ -6,16 +6,6 @@ from datasets import Dataset, load_dataset
 from omegaconf import OmegaConf, DictConfig
 from piano_dataset.piano_tasks import ParametricTaskManager
 from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
-from piano_metrics.piano_metric import (
-    F1Metric,
-    PianoMetric,
-    MetricsManager,
-    KeyDistributionMetric,
-    PitchDistributionMetric,
-    DStartDistributionMetric,
-    DurationDistributionMetric,
-    VelocityDistributionMetric,
-)
 
 from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
@@ -23,31 +13,6 @@ from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 from artifacts import special_tokens_in_the_wrong_place
 from data.tokenizer_utils import load_tokenizer_if_exists
-
-
-def create_metric(name: str, metric_config: dict) -> PianoMetric:
-    """Create a single metric with its configuration"""
-    base_metrics = {
-        "f1": F1Metric,
-        "key_correlation": KeyDistributionMetric,
-        "dstart_correlation": DStartDistributionMetric,
-        "duration_correlation": DurationDistributionMetric,
-        "velocity_correlation": VelocityDistributionMetric,
-        "pitch_correlation": PitchDistributionMetric,
-    }
-
-    # The matching metric name has to be a prefix to the key in config
-    base_name = next((base for base in base_metrics if name.startswith(base)), None)
-    if not base_name:
-        raise ValueError(f"Unknown metric: {name}")
-
-    return base_metrics[base_name](**metric_config)
-
-
-def create_metrics_runner(cfg: DictConfig) -> MetricsManager:
-    """Create metrics runner based on config"""
-    metrics = [create_metric(name, config) for name, config in cfg.metrics.configs.items()]
-    return MetricsManager(metrics)
 
 
 def load_cfg(checkpoint: dict) -> DictConfig:
@@ -187,6 +152,8 @@ def prepare_dataset_base(
     train_split = dataset["train"]
     validation_split = dataset["validation"]
     validation_split.shuffle(seed=1337)
+
+    # TODO There's more nuance in maestro composer info (e.g. "fredetic" can be spelled different)
     validation_dataset_bach = validation_split.filter(
         lambda x: json.loads(x["source"])["composer"] == "Johann Sebastian Bach",
     )

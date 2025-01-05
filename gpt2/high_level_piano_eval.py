@@ -11,12 +11,13 @@ import streamlit_pianoroll
 from dotenv import load_dotenv
 from omegaconf import OmegaConf, DictConfig
 from torch.utils.data import Sampler, DataLoader
+from piano_metrics.piano_metric import MetricsManager
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
+from gpt2.utils import get_dataset_for_task
 from data.random_sampler import ValidationRandomSampler
-from gpt2.utils import get_dataset_for_task, create_metrics_runner
 
 load_dotenv()
 
@@ -164,7 +165,8 @@ def main(cfg: DictConfig):
     # This is a nested *no_grad*, does it have any effect?
     @torch.no_grad()
     def run_eval():
-        metrics_runner = create_metrics_runner(cfg=cfg)
+        # metrics_runner = create_metrics_runner(cfg=cfg)
+        metrics_manager = MetricsManager.load_default()
         # TODO What's the difference between *out*, *metric_trackers*,
         # *batch_metrics*, *example_metrics* (variable names should reflect those differences)
         out = {}
@@ -181,19 +183,27 @@ def main(cfg: DictConfig):
 
             # TODO What is *k*? Number of batches used for validation?
             for k in range(cfg.eval_iters):
+                # FIXME we probably don't have to use the batching loader here
+                # and we can just go 1 by 1 through dataset records. That way we should
+                # be able to get all the details neccessary to calculate PIANO metrics
+                # (see __getitem__ in PianoDataset)
                 X, Y, mask, prompt_lengths = loader.get_batch()
+
                 # TODO Where are task tokens defined?
                 # TODO Where to look for an explanation about what this is
+                # FIXME
                 target_prefix_tokens = {"multi": 1, "multi_with_composer": 2}.get(cfg.task, 0)
 
                 batch_metrics = {}
                 # TODO what is *b*? the name doesn't tell us anything about the dimension
                 # it's supposed to iterate over. I guess it's samples within batch, but is it?
+                # TODO What's the point of using batches, if we iterate them by sample?
                 for b in range(X.shape[0]):
                     input_token_ids = torch.unsqueeze(
                         input=X[b, : prompt_lengths[b] + target_prefix_tokens],
                         dim=0,
                     )
+                    # TODO Temperature should be a subject of evaluation
                     out_tokens = model.generate(
                         input_token_ids,
                         max_new_tokens=2048 - prompt_lengths[b],
@@ -207,7 +217,9 @@ def main(cfg: DictConfig):
 
                     # Cropping because we have no EOS token
                     if not generated_df.empty:
-                        generated_df = generated_df[generated_df.start < original_df.end.max()]
+                        # So we want to remove notes that started, but not ended
+                        ids = generated_df.start < original_df.end.max()
+                        generated_df = generated_df[ids]
 
                     # Store first example from each split for visualization
                     if not k == 0 and b == 0:
@@ -224,17 +236,23 @@ def main(cfg: DictConfig):
                     # TODO keep consistent variable names, original_df should be target_df
                     # (unless there's a good reason not to).
                     # Calculate all Piano metrics
-                    example_metrics = metrics_runner.calculate_all(
+                    # FIXME *original_df* is not the correct input here.
+                    metric_results = metrics_manager.calculate_all(
                         target_df=original_df,
                         generated_df=generated_df,
                     )
 
-                    # Aggregate metrics across batch
-                    for metric_name, result in example_metrics.items():
-                        if metric_name not in batch_metrics:
-                            batch_metrics[metric_name] = []
+                    # TODO I was not able to test it (this loops needs a redesign)
+                    # so this may break something. I did try to recreate the same
+                    # storage in "batch_metrics", but with new names coming from the PIANO package
+                    for metric_result in metric_results:
+                        for it, (sub_metric_name, metric_value) in enumerate(metric_result.metrics.items()):
+                            metric_name = f"{metric_result.name}/{sub_metric_name}"
 
-                        batch_metrics[metric_name].append(result.value)
+                            if metric_name not in batch_metrics:
+                                batch_metrics[metric_name] = []
+
+                            batch_metrics[metric_name].append(metric_value)
 
                 with ctx:
                     logits, loss = model(X, Y, mask)
