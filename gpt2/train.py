@@ -29,6 +29,7 @@ from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf, DictConfig
 from torch.utils.data import Sampler, DataLoader
+from piano_dataset.piano_tasks import ParametricTaskManager
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
@@ -130,6 +131,8 @@ def main(cfg: DictConfig):
         checkpoint_model_args = checkpoint["model_args"]
         checkpoint_cfg = OmegaConf.create(checkpoint["config"])
 
+        # FIXME Configs should not be modified, if your loading
+        # a checkpoint, reuse its config
         cfg.model = checkpoint_cfg.model
         cfg.tokenizer = checkpoint_cfg.tokenizer
         cfg.system.dtype = checkpoint_cfg.system.dtype
@@ -167,8 +170,18 @@ def main(cfg: DictConfig):
         state_dict = None
 
     elif cfg.init_from == "scratch":
-        tokenizer = load_tokenizer(cfg=cfg)
-        train_dataset, val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)
+        # TODO We'll need more elaborate configs to control piano tasks
+        # For now let's see what will happen with the default setup
+        piano_task_manager = ParametricTaskManager.load_default()
+        tokenizer = load_tokenizer(
+            cfg=cfg,
+            special_tokens=piano_task_manager.get_special_tokens(),
+        )
+        train_dataset, val_datasets = get_dataset_for_task(
+            cfg=cfg,
+            tokenizer=tokenizer,
+            piano_task_manager=piano_task_manager,
+        )
         out_dir = to_absolute_path(cfg.out_dir)
 
         pad_token_id = tokenizer.token_to_id["<PAD>"]
@@ -300,7 +313,8 @@ def main(cfg: DictConfig):
     # crop down the model block size if desired, using model surgery
     if cfg.data.sequence_length < model.config.block_size:
         model.crop_block_size(cfg.data.sequence_length)
-        model_args["block_size"] = cfg.data.sequence_length  # so that the checkpoint will have the right value
+        # so that the checkpoint will have the right value
+        model_args["block_size"] = cfg.data.sequence_length
     model.to(device)
 
     # initialize a GradScaler. If enabled=False scaler is a no-op
@@ -461,6 +475,7 @@ def main(cfg: DictConfig):
                 "wandb": wandb_link,
                 "wandb_id": wandb.run.id,
                 "total_tokens": total_tokens,
+                "piano_tasks_config": piano_task_manager.tasks_config,
                 "tokenizer": tokenizer.to_dict(),
             }
             print(f"saving checkpoint to {out_dir}")
@@ -487,7 +502,10 @@ def main(cfg: DictConfig):
             # get loss as float. note: this is a CPU-GPU sync point
             # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
             lossf = loss.item() * cfg.optimizer.gradient_accumulation_steps
-            mfu = raw_model.estimate_mfu(cfg.data.batch_size * cfg.optimizer.gradient_accumulation_steps, dt)
+            mfu = raw_model.estimate_mfu(
+                fwdbwd_per_iter=cfg.data.batch_size * cfg.optimizer.gradient_accumulation_steps,
+                df=dt,
+            )
             running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
             tps = tokens_in_step / t_forward_backward
 

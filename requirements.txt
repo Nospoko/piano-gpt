@@ -1,9 +1,9 @@
 datasets>=2.17.1
 fortepyan==0.4.2
+git+https://github.com/Nospoko/midi-tokenizers@feature/encode-interface-extension
+git+https://github.com/Nospoko/piano-dataset@MIDI-156/metrics
 hydra-core>=1.3.2
-midi_tokenizers @ git+https://github.com/Nospoko/midi-tokenizers@v2.0
 pandas~=2.1.4
-piano_dataset @ git+https://github.com/Nospoko/piano-dataset@MIDI-157/metrics
 python-dotenv==1.0.0
 streamlit==1.37.0
 streamlit-pianoroll>=0.7.1

@@ -35,8 +35,9 @@ def load_model(model_path):
 
 
 if __name__ == "__main__":
+    # TODO Use argparse
     if len(sys.argv) != 2:
-        print("Usage: python -m scripts.download_one_model.py <model_filename>")
+        print("Usage: python -m scripts.download_model <model_filename>")
         sys.exit(1)
 
     model_filename = sys.argv[1]

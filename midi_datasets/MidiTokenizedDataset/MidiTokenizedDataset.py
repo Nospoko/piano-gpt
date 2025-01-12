@@ -6,10 +6,11 @@ import fortepyan as ff
 from datasets import Split, Dataset, DatasetInfo, GeneratorBasedBuilder
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
-from artifacts import special_tokens
 from data.augmentation import augment_dataset
 from data.tokenizer_utils import load_tokenizer_if_exists
 from midi_datasets.MidiTokenizedDataset.MidiTokenizedDatasetConfig import BUILDER_CONFIGS, MidiTokenizedDatasetConfig
+
+# FIXME no camel case in python file names
 
 # NOTE: If you make some changes here, you might want to delete your huggingface cache
 # at ~/.cache/huggingface/ to rebuild the datasets
@@ -118,11 +119,12 @@ class MidiTokenizedDataset(GeneratorBasedBuilder):
         """
         Method that defines a record in the dataset.
         """
-        notes = piece.df
         try:
-            encoding = self.tokenizer.encode(notes=notes)
+            encoding = self.tokenizer.encode_notes_df(notes_df=piece.df)
         except KeyError:
+            # TODO Why would that happen?
             encoding = None
+
         record = {
             "note_token_ids": encoding,
             "source": json.dumps(piece.source),
@@ -131,9 +133,9 @@ class MidiTokenizedDataset(GeneratorBasedBuilder):
         return record
 
     def get_tokenzier(self) -> ExponentialTimeTokenizer | AwesomeMidiTokenizer:
-        tokenizer_parameters = self.config.tokenizer_cfg["parameters"]
-        tokenizer_parameters |= {"special_tokens": special_tokens}
-        if self.config.tokenizer_cfg["name"] == "ExponentialTimeTokenizer":
-            return ExponentialTimeTokenizer(**tokenizer_parameters)
+        tokenizer_dict = self.config.tokenizer_dict
+        if tokenizer_dict["name"] == "ExponentialTimeTokenizer":
+            return ExponentialTimeTokenizer.from_dict(tokenizer_dict)
         else:
-            return load_tokenizer_if_exists(tokenizer_cfg=self.config.tokenizer_cfg)
+            # TODO I hope this is not used (if it is, let's get rid of it and in the future be explicit)
+            return load_tokenizer_if_exists(tokenizer_cfg=self.config.tokenizer_dict)

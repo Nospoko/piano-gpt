@@ -1,3 +1,4 @@
+import json
 from typing import Literal
 from functools import partial
 from multiprocessing import Manager
@@ -7,6 +8,7 @@ from datasets import Dataset as HuggingFaceDataset
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
+from artifacts import get_dataset_token, get_composer_token
 
 
 class NextTokenDataset(MidiDataset):
@@ -110,18 +112,40 @@ class NextTokenDataset(MidiDataset):
         record_id, start_point = self._index_to_record_and_start(idx)
         record = self.dataset[record_id]
 
+        # Prepare tokens with music metadata
+        piece_source = json.loads(record["source"])
+        composer_token = get_composer_token(
+            composer=piece_source.get("composer", ""),
+        )
+        dataset_token = get_dataset_token(
+            piece_source=piece_source,
+        )
+        prefix_tokens = [dataset_token, composer_token]
+        prefix_token_ids = self.tokenizer.encode_tokens(prefix_tokens)
+
         # Get the full encoding for the record
         full_encoding = record["note_token_ids"]
-        n_tokens = len(full_encoding)
-
-        # Add padding if necessary
-        if n_tokens <= self.sequence_length:
-            padding = [self.tokenizer.pad_token_id] * (self.sequence_length + 1 - n_tokens)
-            full_encoding = full_encoding + padding
-            n_tokens = self.sequence_length + 1
 
         # Extract the relevant sequence
-        encoding = full_encoding[start_point : start_point + self.sequence_length + 1]
+        # FIXME "sequence_length + 1" situation is very confusing
+        # TODO What's up with the +1?
+        encoding = full_encoding[start_point : start_point + self.sequence_length]
+
+        # Join with special tokens
+        encoding = prefix_token_ids + encoding
+
+        # Add padding if necessary
+        if len(encoding) <= self.sequence_length:
+            full_encoding = self.tokenizer.pad_to_size(
+                token_ids=full_encoding,
+                target_size=self.sequence_length + 1,
+            )
+            # TODO Explain +1, should it be included in the call above? How can I find it out?
+            # padding = [self.tokenizer.pad_token_id] * (self.sequence_length + 1 - n_tokens)
+            # full_encoding = full_encoding + padding
+
+            # TODO Why was is this under if??
+            # n_tokens = self.sequence_length + 1
 
         # Create source and target encodings
         source_encoding = encoding[:-1]
@@ -144,5 +168,6 @@ class NextTokenDataset(MidiDataset):
             # In PIANO dataset this is the length of the prompt part of the sequence
             # Here we consider half of the sequence to be a prompt part for validation purpouses
             "prompt_length": self.sequence_length // 2,
+            "prefix_tokens": prefix_tokens,
         }
         return out

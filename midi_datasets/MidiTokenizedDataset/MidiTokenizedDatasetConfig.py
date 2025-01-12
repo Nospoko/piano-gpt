@@ -1,5 +1,3 @@
-from typing import Any
-
 import datasets
 from datasets import BuilderConfig
 
@@ -19,15 +17,9 @@ class MidiTokenizedDatasetConfig(BuilderConfig):
 
     def __init__(
         self,
+        tokenizer_dict: dict,
         base_dataset_name: str = "roszcz/maestro-sustain-v2",
         extra_datasets: list[str] = [],
-        tokenizer_cfg: dict[str, Any] = {
-            "name": "ExponentialTimeTokenizer",
-            "parameters": {
-                "min_time_unit": 0.01,
-                "n_velocity_bins": 32,
-            },
-        },
         pause_detection_threshold: int = 4,
         augmentation: dict = {
             "speed_change_factors": None,
@@ -51,9 +43,9 @@ class MidiTokenizedDatasetConfig(BuilderConfig):
         super().__init__(version=datasets.Version("0.0.1"), **kwargs)
 
         # Assign the provided arguments to the class attributes
-        self.base_dataset_name: str = base_dataset_name
-        self.extra_datasets: list[str] = extra_datasets
-        self.tokenizer_cfg: dict[str, Any] = tokenizer_cfg
+        self.base_dataset_name = base_dataset_name
+        self.extra_datasets = extra_datasets
+        self.tokenizer_dict = tokenizer_dict
         self.pause_detection_threshold = pause_detection_threshold
         self.augmentation = augmentation
 
@@ -83,13 +75,7 @@ BUILDER_CONFIGS = [
     MidiTokenizedDatasetConfig(
         base_dataset_name="roszcz/maestro-sustain-v2",
         extra_datasets=[],
-        tokenizer_cfg={
-            "name": "ExponentialTimeTokenizer",
-            "parameters": {
-                "min_time_unit": 0.01,
-                "n_velocity_bins": 32,
-            },
-        },
+        tokenizer_dict={},
         pause_detection_threshold=4,
         name="basic-no-overlap",
     ),
