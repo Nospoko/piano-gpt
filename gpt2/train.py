@@ -280,7 +280,7 @@ def main(cfg: DictConfig):
     )
 
     val_loader_mozart = CyclicalDataLoader(
-        val_datasets[2],
+        val_datasets[3],
         sampler=val_sampler_mozart,
         batch_size=cfg.data.batch_size,
         shuffle=False,
