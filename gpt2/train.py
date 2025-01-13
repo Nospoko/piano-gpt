@@ -219,26 +219,6 @@ def main(cfg: DictConfig):
         data_source=train_dataset,
         seed=4 + seed_offset,
     )
-    val_sampler = ValidationRandomSampler(
-        data_source=val_datasets[0],
-        seed=4 + seed_offset,
-        num_samples=cfg.data.batch_size * cfg.eval_iters,
-    )
-    val_sampler_bach = ValidationRandomSampler(
-        data_source=val_datasets[1],
-        seed=4 + seed_offset,
-        num_samples=cfg.data.batch_size * cfg.eval_iters,
-    )
-    val_sampler_chopin = ValidationRandomSampler(
-        data_source=val_datasets[2],
-        seed=4 + seed_offset,
-        num_samples=cfg.data.batch_size * cfg.eval_iters,
-    )
-    val_sampler_mozart = ValidationRandomSampler(
-        data_source=val_datasets[3],
-        seed=4 + seed_offset,
-        num_samples=cfg.data.batch_size * cfg.eval_iters,
-    )
     # Create the loaders
     train_loader = CyclicalDataLoader(
         train_dataset,
@@ -250,56 +230,38 @@ def main(cfg: DictConfig):
         device=device,
     )
 
-    val_loader = CyclicalDataLoader(
-        val_datasets[0],
-        sampler=val_sampler,
-        batch_size=cfg.data.batch_size,
-        shuffle=False,
-        pin_memory=device_type == "cuda",
-        num_workers=cfg.system.data_workers // ddp_world_size,
-        device=device,
-    )
-    val_loader_bach = CyclicalDataLoader(
-        val_datasets[1],
-        sampler=val_sampler_bach,
-        batch_size=cfg.data.batch_size,
-        shuffle=False,
-        pin_memory=device_type == "cuda",
-        num_workers=cfg.system.data_workers // ddp_world_size,
-        device=device,
-    )
+    val_samplers = [
+        ValidationRandomSampler(
+            data_source=dataset,
+            seed=4,
+            num_samples=cfg.data.batch_size * cfg.eval_iters,
+        )
+        for dataset in val_datasets
+    ]
 
-    val_loader_chopin = CyclicalDataLoader(
-        val_datasets[2],
-        sampler=val_sampler_chopin,
-        batch_size=cfg.data.batch_size,
-        shuffle=False,
-        pin_memory=device_type == "cuda",
-        num_workers=cfg.system.data_workers // ddp_world_size,
-        device=device,
-    )
-
-    val_loader_mozart = CyclicalDataLoader(
-        val_datasets[3],
-        sampler=val_sampler_mozart,
-        batch_size=cfg.data.batch_size,
-        shuffle=False,
-        pin_memory=device_type == "cuda",
-        num_workers=cfg.system.data_workers // ddp_world_size,
-        device=device,
-    )
+    val_loaders = [
+        CyclicalDataLoader(
+            dataset,
+            sampler=sampler,
+            batch_size=cfg.data.batch_size,
+            pin_memory=device_type == "cuda",
+            num_workers=cfg.system.data_workers,
+            device=device,
+        )
+        for dataset, sampler in zip(val_datasets, val_samplers)
+    ]
 
     def get_batch(split):
         if split == "train":
             return train_loader.get_batch()
         elif split == "val":
-            return val_loader.get_batch()
+            return val_loaders[0].get_batch()
         elif split == "bach":
-            return val_loader_bach.get_batch()
+            return val_loaders[1].get_batch()
         elif split == "chopin":
-            return val_loader_chopin.get_batch()
+            return val_loaders[2].get_batch()
         elif split == "mozart":
-            return val_loader_mozart.get_batch()
+            return val_loaders[3].get_batch()
 
     # init these up here, can override if init_from='resume' (i.e. from a checkpoint)
     iter_num = 0
