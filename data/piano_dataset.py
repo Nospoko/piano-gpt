@@ -160,7 +160,7 @@ class PianoDataset(MidiDataset):
             "task": task_name,
             "target_mask": target_mask,
             "start_point": start_point,
-            "piece_source": piece_source,
+            "piece_source": json.dumps(piece_source),
             "source_token_ids": source_token_ids,
             "target_token_ids": target_token_ids,
             "prompt_length": len(prompt_token_ids),
