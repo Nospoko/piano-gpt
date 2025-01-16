@@ -4,7 +4,6 @@ from contextlib import nullcontext
 
 import hydra
 import torch
-import wandb
 import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
@@ -14,6 +13,7 @@ from torch.utils.data import Sampler, DataLoader
 from piano_metrics.piano_metric import MetricsManager
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
+import wandb
 from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
 from gpt2.utils import get_dataset_for_task

@@ -8,10 +8,10 @@ import streamlit_pianoroll
 import matplotlib.pyplot as plt
 from datasets import Dataset, load_dataset
 from midi_tokenizers import ExponentialTimeTokenizer
+from piano_dataset.piano_tasks import ParametricTaskManager
 
-from artifacts import special_tokens
-from data.tasks import Task, task_map
-from data.piano_composer_dataset import PianoComposerDataset
+from data.piano_dataset import PianoDataset
+from artifacts import special_tokens_in_the_wrong_place
 
 
 @st.cache_data()
@@ -60,11 +60,10 @@ def load_piano_dataset(
     dataset_split: str,
     sequence_length: int,
     notes_per_record: int,
-    tasks: list[str],
     loss_masking: str,
     selected_composers: list[str],
     selected_title: str,
-) -> tuple[PianoComposerDataset, Dataset]:
+) -> tuple[PianoDataset, Dataset]:
     dataset = load_hf_dataset(
         config=config,
         dataset_name=dataset_name,
@@ -79,14 +78,15 @@ def load_piano_dataset(
         return composer_match and title_match
 
     filtered_dataset = dataset.filter(filter_dataset)
+    parametric_task_manager = ParametricTaskManager.load_default()
 
     tokenizer = ExponentialTimeTokenizer(**tokenizer_parameters)
-    piano_dataset = PianoComposerDataset(
+    piano_dataset = PianoDataset(
         dataset=filtered_dataset,
         tokenizer=tokenizer,
         sequence_length=sequence_length,
         notes_per_record=notes_per_record,
-        tasks=tasks,
+        piano_task_manager=parametric_task_manager,
         loss_masking=loss_masking,
     )
     return piano_dataset, filtered_dataset
@@ -121,11 +121,11 @@ def main():
                 options=["pretraining", "finetuning"],
             )
 
-        tasks = st.multiselect(
-            label="Prediction Tasks",
-            options=task_map.keys(),
-            default=["above_median_prediction"],
-        )
+        # tasks = st.multiselect(
+        #     label="Prediction Tasks",
+        #     options=task_map.keys(),
+        #     default=["above_median_prediction"],
+        # )
 
         st.form_submit_button(label="Update Config")
 
@@ -148,16 +148,19 @@ def main():
 
         st.form_submit_button(label="Update Tokenizer")
 
+    parametric_task_manager = ParametricTaskManager.load_default()
+
     config = {
         "base_dataset_name": base_dataset_name,
         "extra_datasets": [base_dataset_name],
     }
-
+    all_special_tokens = parametric_task_manager.get_special_tokens() + special_tokens_in_the_wrong_place
     tokenizer_parameters = {
         "min_time_unit": min_time_unit,
         "n_velocity_bins": n_velocity_bins,
-        "special_tokens": special_tokens,
+        "special_tokens": all_special_tokens,
     }
+
     dataset_name = "AugmentedDataset"
     dataset = load_hf_dataset(
         config=config,
@@ -178,7 +181,6 @@ def main():
 
     selected_composers = st.multiselect("Filter by Composer", options=composers, default=["Johann Sebastian Bach"])
     selected_title = st.selectbox("Filter by Title", options=["All"] + titles, index=0)
-
     piano_dataset, filtered_dataset = load_piano_dataset(
         tokenizer_parameters=tokenizer_parameters,
         config=config,
@@ -186,7 +188,6 @@ def main():
         dataset_split=dataset_split,
         sequence_length=sequence_length,
         notes_per_record=notes_per_record,
-        tasks=tasks,
         loss_masking=loss_masking,
         selected_composers=selected_composers,
         selected_title=selected_title,
@@ -211,9 +212,9 @@ def main():
     st.write(f"Record ID: {record_id}, Start Point: {start_point}, Task: {task}")
 
     with st.expander(label="Source Data"):
-        st.json(sample["source"])
+        st.json(sample["piece_source"])
 
-    st.write(f"Prediction Task: {sample['prediction_task']}")
+    st.write(f"Prediction Task: {sample['task']}")
 
     src_token_ids = sample["source_token_ids"]
     tgt_token_ids = sample["target_token_ids"]
@@ -245,11 +246,10 @@ def main():
 
     src_tokens = [piano_dataset.tokenizer.vocab[token_id] for token_id in src_token_ids]
 
-    task_generator = Task.get_task(task_name=task)
-    source_token = task_generator.source_token
-    target_token = task_generator.target_token
-    source_position = src_tokens.index(source_token)
-    target_position = src_tokens.index(target_token)
+    task_generator = parametric_task_manager.get_task(task_name=task)
+
+    source_position = 0
+    target_position = src_tokens.index("<GENAI>")
 
     source_tokens = src_tokens[source_position:target_position]
     target_tokens = src_tokens[target_position:]
@@ -274,12 +274,15 @@ def main():
         secondary_piece=target_piece,
     )
 
+    st.write("#### Prefix tokens")
+    st.write(task_generator.prefix_tokens)
+
     col1, col2 = st.columns(2)
     with col1:
-        st.write(f"#### {source_token}:")
+        st.write("#### Prompt:")
         streamlit_pianoroll.from_fortepyan(piece=source_piece)
     with col2:
-        st.write(f"#### {target_token}:")
+        st.write("#### Target:")
         streamlit_pianoroll.from_fortepyan(piece=target_piece)
 
     st.write("### Dataframe review")
@@ -296,6 +299,14 @@ def main():
         st.write("### Detokenization")
         tokenization_check_df = piano_dataset.tokenizer.untokenize(piano_dataset.tokenizer.tokenize(piece.df))
         st.write(tokenization_check_df[columns])
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("#### Prompt:")
+        st.write(source_tokens)
+    with col2:
+        st.write("#### Target:")
+        st.write(target_tokens)
 
 
 if __name__ == "__main__":
