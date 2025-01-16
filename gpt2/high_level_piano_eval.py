@@ -10,56 +10,15 @@ import streamlit as st
 import streamlit_pianoroll
 from dotenv import load_dotenv
 from omegaconf import OmegaConf, DictConfig
-from torch.utils.data import Sampler, DataLoader
 from piano_metrics.piano_metric import MetricsManager
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
-from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
 from gpt2.utils import get_dataset_for_task
+from gpt2.dataloader import CyclicalDataLoader
 from data.random_sampler import ValidationRandomSampler
 
 load_dotenv()
-
-
-# TODO This should have own module
-# FIXME Looks like a blunt copy of code from train.py
-class CyclicalDataLoader:
-    def __init__(
-        self,
-        dataset: MidiDataset,
-        sampler: Sampler,
-        batch_size: int,
-        pin_memory: bool = False,
-        num_workers: int = 0,
-        device: torch.device = torch.device("cpu"),
-    ):
-        self.dataset = dataset
-        self.batch_size = batch_size
-        self.pin_memory = pin_memory
-        self.num_workers = num_workers
-        self.device = device
-        self.dataloader = DataLoader(
-            dataset=dataset,
-            sampler=sampler,
-            batch_size=self.batch_size,
-            pin_memory=self.pin_memory,
-            num_workers=num_workers,
-        )
-        self.iterator = iter(self.dataloader)
-
-    def get_batch(self):
-        try:
-            batch = next(self.iterator)
-        except StopIteration:
-            self.iterator = iter(self.dataloader)
-            batch = next(self.iterator)
-
-        x = batch["source_token_ids"].to(self.device, non_blocking=True)
-        y = batch["target_token_ids"].to(self.device, non_blocking=True)
-        mask = batch["target_mask"].to(self.device, non_blocking=True)
-        prompt_lengths = batch["prompt_length"]
-        return x, y, mask, prompt_lengths
 
 
 @hydra.main(config_path="configs", config_name="eval", version_base=None)

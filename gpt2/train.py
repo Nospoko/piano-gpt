@@ -28,58 +28,17 @@ import wandb
 from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf, DictConfig
-from torch.utils.data import Sampler, DataLoader
 from piano_dataset.piano_tasks import ParametricTaskManager
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
-from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
+from gpt2.dataloader import CyclicalDataLoader
 from gpt2.utils import load_tokenizer, get_dataset_for_task
 from data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
 
 load_dotenv()
-
-
-class CyclicalDataLoader:
-    def __init__(
-        self,
-        dataset: MidiDataset,
-        sampler: Sampler,
-        batch_size: int,
-        shuffle: bool = False,
-        pin_memory: bool = False,
-        num_workers: int = 0,
-        device: torch.device = torch.device("cpu"),
-    ):
-        self.dataset = dataset
-        self.batch_size = batch_size
-        self.shuffle = shuffle
-        self.pin_memory = pin_memory
-        self.num_workers = num_workers
-        self.device = device
-        self.dataloader = DataLoader(
-            dataset=dataset,
-            sampler=sampler,
-            batch_size=self.batch_size,
-            pin_memory=self.pin_memory,
-            num_workers=num_workers,
-        )
-        self.iterator = iter(self.dataloader)
-
-    def get_batch(self):
-        try:
-            batch = next(self.iterator)
-        except StopIteration:
-            # Reset the iterator when it's exhausted
-            self.iterator = iter(self.dataloader)
-            batch = next(self.iterator)
-
-        x = batch["source_token_ids"].to(self.device, non_blocking=True)
-        y = batch["target_token_ids"].to(self.device, non_blocking=True)
-        mask = batch["target_mask"].to(self.device, non_blocking=True)
-        return x, y, mask
 
 
 def setup_device(cfg: DictConfig):
