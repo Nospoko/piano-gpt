@@ -14,8 +14,8 @@ from piano_metrics.piano_metric import MetricsManager
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from gpt2.model import GPT, GPTConfig
+from gpt2.dataloader import EvalDataLoader
 from gpt2.utils import get_dataset_for_task
-from gpt2.dataloader import CyclicalDataLoader
 from data.random_sampler import ValidationRandomSampler
 
 load_dotenv()
@@ -25,58 +25,42 @@ load_dotenv()
 @torch.no_grad()
 def main(cfg: DictConfig):
     device = cfg.system.device
-    # TODO Is this ever not true? Seems like a lot would blow up
-    # when this if Falses
-    if cfg.init_from.startswith("midi-gpt2"):
-        ckpt_path = os.path.join("checkpoints/", cfg.init_from)
-        checkpoint = torch.load(ckpt_path, map_location=device)
-        checkpoint_model_args = checkpoint["model_args"]
-        checkpoint_cfg = OmegaConf.create(checkpoint["config"])
 
-        # FIXME This is a bit confusing, I think that we should separate eval_cfg
-        # from checkpoint_cfg, not try to turn one into the other
-        cfg.model = checkpoint_cfg.model
-        cfg.tokenizer = checkpoint_cfg.tokenizer
-        cfg.system.dtype = checkpoint_cfg.system.dtype
+    ckpt_path = os.path.join("checkpoints/", cfg.init_from)
+    checkpoint = torch.load(ckpt_path, map_location=device)
+    checkpoint_model_args = checkpoint["model_args"]
+    checkpoint_cfg = OmegaConf.create(checkpoint["config"])
 
-        if cfg.tokenizer.name == "ExponentialTimeTokenizer":
-            # What is *tokenizer_desc*? Naming should be consistent
-            # so it should be stored as checkpoint["tokenizer_desc"] (or renamed)
-            tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
-        else:
-            tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+    # FIXME This is a bit confusing, I think that we should separate eval_cfg
+    # from checkpoint_cfg, not try to turn one into the other
+    cfg.system.dtype = checkpoint_cfg.system.dtype
 
-        # TODO Manage data structures in a way that doesn't require a magic [1]
-        val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)[1]
+    if checkpoint_cfg.tokenizer.name == "ExponentialTimeTokenizer":
+        # What is *tokenizer_desc*? Naming should be consistent
+        # so it should be stored as checkpoint["tokenizer_desc"] (or renamed)
+        tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+    else:
+        tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
 
-        # I think this should look more like:
-        # model_args = checkpoint_cfg.model_args
-        # TODO What's the point of model args, if we
-        # have to load the model from checkpoint, where model_args are set
-        model_args = dict(
-            n_layer=cfg.model.n_layer,
-            n_head=cfg.model.n_head,
-            n_embd=cfg.model.n_embd,
-            block_size=cfg.data.sequence_length,
-            bias=cfg.model.bias,
-            vocab_size=None,
-            dropout=cfg.model.dropout,
-        )
-        for k in ["n_layer", "n_head", "n_embd", "block_size", "bias", "vocab_size"]:
-            model_args[k] = checkpoint_model_args[k]
+    # TODO Manage data structures in a way that doesn't require a magic [1]
+    val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)[1]
 
-        gptconf = GPTConfig(**model_args)
-        pad_token_id = tokenizer.token_to_id["<PAD>"]
-        model = GPT(config=gptconf, pad_token_id=pad_token_id)
-        state_dict = checkpoint["model"]
+    model_args = {}
+    for k in ["n_layer", "n_head", "n_embd", "block_size", "bias", "vocab_size"]:
+        model_args[k] = checkpoint_model_args[k]
 
-        # What's that?
-        unwanted_prefix = "_orig_mod."
-        for k, v in list(state_dict.items()):
-            if k.startswith(unwanted_prefix):
-                state_dict[k[len(unwanted_prefix) :]] = state_dict.pop(k)
+    gptconf = GPTConfig(**model_args)
+    pad_token_id = tokenizer.token_to_id["<PAD>"]
+    model = GPT(config=gptconf, pad_token_id=pad_token_id)
+    state_dict = checkpoint["model"]
 
-        model.load_state_dict(state_dict)
+    # What's that?
+    unwanted_prefix = "_orig_mod."
+    for k, v in list(state_dict.items()):
+        if k.startswith(unwanted_prefix):
+            state_dict[k[len(unwanted_prefix) :]] = state_dict.pop(k)
+
+    model.load_state_dict(state_dict)
 
     # Feels like those should be in config
     torch.manual_seed(1337)
@@ -85,8 +69,19 @@ def main(cfg: DictConfig):
     torch.set_num_threads(math.floor(cfg.system.data_workers))
 
     device_type = "cuda" if "cuda" in device else "cpu"
-    ptdtype = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}[cfg.system.dtype]
-    ctx = nullcontext() if device_type == "cpu" else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
+    ptdtype = {
+        "float32": torch.float32,
+        "bfloat16": torch.bfloat16,
+        "float16": torch.float16,
+    }[checkpoint_cfg.system.dtype]
+    ctx = (
+        nullcontext()
+        if device_type == "cpu"
+        else torch.amp.autocast(
+            device_type=device_type,
+            dtype=ptdtype,
+        )
+    )
 
     val_samplers = [
         ValidationRandomSampler(
@@ -98,7 +93,7 @@ def main(cfg: DictConfig):
     ]
 
     val_loaders = [
-        CyclicalDataLoader(
+        EvalDataLoader(
             dataset=dataset,
             sampler=sampler,
             batch_size=cfg.data.batch_size,
@@ -158,21 +153,21 @@ def main(cfg: DictConfig):
                 # TODO what is *b*? the name doesn't tell us anything about the dimension
                 # it's supposed to iterate over. I guess it's samples within batch, but is it?
                 # TODO What's the point of using batches, if we iterate them by sample?
-                for b in range(X.shape[0]):
+                for it in range(X.shape[0]):
                     input_token_ids = torch.unsqueeze(
-                        input=X[b, : prompt_lengths[b] + target_prefix_tokens],
+                        input=X[it, : prompt_lengths[it] + target_prefix_tokens],
                         dim=0,
                     )
                     # TODO Temperature should be a subject of evaluation
                     out_tokens = model.generate(
                         input_token_ids,
-                        max_new_tokens=2048 - prompt_lengths[b],
+                        max_new_tokens=2048 - prompt_lengths[it],
                         temperature=1,
                     )
-                    generated_token_ids = out_tokens[0, prompt_lengths[b] :].cpu().numpy()
+                    generated_token_ids = out_tokens[0, prompt_lengths[it] :].cpu().numpy()
                     generated_df = tokenizer.decode(token_ids=generated_token_ids)
 
-                    original_token_ids = Y[0, prompt_lengths[b] :].cpu().numpy()
+                    original_token_ids = Y[0, prompt_lengths[it] :].cpu().numpy()
                     original_df = tokenizer.decode(token_ids=original_token_ids)
 
                     # Cropping because we have no EOS token
@@ -182,8 +177,8 @@ def main(cfg: DictConfig):
                         generated_df = generated_df[ids]
 
                     # Store first example from each split for visualization
-                    if not k == 0 and b == 0:
-                        prompt_token_ids = X[b, : prompt_lengths[b]].cpu().numpy()
+                    if not k == 0 and it == 0:
+                        prompt_token_ids = X[it, : prompt_lengths[it]].cpu().numpy()
                         prompt_df = tokenizer.decode(token_ids=prompt_token_ids)
 
                         # 5x nesting is a red flag :eyes:

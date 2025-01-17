@@ -32,6 +32,21 @@ class CyclicalDataLoader:
         try:
             batch = next(self.iterator)
         except StopIteration:
+            # Reset the iterator when it's exhausted
+            self.iterator = iter(self.dataloader)
+            batch = next(self.iterator)
+
+        x = batch["source_token_ids"].to(self.device, non_blocking=True)
+        y = batch["target_token_ids"].to(self.device, non_blocking=True)
+        mask = batch["target_mask"].to(self.device, non_blocking=True)
+        return x, y, mask
+
+
+class EvalDataLoader(CyclicalDataLoader):
+    def get_batch(self):
+        try:
+            batch = next(self.iterator)
+        except StopIteration:
             self.iterator = iter(self.dataloader)
             batch = next(self.iterator)
 

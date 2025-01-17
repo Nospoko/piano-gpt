@@ -178,12 +178,11 @@ def main(cfg: DictConfig):
         data_source=train_dataset,
         seed=4 + seed_offset,
     )
-    # Create the loaders
+    # Create the loadersg
     train_loader = CyclicalDataLoader(
         train_dataset,
         sampler=train_sampler,
         batch_size=cfg.data.batch_size,
-        shuffle=True,
         pin_memory=device_type == "cuda",
         num_workers=cfg.system.data_workers // ddp_world_size,
         device=device,
