@@ -12,6 +12,7 @@ dataset_tokens = [
     "<GIANT-MIDI>",
     "<IMSLP>",
     "<ATEPP-1.1>",
+    "<PIANO_FOR_AI>",
 ]
 composer_tokens = [
     "<SCRIABIN>",
