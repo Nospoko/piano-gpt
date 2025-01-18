@@ -137,9 +137,12 @@ class PianoDataset(MidiDataset):
 
         # Join both input and output into a single sequence
         encoding = prompt_token_ids + answer_token_ids
+        # Add safeguard ensuring the encoding is at most sequence_length + 1
+        encoding = encoding[: self.sequence_length + 1]
+        # encoding should be sequence_length + 1, because we are using [:-1] and [1:] when defining source and target
         encoding_padded = self.tokenizer.pad_to_size(
             token_ids=encoding,
-            target_size=self.sequence_length,
+            target_size=self.sequence_length + 1,
         )
 
         # Convert into next-token-prediction task
