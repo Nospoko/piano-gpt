@@ -15,7 +15,7 @@ from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from gpt2.model import GPT, GPTConfig
 from gpt2.dataloader import EvalDataLoader
-from gpt2.utils import get_dataset_for_task
+from gpt2.utils import get_dataset_for_stage
 from data.random_sampler import ValidationRandomSampler
 
 load_dotenv()
@@ -43,7 +43,7 @@ def main(cfg: DictConfig):
         tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
 
     # TODO Manage data structures in a way that doesn't require a magic [1]
-    val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)[1]
+    val_datasets = get_dataset_for_stage(cfg=cfg, tokenizer=tokenizer)[1]
 
     model_args = {}
     for k in ["n_layer", "n_head", "n_embd", "block_size", "bias", "vocab_size"]:
@@ -144,10 +144,10 @@ def main(cfg: DictConfig):
                 # (see __getitem__ in PianoDataset)
                 X, Y, mask, prompt_lengths = loader.get_batch()
 
-                # TODO Where are task tokens defined?
-                # TODO Where to look for an explanation about what this is
-                # FIXME
-                target_prefix_tokens = {"multi": 1, "multi_with_composer": 2}.get(cfg.task, 0)
+                # There is one target prefix token for task called "multi" and two for task called "multi_with_composer"
+                # TODO: Now the number of target prefix tokens is different, because we are using
+                # ParametricalTaskManager.
+                num_target_prefix_token = {"multi": 1, "multi_with_composer": 2}.get(cfg.stage, 0)
 
                 batch_metrics = {}
                 # TODO what is *b*? the name doesn't tell us anything about the dimension
@@ -155,14 +155,14 @@ def main(cfg: DictConfig):
                 # TODO What's the point of using batches, if we iterate them by sample?
                 for it in range(X.shape[0]):
                     input_token_ids = torch.unsqueeze(
-                        input=X[it, : prompt_lengths[it] + target_prefix_tokens],
+                        input=X[it, : prompt_lengths[it] + num_target_prefix_token],
                         dim=0,
                     )
                     # TODO Temperature should be a subject of evaluation
                     out_tokens = model.generate(
                         input_token_ids,
                         max_new_tokens=2048 - prompt_lengths[it],
-                        temperature=1,
+                        temperature=cfg.temperature,
                     )
                     generated_token_ids = out_tokens[0, prompt_lengths[it] :].cpu().numpy()
                     generated_df = tokenizer.decode(token_ids=generated_token_ids)
@@ -267,7 +267,7 @@ def main(cfg: DictConfig):
         generated_piece = ff.MidiPiece(data["generated"])
 
         original_piece = ff.MidiPiece(data["original"])
-        if "next_token_prediction" in cfg.task:
+        if "next_token_pretraining" in cfg.stage:
             generated_piece.time_shift(prompt_piece.end)
             original_piece.time_shift(prompt_piece.end)
 

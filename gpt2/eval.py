@@ -12,7 +12,7 @@ from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
-from gpt2.utils import get_dataset_for_task
+from gpt2.utils import get_dataset_for_stage
 from data.random_sampler import ValidationRandomSampler
 
 load_dotenv()
@@ -83,7 +83,7 @@ def main(cfg: DictConfig):
         else:
             tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
 
-        val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)[1]
+        val_datasets = get_dataset_for_stage(cfg=cfg, tokenizer=tokenizer)[1]
         pad_token_id = tokenizer.token_to_id["<PAD>"]
 
         for k in ["n_layer", "n_head", "n_embd", "block_size", "bias", "vocab_size"]:
@@ -174,7 +174,11 @@ def main(cfg: DictConfig):
                     original_df = tokenizer.decode(token_ids=y_token_ids[y_control_position:].numpy())
                     # Cropping because we have no EOS token
                     generated_df = generated_df[generated_df.start < original_df.end.max()]
-                    f1_scores[b] = calculate_f1(target_df=original_df, generated_df=generated_df, velocity_threshold=30)[0]
+                    f1_scores[b] = calculate_f1(
+                        target_df=original_df,
+                        generated_df=generated_df,
+                        velocity_threshold=30,
+                    )[0]
                 f1s[k] = f1_scores.mean()
                 losses[k] = loss.item()
                 print(f1s[k], losses[k])

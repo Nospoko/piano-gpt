@@ -16,7 +16,7 @@ eval_iters: 100
 eval_only: false
 always_save_checkpoint: false
 init_from: 'scratch'
-task: multi_with_composer
+stage: piano_task
 loss_masking: pretrianing
 
 system:

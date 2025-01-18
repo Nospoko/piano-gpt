@@ -35,7 +35,7 @@ from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from gpt2.model import GPT, GPTConfig
 from gpt2.dataloader import CyclicalDataLoader
-from gpt2.utils import load_tokenizer, get_dataset_for_task
+from gpt2.utils import load_tokenizer, get_dataset_for_stage
 from data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
 
 load_dotenv()
@@ -101,7 +101,7 @@ def main(cfg: DictConfig):
         else:
             tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
 
-        train_dataset, val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)
+        train_dataset, val_datasets = get_dataset_for_stage(cfg=cfg, tokenizer=tokenizer)
         out_dir = to_absolute_path(cfg.out_dir)
         pad_token_id = tokenizer.token_to_id["<PAD>"]
         config = OmegaConf.to_container(cfg=cfg)
@@ -136,7 +136,7 @@ def main(cfg: DictConfig):
             cfg=cfg,
             special_tokens=piano_task_manager.get_special_tokens(),
         )
-        train_dataset, val_datasets = get_dataset_for_task(
+        train_dataset, val_datasets = get_dataset_for_stage(
             cfg=cfg,
             tokenizer=tokenizer,
             piano_task_manager=piano_task_manager,
@@ -155,7 +155,7 @@ def main(cfg: DictConfig):
     tokens_per_batch = cfg.data.batch_size * cfg.data.sequence_length
     tokens_per_iter = cfg.optimizer.gradient_accumulation_steps * ddp_world_size * tokens_per_batch
     print(f"tokens per iteration will be: {tokens_per_iter:,}")
-    if cfg.task != "next_token_prediction":
+    if cfg.stage != "next_token_pretraining":
         tokens_in_dataset = train_dataset.dataset.num_rows * train_dataset.sequence_length
         print(f"total tokens in the training dataset will be: {tokens_in_dataset:,}")
 

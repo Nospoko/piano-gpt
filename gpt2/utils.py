@@ -94,12 +94,12 @@ def initialize_model(
 
 
 # FIXME This is not a good abstraction
-def get_dataset_for_task(
+def get_dataset_for_stage(
     cfg: DictConfig,
     tokenizer: MidiTokenizer,
     piano_task_manager: ParametricTaskManager,
 ) -> tuple[MidiDataset, tuple]:
-    if "next_token" in cfg.task:
+    if "next_token" in cfg.stage:
         # Pretraining stage
         train_dataset, all_other_datasets = prepare_next_token_datasets(
             cfg=cfg,
@@ -107,8 +107,7 @@ def get_dataset_for_task(
         )
         return train_dataset, all_other_datasets
 
-    # TODO "multi" what?
-    if "multi" in cfg.task:
+    if "piano-task" in cfg.stage:
         # PIANO stage
         train_dataset, all_other_datasets = prepare_piano_dataset(
             cfg=cfg,
@@ -117,30 +116,23 @@ def get_dataset_for_task(
         )
         return train_dataset, all_other_datasets
 
-    # FIXME training "tasks" should be renamed to training stages. So far we have 2:
+    # TODO training stages can be both used for pretraining. Maybe there can be better names than:
     # 1. next-token-pretraining
     # 2. piano-task-finetuning
 
-    raise ValueError(f"Unknown task: {cfg.task}")
+    raise ValueError(f"Unknown stage: {cfg.stage}")
 
 
-# FIXME Why is dataset name not a part of the config?
 def prepare_dataset_base(
     cfg: DictConfig,
     tokenizer: ExponentialTimeTokenizer,
-    dataset_name: str,
 ) -> tuple[Dataset, tuple[Dataset, Dataset, Dataset, Dataset]]:
     dataset_builder_config = OmegaConf.to_container(cfg.dataset)
-    dataset_path = to_absolute_path(f"./midi_datasets/{dataset_name}")
+    dataset_path = to_absolute_path(f"./midi_datasets/{cfg.dataset.name}")
 
-    # TODO So is this a dataset name, or dataset class?
-    if dataset_name == "MidiTokenizedDataset":
-        # TODO At this point tokenizer was already created, what's
-        # the point of tokenizer config shuffling here?
-        # dataset_config["tokenizer_cfg"] = OmegaConf.to_container(cfg.tokenizer)
-
-        # TODO It might be better to provide the tokenizer object itself
-        # if thats compatible with hf builders
+    # This is a huggingface dataset name, that aggregates and tokenizes the datasets specified in the configuration.
+    if cfg.dataset.name == "MidiTokenizedDataset":
+        # We must pass a hashable tokenizer representation to the tokenized dataset builder
         dataset_builder_config["tokenizer_dict"] = tokenizer.to_dict()
 
     dataset = load_dataset(
@@ -179,7 +171,6 @@ def prepare_next_token_datasets(
     train_split, validation_splits = prepare_dataset_base(
         cfg=cfg,
         tokenizer=tokenizer,
-        dataset_name="MidiTokenizedDataset",
     )
     train_dataset = NextTokenDataset(
         dataset=train_split,

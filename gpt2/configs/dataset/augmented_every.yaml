@@ -1,3 +1,4 @@
+name: AugmentedDataset
 base_dataset_name: "roszcz/maestro-sustain-v2"
 pause_detection_threshold: 4
 extra_datasets:
