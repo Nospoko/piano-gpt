@@ -1,7 +1,7 @@
 # config/gpt2_piano.yaml
 defaults:
   - model: gpt2_medium
-  - data: pretraining
+  - data: default
   - tokenizer: exponential
   - dataset: augmented_every
   - logging: pretraining
