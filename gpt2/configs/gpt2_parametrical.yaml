@@ -1,0 +1,29 @@
+# config/gpt2_piano.yaml
+defaults:
+  - model: gpt2_medium
+  - data: pretraining
+  - tokenizer: exponential
+  - dataset: augmented_every
+  - logging: pretraining
+  - lr: pretraining
+  - optimizer: default
+  - tasks: all
+  - _self_
+
+out_dir: 'checkpoints'
+eval_interval: 500
+eval_iters: 100
+eval_only: false
+always_save_checkpoint: false
+init_from: 'scratch'
+task: multi_with_composer
+loss_masking: pretrianing
+
+system:
+  device: 'cuda'
+  dtype: 'float16'
+  compile: true
+  data_workers: 64
+
+ddp:
+  backend: 'nccl'

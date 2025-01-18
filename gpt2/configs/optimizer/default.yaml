@@ -4,4 +4,4 @@ max_iters: 300000 # define max_iters in data but leave the parameter here as wel
 beta1: 0.9
 beta2: 0.95
 grad_clip: 1.0  # clip gradients at this value, or disable if == 0.0
-gradient_accumulation_steps: 20
+gradient_accumulation_steps: 16
