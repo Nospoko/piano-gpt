@@ -299,7 +299,7 @@ def main(cfg: DictConfig):
             project=cfg.logging.wandb_project,
             name=run_name,
             config=config,
-            dir="tmp/wandb",
+            dir="tmp",
         )
         # define our custom x axis metric
         wandb.define_metric("total_tokens")

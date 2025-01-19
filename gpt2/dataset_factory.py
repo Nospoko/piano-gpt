@@ -12,6 +12,12 @@ from data.dataset import MidiDataset
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 
+# Map stage to dataset used for the specific stage
+stage_to_dataset_class = {
+    "next_token_pretraining": "MidiTokenizedDataset",
+    "piano_task": "AugmentedDataset",
+}
+
 
 class DatasetFactory:
     def __init__(
@@ -25,13 +31,11 @@ class DatasetFactory:
     def prepare_base_splits(self) -> tuple[Dataset, tuple[Dataset, ...]]:
         """Common dataset loading and splitting logic"""
         dataset_builder_config = OmegaConf.to_container(self.cfg.dataset)
-        # We do not need to pass the dataset class to the dataset builder
-        # TODO: We can well seperate dataset class from the config, to avoid poping,
-        # we know which dataset class should be use for which stage, perhaps we could work with that.
-        dataset_builder_config.pop("dataset_class")
-        dataset_path = to_absolute_path(f"./midi_datasets/{self.cfg.dataset.dataset_class}")
 
-        if self.cfg.dataset.dataset_class == "MidiTokenizedDataset":
+        dataset_class = stage_to_dataset_class[self.cfg.stage]
+        dataset_path = to_absolute_path(f"./midi_datasets/{dataset_class}")
+
+        if dataset_class == "MidiTokenizedDataset":
             dataset_builder_config["tokenizer_dict"] = self.tokenizer.to_dict()
 
         dataset = load_dataset(

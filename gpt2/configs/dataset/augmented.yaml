@@ -1,4 +1,3 @@
-dataset_class: AugmentedDataset
 base_dataset_name: "roszcz/maestro-sustain-v2"
 extra_datasets: ["roszcz/maestro-sustain-v2", "roszcz/giant-midi-sustain-v2", "roszcz/pianofor-ai-sustain-v2"]
 pause_detection_threshold: 4
