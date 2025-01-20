@@ -162,13 +162,22 @@ def main(cfg: DictConfig):
 
     if cfg.stage == "next_token_pretraining":
         hf_dataset = create_tokenized_dataset(cfg, tokenizer)
-        datasets = create_next_token_datasets(hf_dataset, cfg, tokenizer)
+        datasets = create_next_token_datasets(
+            hf_dataset=hf_dataset,
+            cfg=cfg,
+            tokenizer=tokenizer,
+        )
 
     elif cfg.stage == "piano_task":
         if piano_task_manager is None:
             raise ValueError("Piano task manager required for piano task stage")
         hf_dataset = create_augmented_dataset(cfg)
-        datasets = create_piano_datasets(hf_dataset, cfg, tokenizer, piano_task_manager)
+        datasets = create_piano_datasets(
+            hf_dataset=hf_dataset,
+            cfg=cfg,
+            tokenizer=tokenizer,
+            piano_task_manager=piano_task_manager,
+        )
     else:
         raise ValueError(f"Unknown stage: {cfg.stage}")
 
@@ -420,6 +429,7 @@ def main(cfg: DictConfig):
             print(f"saving checkpoint to {out_dir}")
             torch.save(checkpoint, os.path.join(out_dir, run_name + "last.pt"))
             if cfg.logging.wandb_log:
+                # TODO: this is ugly
                 validation_results = {
                     f"val/{split}": loss.item() for split, loss in losses.items() if split not in ["train", "full_val"]
                 }

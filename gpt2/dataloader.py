@@ -40,18 +40,3 @@ class CyclicalDataLoader:
         y = batch["target_token_ids"].to(self.device, non_blocking=True)
         mask = batch["target_mask"].to(self.device, non_blocking=True)
         return x, y, mask
-
-
-class EvalDataLoader(CyclicalDataLoader):
-    def get_batch(self):
-        try:
-            batch = next(self.iterator)
-        except StopIteration:
-            self.iterator = iter(self.dataloader)
-            batch = next(self.iterator)
-
-        x = batch["source_token_ids"].to(self.device, non_blocking=True)
-        y = batch["target_token_ids"].to(self.device, non_blocking=True)
-        mask = batch["target_mask"].to(self.device, non_blocking=True)
-        prompt_lengths = batch["prompt_length"]
-        return x, y, mask, prompt_lengths
