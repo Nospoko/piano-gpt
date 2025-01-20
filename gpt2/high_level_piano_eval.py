@@ -11,12 +11,13 @@ import streamlit_pianoroll
 from dotenv import load_dotenv
 from omegaconf import OmegaConf, DictConfig
 from piano_metrics.piano_metric import MetricsManager
+from piano_dataset.piano_tasks import ParametricTaskManager
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from gpt2.model import GPT, GPTConfig
 from gpt2.dataloader import EvalDataLoader
-from gpt2.utils import get_dataset_for_stage
 from data.random_sampler import ValidationRandomSampler
+from gpt2.utils import create_piano_datasets, create_augmented_dataset
 
 load_dotenv()
 
@@ -42,8 +43,10 @@ def main(cfg: DictConfig):
     else:
         tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
 
+    piano_task_manager = ParametricTaskManager.load_default()
     # TODO Manage data structures in a way that doesn't require a magic [1]
-    val_datasets = get_dataset_for_stage(cfg=cfg, tokenizer=tokenizer)[1]
+    hf_dataset = create_augmented_dataset(cfg)
+    val_datasets = create_piano_datasets(hf_dataset, cfg, tokenizer, piano_task_manager)["validation_splits"]
 
     model_args = {}
     for k in ["n_layer", "n_head", "n_embd", "block_size", "bias", "vocab_size"]:
@@ -125,7 +128,7 @@ def main(cfg: DictConfig):
         # *batch_metrics*, *example_metrics* (variable names should reflect those differences)
         out = {}
         model.eval()
-        splits = ["val", "bach", "chopin", "mozart"]
+        splits = ["full_val", "bach", "chopin", "mozart"]
 
         # For visualization
         example_generations = {}

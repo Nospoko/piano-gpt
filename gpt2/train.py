@@ -35,8 +35,14 @@ from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from gpt2.model import GPT, GPTConfig
 from gpt2.dataloader import CyclicalDataLoader
-from gpt2.utils import load_tokenizer, get_dataset_for_stage
 from data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
+from gpt2.utils import (
+    load_tokenizer,
+    create_piano_datasets,
+    create_augmented_dataset,
+    create_tokenized_dataset,
+    create_next_token_datasets,
+)
 
 load_dotenv()
 
@@ -62,6 +68,17 @@ def main(cfg: DictConfig):
         vocab_size=None,
         dropout=cfg.model.dropout,
     )  # start with model_args from command line
+
+    # TODO We'll need more elaborate configs to control piano tasks
+    # For now let's see what will happen with the default setup
+
+    # TODO: If we want to be able to finetune with different task managers, we need to make sure
+    # that task tokens are created in the place of sentinel tokens used in pretraining!
+    # (ParametricTaskManager should be configurable even for finetuning)
+
+    # Let's reate piano_task_manager here for now, the special tokens will be needed for both stages
+    # (to create tokenizers, unless we implement a better way of handling the special tokens)
+    piano_task_manager = ParametricTaskManager.load_default()
 
     device, ddp = setup_device(cfg=cfg)
     if ddp:
@@ -101,10 +118,6 @@ def main(cfg: DictConfig):
         else:
             tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
 
-        datasets = get_dataset_for_stage(cfg=cfg, tokenizer=tokenizer)
-        train_dataset = datasets["train"]
-        val_datasets = datasets["validation"]
-
         out_dir = to_absolute_path(cfg.out_dir)
         pad_token_id = tokenizer.token_to_id["<PAD>"]
         config = OmegaConf.to_container(cfg=cfg)
@@ -131,20 +144,10 @@ def main(cfg: DictConfig):
         state_dict = None
 
     elif cfg.init_from == "scratch":
-        # TODO We'll need more elaborate configs to control piano tasks
-        # For now let's see what will happen with the default setup
-        piano_task_manager = ParametricTaskManager.load_default()
         tokenizer = load_tokenizer(
             cfg=cfg,
             special_tokens=piano_task_manager.get_special_tokens(),
         )
-        datasets = get_dataset_for_stage(
-            cfg=cfg,
-            tokenizer=tokenizer,
-            piano_task_manager=piano_task_manager,
-        )
-        train_dataset = datasets["train"]
-        val_datasets = datasets["validation"]  # this contains full, bach, chopin, mozart splits
 
         out_dir = to_absolute_path(cfg.out_dir)
 
@@ -156,6 +159,21 @@ def main(cfg: DictConfig):
         model_args["vocab_size"] = tokenizer.vocab_size
         gptconf = GPTConfig(**model_args)
         model = GPT(config=gptconf, pad_token_id=pad_token_id)
+
+    if cfg.stage == "next_token_pretraining":
+        hf_dataset = create_tokenized_dataset(cfg, tokenizer)
+        datasets = create_next_token_datasets(hf_dataset, cfg, tokenizer)
+
+    elif cfg.stage == "piano_task":
+        if piano_task_manager is None:
+            raise ValueError("Piano task manager required for piano task stage")
+        hf_dataset = create_augmented_dataset(cfg)
+        datasets = create_piano_datasets(hf_dataset, cfg, tokenizer, piano_task_manager)
+    else:
+        raise ValueError(f"Unknown stage: {cfg.stage}")
+
+    train_dataset = datasets["train_split"]
+    val_datasets = datasets["validation_splits"]  # this contains full, bach, chopin, mozart splits
 
     tokens_per_batch = cfg.data.batch_size * cfg.data.sequence_length
     tokens_per_iter = cfg.optimizer.gradient_accumulation_steps * ddp_world_size * tokens_per_batch
@@ -260,6 +278,7 @@ def main(cfg: DictConfig):
     @torch.no_grad()
     def estimate_loss():
         splits = ["train"] + list(val_loaders.keys())
+        print(splits)
         out = {}
         model.eval()
         for split in splits:
@@ -364,15 +383,16 @@ def main(cfg: DictConfig):
         # evaluate the loss on train/val sets and write checkpoints
         if iter_num % cfg.eval_interval == 0 and master_process:
             losses = estimate_loss()
-            print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
-            if losses["val"] < best_val_loss:
-                best_val_loss = losses["val"]
+            print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['full_val']:.4f}")
+            if losses["full_val"] < best_val_loss:
+                best_val_loss = losses["full_val"]
                 checkpoint = {
                     "model": raw_model.state_dict(),
                     "optimizer": optimizer.state_dict(),
                     "model_args": model_args,
                     "iter_num": iter_num,
                     "best_val_loss": best_val_loss.item(),
+                    "val_loss": losses["full_val"].item(),
                     "train_loss": losses["train"].item(),
                     "config": config,
                     "wandb": wandb_link,
@@ -400,11 +420,15 @@ def main(cfg: DictConfig):
             print(f"saving checkpoint to {out_dir}")
             torch.save(checkpoint, os.path.join(out_dir, run_name + "last.pt"))
             if cfg.logging.wandb_log:
+                validation_results = {
+                    f"val/{split}": loss.item() for split, loss in losses.items() if split not in ["train", "full_val"]
+                }
                 wandb.log(
                     {
                         "iter": iter_num,
-                        "train/loss_batch": losses["train"],
-                        **{f"val/{split}": loss for split, loss in losses.items() if split != "train"},
+                        "train/loss_batch": losses["train"].item(),
+                        "val/loss_batch": losses["full_val"].item(),
+                        **validation_results,
                         "total_tokens": total_tokens,
                         "best_val_loss": best_val_loss,
                     },

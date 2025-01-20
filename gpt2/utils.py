@@ -115,7 +115,7 @@ def create_validation_splits(validation_set: Dataset) -> dict[str, Dataset]:
     """Create composer-specific validation splits."""
     validation_set = validation_set.shuffle(seed=1337)
     return {
-        "loss_batch": validation_set,
+        "full_val": validation_set,
         "bach": validation_set.filter(lambda x: json.loads(x["source"])["composer"] == "Johann Sebastian Bach"),
         "chopin": validation_set.filter(lambda x: json.loads(x["source"])["composer"] == "Frédéric Chopin"),
         "mozart": validation_set.filter(lambda x: json.loads(x["source"])["composer"] == "Wolfgang Amadeus Mozart"),
@@ -169,7 +169,7 @@ def create_next_token_datasets(
         for name, split in validation_splits.items()
     }
 
-    return {"train": train_dataset, "validation": validation_datasets}
+    return {"train_split": train_dataset, "validation_splits": validation_datasets}
 
 
 def create_piano_datasets(
@@ -203,23 +203,4 @@ def create_piano_datasets(
         for name, split in validation_splits.items()
     }
 
-    return {"train": train_dataset, "validation": validation_datasets}
-
-
-def get_dataset_for_stage(
-    cfg: DictConfig,
-    tokenizer: MidiTokenizer,
-    piano_task_manager: ParametricTaskManager = None,
-) -> dict[str, MidiDataset | dict[str, MidiDataset]]:
-    """Create datasets based on training stage."""
-    if cfg.stage == "next_token_pretraining":
-        dataset = create_tokenized_dataset(cfg, tokenizer)
-        return create_next_token_datasets(dataset, cfg, tokenizer)
-
-    elif cfg.stage == "piano_task":
-        if piano_task_manager is None:
-            raise ValueError("Piano task manager required for piano task stage")
-        dataset = create_augmented_dataset(cfg)
-        return create_piano_datasets(dataset, cfg, tokenizer, piano_task_manager)
-
-    raise ValueError(f"Unknown stage: {cfg.stage}")
+    return {"train_split": train_dataset, "validation_splits": validation_datasets}

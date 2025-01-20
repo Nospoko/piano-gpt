@@ -145,7 +145,7 @@ def main(cfg: DictConfig):
         out = {}
         model.eval()
 
-        splits = ["val", "bach", "chopin", "mozart"]
+        splits = ["full_val", "bach", "chopin", "mozart"]
         for split, loader in zip(splits, val_loaders):
             losses = torch.zeros(cfg.eval_iters)
             f1s = torch.zeros(cfg.eval_iters)
