@@ -101,11 +101,13 @@ def main(cfg: DictConfig):
         else:
             tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
 
-        train_dataset, val_datasets = get_dataset_for_stage(cfg=cfg, tokenizer=tokenizer)
+        datasets = get_dataset_for_stage(cfg=cfg, tokenizer=tokenizer)
+        train_dataset = datasets["train"]
+        val_datasets = datasets["validation"]
+
         out_dir = to_absolute_path(cfg.out_dir)
         pad_token_id = tokenizer.token_to_id["<PAD>"]
         config = OmegaConf.to_container(cfg=cfg)
-        # model init
 
         # force these config attributes to be equal otherwise we can't even resume training
         # the rest of the attributes (e.g. dropout) can stay as desired from config
@@ -136,11 +138,14 @@ def main(cfg: DictConfig):
             cfg=cfg,
             special_tokens=piano_task_manager.get_special_tokens(),
         )
-        train_dataset, val_datasets = get_dataset_for_stage(
+        datasets = get_dataset_for_stage(
             cfg=cfg,
             tokenizer=tokenizer,
             piano_task_manager=piano_task_manager,
         )
+        train_dataset = datasets["train"]
+        val_datasets = datasets["validation"]  # this contains full, bach, chopin, mozart splits
+
         out_dir = to_absolute_path(cfg.out_dir)
 
         pad_token_id = tokenizer.token_to_id["<PAD>"]
@@ -173,12 +178,14 @@ def main(cfg: DictConfig):
     ptdtype = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}[cfg.system.dtype]
     ctx = nullcontext() if device_type == "cpu" else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
 
-    print(len(val_datasets[0]), len(val_datasets[1]), len(val_datasets[2]), len(val_datasets[3]))
+    for split_name, dataset in val_datasets.items():
+        print(f"{split_name} split size: {len(dataset)}")
+
     train_sampler = MemoryEfficientRandomSampler(
         data_source=train_dataset,
         seed=4 + seed_offset,
     )
-    # Create the loadersg
+    # Create the loaders
     train_loader = CyclicalDataLoader(
         train_dataset,
         sampler=train_sampler,
@@ -187,39 +194,28 @@ def main(cfg: DictConfig):
         num_workers=cfg.system.data_workers // ddp_world_size,
         device=device,
     )
+    val_loaders = {}
 
-    val_samplers = [
-        ValidationRandomSampler(
+    for split_name, dataset in val_datasets.items():
+        sampler = ValidationRandomSampler(
             data_source=dataset,
             seed=4,
             num_samples=cfg.data.batch_size * cfg.eval_iters,
         )
-        for dataset in val_datasets
-    ]
-
-    val_loaders = [
-        CyclicalDataLoader(
-            dataset,
+        val_loaders[split_name] = CyclicalDataLoader(
+            dataset=dataset,
             sampler=sampler,
             batch_size=cfg.data.batch_size,
             pin_memory=device_type == "cuda",
             num_workers=cfg.system.data_workers,
             device=device,
         )
-        for dataset, sampler in zip(val_datasets, val_samplers)
-    ]
 
-    def get_batch(split):
+    def get_batch(split: str):
         if split == "train":
             return train_loader.get_batch()
-        elif split == "val":
-            return val_loaders[0].get_batch()
-        elif split == "bach":
-            return val_loaders[1].get_batch()
-        elif split == "chopin":
-            return val_loaders[2].get_batch()
-        elif split == "mozart":
-            return val_loaders[3].get_batch()
+        else:
+            return val_loaders[split].get_batch()
 
     # init these up here, can override if init_from='resume' (i.e. from a checkpoint)
     iter_num = 0
@@ -263,9 +259,10 @@ def main(cfg: DictConfig):
     # helps estimate an arbitrarily accurate loss over either split using many batches
     @torch.no_grad()
     def estimate_loss():
+        splits = ["train"] + list(val_loaders.keys())
         out = {}
         model.eval()
-        for split in ["train", "val", "bach", "chopin", "mozart"]:
+        for split in splits:
             losses = torch.zeros(cfg.eval_iters)
             for k in range(cfg.eval_iters):
                 X, Y, mask = get_batch(split)
@@ -407,10 +404,7 @@ def main(cfg: DictConfig):
                     {
                         "iter": iter_num,
                         "train/loss_batch": losses["train"],
-                        "val/loss_batch": losses["val"],
-                        "val/bach": losses["bach"],
-                        "val/chopin": losses["chopin"],
-                        "val/mozart": losses["mozart"],
+                        **{f"val/{split}": loss for split, loss in losses.items() if split != "train"},
                         "total_tokens": total_tokens,
                         "best_val_loss": best_val_loss,
                     },
@@ -430,18 +424,18 @@ def main(cfg: DictConfig):
             )
             running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
             tps = tokens_in_step / t_forward_backward
-
-            wandb.log(
-                {
-                    "iter": iter_num,
-                    "train/loss": lossf,
-                    "lr": lr,
-                    "mfu": running_mfu * 100,  # convert to percentage
-                    "total_tokens": total_tokens,
-                    "tps": tps,
-                },
-                step=iter_num,
-            )
+            if cfg.logging.wandb_log:
+                wandb.log(
+                    {
+                        "iter": iter_num,
+                        "train/loss": lossf,
+                        "lr": lr,
+                        "mfu": running_mfu * 100,  # convert to percentage
+                        "total_tokens": total_tokens,
+                        "tps": tps,
+                    },
+                    step=iter_num,
+                )
             print(
                 f"iter {iter_num}: loss {lossf:.4f}, time {dt:.2f}s, mfu {running_mfu*100:.2f}%, tps {tps:.2f}",
             )
