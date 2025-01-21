@@ -136,10 +136,11 @@ def main(cfg: DictConfig):
                 # be able to get all the details neccessary to calculate PIANO metrics
                 # (see __getitem__ in PianoDataset)
                 record = val_datasets[split][sample_idx]
+                prompt_length = record["prompt_length"]
+
                 source_token_ids = record["source_token_ids"].to(device)
                 target_token_ids = record["target_token_ids"].to(device)
-                prompt_length = record["prompt_length"]
-                mask = record["target_mask"]
+                mask = record["target_mask"].to(device)
 
                 num_target_prefix_token = 1  # <GENAI> only
 
