@@ -1,4 +1,5 @@
 tmp/*
+tmp*
 *__pycache__*
 outputs
 wandb
@@ -8,3 +9,5 @@ pretrained*
 .env
 notes*
 .csv
+*copy*
+.python-version

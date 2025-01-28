@@ -1,7 +1,8 @@
 datasets>=2.17.1
 fortepyan==0.4.2
+git+https://github.com/Nospoko/midi-tokenizers@MIDI-159/special-placeholders
+git+https://github.com/Nospoko/piano-dataset
 hydra-core>=1.3.2
-midi_tokenizers @ git+https://github.com/Nospoko/midi-tokenizers@v2.0
 pandas~=2.1.4
 python-dotenv==1.0.0
 streamlit==1.37.0

@@ -1,0 +1,3 @@
+wandb_log: False
+wandb_project: 'piano-gpt'
+log_interval: 20

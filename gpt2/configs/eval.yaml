@@ -1,28 +1,31 @@
 defaults:
-  - model: gpt2 # "gpt2_minimal", "gpt2_medium", "gpt2_large", "gpt2_xl"
   - data: default
   - tokenizer: exponential
   - dataset: augmented
-  - tasks: all
+  - tasks: subsequence
+  - metrics: default
+  - logging: eval
   - _self_
 
+eval_iters: 50
+
 dataset:
-  extra_datasets: []
+  extra_datasets: ["epr-labs/maestro-sustain-v2"]
   augmentation:
     max_pitch_shift: 0
     speed_change_factors: []
 
-init_from: midi-gpt2-0M-subsequence-2024-09-10-22-20last.pt # should be 'midi-gpt2*'
+# should be 'midi-gpt2*'
+# init_from: midi-gpt2-0M-subsequence-2024-11-20-16-41last.pt
+init_from: midi-gpt2-302M-subsequence-4096-ctx-2024-09-08-19-42.pt
 
-task: multi_with_composer
-tasks:
-  list:
-    - "above_median_prediction"  # Pitch tasks
+stage: piano_task
 
-loss_masking: finetuning
+loss_masking: pretraining
+temperature: 1
 
 system:
   device: 'cuda'  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
   dtype: 'float16'  # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
   compile: true  # use PyTorch 2.0 to compile the model to be faster
-  data_workers: 32
+  data_workers: 8

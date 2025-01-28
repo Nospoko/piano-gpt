@@ -24,61 +24,29 @@ from contextlib import nullcontext
 
 import hydra
 import torch
+import wandb
 from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf, DictConfig
-from torch.utils.data import Sampler, DataLoader
+from midi_tokenizers import ExponentialTimeTokenizer
+from piano_dataset.piano_tasks import ParametricTaskManager
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
-from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
-import wandb
-from data.dataset import MidiDataset
+import artifacts
 from gpt2.model import GPT, GPTConfig
-from gpt2.utils import load_tokenizer, get_dataset_for_task
+from data.piano_dataset import PianoDataset
+from gpt2.dataloader import CyclicalDataLoader
 from data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
+from gpt2.utils import (
+    load_tokenizer,
+    create_piano_datasets,
+    create_augmented_dataset,
+    create_tokenized_dataset,
+    create_next_token_datasets,
+)
 
 load_dotenv()
-
-
-class CyclicalDataLoader:
-    def __init__(
-        self,
-        dataset: MidiDataset,
-        sampler: Sampler,
-        batch_size: int,
-        shuffle: bool = False,
-        pin_memory: bool = False,
-        num_workers: int = 0,
-        device: torch.device = torch.device("cpu"),
-    ):
-        self.dataset = dataset
-        self.batch_size = batch_size
-        self.shuffle = shuffle
-        self.pin_memory = pin_memory
-        self.num_workers = num_workers
-        self.device = device
-        self.dataloader = DataLoader(
-            dataset=dataset,
-            sampler=sampler,
-            batch_size=self.batch_size,
-            pin_memory=self.pin_memory,
-            num_workers=num_workers,
-        )
-        self.iterator = iter(self.dataloader)
-
-    def get_batch(self):
-        try:
-            batch = next(self.iterator)
-        except StopIteration:
-            # Reset the iterator when it's exhausted
-            self.iterator = iter(self.dataloader)
-            batch = next(self.iterator)
-
-        x = batch["source_token_ids"].to(self.device, non_blocking=True)
-        y = batch["target_token_ids"].to(self.device, non_blocking=True)
-        mask = batch["target_mask"].to(self.device, non_blocking=True)
-        return x, y, mask
 
 
 def setup_device(cfg: DictConfig):
@@ -103,6 +71,17 @@ def main(cfg: DictConfig):
         dropout=cfg.model.dropout,
     )  # start with model_args from command line
 
+    # TODO We'll need more elaborate configs to control piano tasks
+    # For now let's see what will happen with the default setup
+
+    # TODO: If we want to be able to finetune with different task managers, we need to make sure
+    # that task tokens are created in the place of sentinel tokens used in pretraining!
+    # (ParametricTaskManager should be configurable even for finetuning)
+
+    # Let's reate piano_task_manager here for now, the special tokens will be needed for both stages
+    # (to create tokenizers, unless we implement a better way of handling the special tokens)
+    piano_task_manager = ParametricTaskManager.load_default()
+
     device, ddp = setup_device(cfg=cfg)
     if ddp:
         ddp_rank = int(os.environ["RANK"])
@@ -122,28 +101,51 @@ def main(cfg: DictConfig):
         seed_offset = 0
         ddp_world_size = 1
 
+    if cfg.init_from == "scratch_next_token":
+        if cfg.stage == "piano_task":
+            raise NotImplementedError("piano_task stage cannot be run from scratch")
+        special_tokens = artifacts.dataset_tokens + artifacts.composer_tokens
+        tokenizer = load_tokenizer(
+            cfg=cfg,
+            special_tokens=special_tokens,
+        )
+
+        out_dir = to_absolute_path(cfg.out_dir)
+
+        pad_token_id = tokenizer.token_to_id["<PAD>"]
+        config = OmegaConf.to_container(cfg=cfg)
+        # init a new model from scratch
+        print("Initializing a new model from scratch")
+        # determine the vocab size we'll use for from-scratch training
+        model_args["vocab_size"] = tokenizer.vocab_size
+        gptconf = GPTConfig(**model_args)
+        model = GPT(config=gptconf, pad_token_id=pad_token_id)
+
     # First load checkpoint if init_from midi_gpt2*
-    if cfg.init_from.startswith("midi-gpt2"):
+    elif cfg.init_from.startswith("midi-gpt2"):
         # resume training from a checkpoint.
         ckpt_path = os.path.join("checkpoints/", cfg.init_from)
         checkpoint = torch.load(ckpt_path, map_location=device)
         checkpoint_model_args = checkpoint["model_args"]
         checkpoint_cfg = OmegaConf.create(checkpoint["config"])
 
+        # FIXME Configs should not be modified, if your loading
+        # a checkpoint, reuse its config
         cfg.model = checkpoint_cfg.model
         cfg.tokenizer = checkpoint_cfg.tokenizer
         cfg.system.dtype = checkpoint_cfg.system.dtype
 
-        if cfg.tokenizer.name == "ExponentialTimeTokenizer":
+        if cfg.tokenizer.class_name == "ExponentialTimeTokenizer":
             tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+            special_tokens = piano_task_manager.get_special_tokens()
+            special_tokens.append(PianoDataset.generation_token)
+            tokenizer.add_special_tokens(special_tokens=special_tokens)
         else:
-            tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+            raise NotImplementedError(f"Unknown tokenizer: {cfg.tokenizer.class_name}")
 
-        train_dataset, val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)
         out_dir = to_absolute_path(cfg.out_dir)
         pad_token_id = tokenizer.token_to_id["<PAD>"]
         config = OmegaConf.to_container(cfg=cfg)
-        # model init
 
         # force these config attributes to be equal otherwise we can't even resume training
         # the rest of the attributes (e.g. dropout) can stay as desired from config
@@ -166,24 +168,34 @@ def main(cfg: DictConfig):
         model.load_state_dict(state_dict)
         state_dict = None
 
-    elif cfg.init_from == "scratch":
-        tokenizer = load_tokenizer(cfg=cfg)
-        train_dataset, val_datasets = get_dataset_for_task(cfg=cfg, tokenizer=tokenizer)
-        out_dir = to_absolute_path(cfg.out_dir)
+    if cfg.stage == "next_token_pretraining":
+        hf_dataset = create_tokenized_dataset(cfg, tokenizer)
+        datasets = create_next_token_datasets(
+            hf_dataset=hf_dataset,
+            cfg=cfg,
+            tokenizer=tokenizer,
+        )
 
-        pad_token_id = tokenizer.token_to_id["<PAD>"]
-        config = OmegaConf.to_container(cfg=cfg)
-        # init a new model from scratch
-        print("Initializing a new model from scratch")
-        # determine the vocab size we'll use for from-scratch training
-        model_args["vocab_size"] = tokenizer.vocab_size
-        gptconf = GPTConfig(**model_args)
-        model = GPT(config=gptconf, pad_token_id=pad_token_id)
+    elif cfg.stage == "piano_task":
+        if piano_task_manager is None:
+            raise ValueError("Piano task manager required for piano task stage")
+        hf_dataset = create_augmented_dataset(cfg)
+        datasets = create_piano_datasets(
+            hf_dataset=hf_dataset,
+            cfg=cfg,
+            tokenizer=tokenizer,
+            piano_task_manager=piano_task_manager,
+        )
+    else:
+        raise NotImplementedError(f"Unknown stage: {cfg.stage}")
+
+    train_dataset = datasets["train_split"]
+    val_datasets = datasets["validation_splits"]  # this contains full, bach, chopin, mozart splits
 
     tokens_per_batch = cfg.data.batch_size * cfg.data.sequence_length
     tokens_per_iter = cfg.optimizer.gradient_accumulation_steps * ddp_world_size * tokens_per_batch
     print(f"tokens per iteration will be: {tokens_per_iter:,}")
-    if cfg.task != "next_token_prediction":
+    if cfg.stage != "next_token_pretraining":
         tokens_in_dataset = train_dataset.dataset.num_rows * train_dataset.sequence_length
         print(f"total tokens in the training dataset will be: {tokens_in_dataset:,}")
 
@@ -201,92 +213,44 @@ def main(cfg: DictConfig):
     ptdtype = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}[cfg.system.dtype]
     ctx = nullcontext() if device_type == "cpu" else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
 
-    print(len(val_datasets[0]), len(val_datasets[1]), len(val_datasets[2]), len(val_datasets[3]))
+    for split_name, dataset in val_datasets.items():
+        print(f"{split_name} split size: {len(dataset)}")
+
     train_sampler = MemoryEfficientRandomSampler(
         data_source=train_dataset,
         seed=4 + seed_offset,
-    )
-    val_sampler = ValidationRandomSampler(
-        data_source=val_datasets[0],
-        seed=4 + seed_offset,
-        num_samples=cfg.data.batch_size * cfg.eval_iters,
-    )
-    val_sampler_bach = ValidationRandomSampler(
-        data_source=val_datasets[1],
-        seed=4 + seed_offset,
-        num_samples=cfg.data.batch_size * cfg.eval_iters,
-    )
-    val_sampler_chopin = ValidationRandomSampler(
-        data_source=val_datasets[2],
-        seed=4 + seed_offset,
-        num_samples=cfg.data.batch_size * cfg.eval_iters,
-    )
-    val_sampler_mozart = ValidationRandomSampler(
-        data_source=val_datasets[3],
-        seed=4 + seed_offset,
-        num_samples=cfg.data.batch_size * cfg.eval_iters,
     )
     # Create the loaders
     train_loader = CyclicalDataLoader(
         train_dataset,
         sampler=train_sampler,
         batch_size=cfg.data.batch_size,
-        shuffle=True,
         pin_memory=device_type == "cuda",
         num_workers=cfg.system.data_workers // ddp_world_size,
         device=device,
     )
+    val_loaders = {}
 
-    val_loader = CyclicalDataLoader(
-        val_datasets[0],
-        sampler=val_sampler,
-        batch_size=cfg.data.batch_size,
-        shuffle=False,
-        pin_memory=device_type == "cuda",
-        num_workers=cfg.system.data_workers // ddp_world_size,
-        device=device,
-    )
-    val_loader_bach = CyclicalDataLoader(
-        val_datasets[1],
-        sampler=val_sampler_bach,
-        batch_size=cfg.data.batch_size,
-        shuffle=False,
-        pin_memory=device_type == "cuda",
-        num_workers=cfg.system.data_workers // ddp_world_size,
-        device=device,
-    )
+    for split_name, dataset in val_datasets.items():
+        sampler = ValidationRandomSampler(
+            data_source=dataset,
+            seed=4,
+            num_samples=cfg.data.batch_size * cfg.eval_iters,
+        )
+        val_loaders[split_name] = CyclicalDataLoader(
+            dataset=dataset,
+            sampler=sampler,
+            batch_size=cfg.data.batch_size,
+            pin_memory=device_type == "cuda",
+            num_workers=cfg.system.data_workers,
+            device=device,
+        )
 
-    val_loader_chopin = CyclicalDataLoader(
-        val_datasets[2],
-        sampler=val_sampler_chopin,
-        batch_size=cfg.data.batch_size,
-        shuffle=False,
-        pin_memory=device_type == "cuda",
-        num_workers=cfg.system.data_workers // ddp_world_size,
-        device=device,
-    )
-
-    val_loader_mozart = CyclicalDataLoader(
-        val_datasets[2],
-        sampler=val_sampler_mozart,
-        batch_size=cfg.data.batch_size,
-        shuffle=False,
-        pin_memory=device_type == "cuda",
-        num_workers=cfg.system.data_workers // ddp_world_size,
-        device=device,
-    )
-
-    def get_batch(split):
+    def get_batch(split: str):
         if split == "train":
             return train_loader.get_batch()
-        elif split == "val":
-            return val_loader.get_batch()
-        elif split == "bach":
-            return val_loader_bach.get_batch()
-        elif split == "chopin":
-            return val_loader_chopin.get_batch()
-        elif split == "mozart":
-            return val_loader_mozart.get_batch()
+        else:
+            return val_loaders[split].get_batch()
 
     # init these up here, can override if init_from='resume' (i.e. from a checkpoint)
     iter_num = 0
@@ -295,12 +259,13 @@ def main(cfg: DictConfig):
     # attempt to derive vocab_size from the dataset
     meta_vocab_size = tokenizer.vocab_size
 
-    print(f"found vocab_size = {meta_vocab_size} (inside {tokenizer.name})")
+    print(f"found vocab_size = {meta_vocab_size} (inside {tokenizer})")
 
     # crop down the model block size if desired, using model surgery
     if cfg.data.sequence_length < model.config.block_size:
         model.crop_block_size(cfg.data.sequence_length)
-        model_args["block_size"] = cfg.data.sequence_length  # so that the checkpoint will have the right value
+        # so that the checkpoint will have the right value
+        model_args["block_size"] = cfg.data.sequence_length
     model.to(device)
 
     # initialize a GradScaler. If enabled=False scaler is a no-op
@@ -329,9 +294,11 @@ def main(cfg: DictConfig):
     # helps estimate an arbitrarily accurate loss over either split using many batches
     @torch.no_grad()
     def estimate_loss():
+        splits = ["train"] + list(val_loaders.keys())
+        print(splits)
         out = {}
         model.eval()
-        for split in ["train", "val", "bach", "chopin", "mozart"]:
+        for split in splits:
             losses = torch.zeros(cfg.eval_iters)
             for k in range(cfg.eval_iters):
                 X, Y, mask = get_batch(split)
@@ -361,7 +328,12 @@ def main(cfg: DictConfig):
     run_name = f"midi-gpt2-{milion_params:.0f}M-{cfg.logging.wandb_run_name_suffix}-{cfg.logging.wandb_time_suffix}"
     # logging
     if cfg.logging.wandb_log and master_process:
-        wandb.init(project=cfg.logging.wandb_project, name=run_name, config=config)
+        wandb.init(
+            project=cfg.logging.wandb_project,
+            name=run_name,
+            config=config,
+            dir="tmp",
+        )
         # define our custom x axis metric
         wandb.define_metric("total_tokens")
         # define which metrics will be plotted against it
@@ -373,6 +345,7 @@ def main(cfg: DictConfig):
     total_tokens = 0
     # training loop
     X, Y, mask = get_batch("train")  # fetch the very first batch
+
     t0 = time.time()
     local_iter_num = 0  # number of iterations in the lifetime of this process
     raw_model = model.module if ddp else model  # unwrap DDP container if needed
@@ -427,18 +400,20 @@ def main(cfg: DictConfig):
         # evaluate the loss on train/val sets and write checkpoints
         if iter_num % cfg.eval_interval == 0 and master_process:
             losses = estimate_loss()
-            print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
-            if losses["val"] < best_val_loss:
-                best_val_loss = losses["val"]
+            print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['full_val']:.4f}")
+            if losses["full_val"] < best_val_loss:
+                best_val_loss = losses["full_val"]
                 checkpoint = {
                     "model": raw_model.state_dict(),
                     "optimizer": optimizer.state_dict(),
                     "model_args": model_args,
                     "iter_num": iter_num,
                     "best_val_loss": best_val_loss.item(),
+                    "val_loss": losses["full_val"].item(),
                     "train_loss": losses["train"].item(),
                     "config": config,
                     "wandb": wandb_link,
+                    "wandb_id": wandb.run.id,
                     "total_tokens": total_tokens,
                     "tokenizer": tokenizer.to_dict(),
                 }
@@ -454,20 +429,24 @@ def main(cfg: DictConfig):
                 "train_loss": losses["train"].item(),
                 "config": config,
                 "wandb": wandb_link,
+                "wandb_id": wandb.run.id,
                 "total_tokens": total_tokens,
+                "piano_tasks_config": piano_task_manager.tasks_config,
                 "tokenizer": tokenizer.to_dict(),
             }
             print(f"saving checkpoint to {out_dir}")
             torch.save(checkpoint, os.path.join(out_dir, run_name + "last.pt"))
             if cfg.logging.wandb_log:
+                # TODO: this is ugly
+                validation_results = {
+                    f"val/{split}": loss.item() for split, loss in losses.items() if split not in ["train", "full_val"]
+                }
                 wandb.log(
                     {
                         "iter": iter_num,
-                        "train/loss_batch": losses["train"],
-                        "val/loss_batch": losses["val"],
-                        "val/bach": losses["bach"],
-                        "val/chopin": losses["chopin"],
-                        "val/mozart": losses["mozart"],
+                        "train/loss_batch": losses["train"].item(),
+                        "val/loss_batch": losses["full_val"].item(),
+                        **validation_results,
                         "total_tokens": total_tokens,
                         "best_val_loss": best_val_loss,
                     },
@@ -481,21 +460,24 @@ def main(cfg: DictConfig):
             # get loss as float. note: this is a CPU-GPU sync point
             # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
             lossf = loss.item() * cfg.optimizer.gradient_accumulation_steps
-            mfu = raw_model.estimate_mfu(cfg.data.batch_size * cfg.optimizer.gradient_accumulation_steps, dt)
+            mfu = raw_model.estimate_mfu(
+                fwdbwd_per_iter=cfg.data.batch_size * cfg.optimizer.gradient_accumulation_steps,
+                dt=dt,
+            )
             running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
             tps = tokens_in_step / t_forward_backward
-
-            wandb.log(
-                {
-                    "iter": iter_num,
-                    "train/loss": lossf,
-                    "lr": lr,
-                    "mfu": running_mfu * 100,  # convert to percentage
-                    "total_tokens": total_tokens,
-                    "tps": tps,
-                },
-                step=iter_num,
-            )
+            if cfg.logging.wandb_log:
+                wandb.log(
+                    {
+                        "iter": iter_num,
+                        "train/loss": lossf,
+                        "lr": lr,
+                        "mfu": running_mfu * 100,  # convert to percentage
+                        "total_tokens": total_tokens,
+                        "tps": tps,
+                    },
+                    step=iter_num,
+                )
             print(
                 f"iter {iter_num}: loss {lossf:.4f}, time {dt:.2f}s, mfu {running_mfu*100:.2f}%, tps {tps:.2f}",
             )

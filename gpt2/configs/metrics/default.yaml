@@ -1,0 +1,37 @@
+configs:
+
+  "key_correlation_weighted":
+    segment_duration: 1
+    use_weighted: true
+
+  "key_correlation_unweighted":
+    segment_duration: 1
+    use_weighted: false
+
+  "dstart_correlation":
+    n_bins: 50
+
+  "duration_correlation":
+    n_bins: 50
+
+  "velocity_correlation_weighted":
+    use_weighted: true
+
+  "velocity_correlation_unweighted":
+    use_weighted: false
+
+  "pitch_correlation_weighted":
+    use_weighted: true
+
+  "pitch_correlation_unweighted":
+    use_weighted: false
+
+  "f1":
+    velocity_threshold: 30
+    min_time_unit: 0.01
+    use_pitch_class: false
+
+  "f1_pitch_class":
+    velocity_threshold: 30
+    min_time_unit: 0.01
+    use_pitch_class: true
