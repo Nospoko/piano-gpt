@@ -1,6 +1,5 @@
 import json
 
-import torch
 from hydra.utils import to_absolute_path
 from datasets import Dataset, load_dataset
 from omegaconf import OmegaConf, DictConfig
@@ -8,7 +7,6 @@ from piano_dataset.piano_tasks import ParametricTaskManager
 from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
-from gpt2.model import GPT, GPTConfig
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 
@@ -30,61 +28,6 @@ def load_tokenizer(
         return tokenizer
     else:
         raise NotImplementedError(f"Unknown class name: {tokenizer_options.class_name}")
-
-
-def initialize_model(
-    cfg: DictConfig,
-    checkpoint: dict,
-    device: torch.device,
-    pad_token_id: int = 0,
-) -> GPT:
-    """
-    Initializes the GPT model using the given configurations and checkpoint.
-
-    Parameters
-    ----------
-    cfg : DictConfig
-        The configuration object.
-    dataset_config : dict
-        The dataset configuration.
-    checkpoint : dict
-        The model checkpoint.
-    device : torch.device
-        The device to load the model on.
-
-    Returns
-    -------
-    model : GPT
-        The initialized GPT model.
-    """
-    model_args = {
-        "n_layer": cfg.model.n_layer,
-        "n_head": cfg.model.n_head,
-        "n_embd": cfg.model.n_embd,
-        "block_size": cfg.data.sequence_length,
-        "bias": cfg.model.bias,
-        "vocab_size": None,
-        "dropout": cfg.model.dropout,
-    }
-
-    checkpoint_model_args = checkpoint["model_args"]
-    for k in ["n_layer", "n_head", "n_embd", "block_size", "bias", "vocab_size"]:
-        model_args[k] = checkpoint_model_args[k]
-
-    gptconf = GPTConfig(**model_args)
-    model = GPT(gptconf, pad_token_id=pad_token_id)
-    state_dict = checkpoint["model"]
-
-    unwanted_prefix = "_orig_mod."
-    for k, v in list(state_dict.items()):
-        if k.startswith(unwanted_prefix):
-            state_dict[k[len(unwanted_prefix) :]] = state_dict.pop(k)
-
-    model.load_state_dict(state_dict)
-    model.eval()
-    model.to(device)
-
-    return model
 
 
 def load_raw_dataset(cfg: DictConfig, tokenizer: MidiTokenizer) -> Dataset:

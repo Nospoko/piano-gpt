@@ -1,7 +1,6 @@
 defaults:
-  - model: gpt2_medium
+  - model: finetuning
   - data: default
-  - tokenizer: exponential
   - dataset: augmented_every
   - logging: finetuning
   - lr: finetuning

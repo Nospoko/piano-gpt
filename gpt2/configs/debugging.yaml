@@ -1,11 +1,11 @@
 defaults:
-  - model: gpt2_small # "gpt2_minimal", "gpt2_medium", "gpt2_large", "gpt2_xl"
+  - model: finetuning
   - data: default
   - dataset: augmented
   - logging: subsequence
   - lr: pretraining
   - optimizer: default
-  - tokenizer: exponential
+  # - tokenizer: exponential
   - tasks: denoising
   - _self_
 
@@ -14,7 +14,7 @@ eval_interval: 64
 eval_iters: 32
 eval_only: false  # if True, script exits right after the first eval
 always_save_checkpoint: false  # if True, always save a checkpoint after each eval
-init_from: 'midi-gpt2-0M-subsequence-2025-01-28-19-50.pt'  # 'scratch' or 'midi-gpt2*'
+init_from: 'midi-gpt2-0M-subsequence-2025-01-28-20-30.pt'  # 'scratch' or 'midi-gpt2*'
 stage: piano_task
 
 loss_masking: pretraining
