@@ -31,7 +31,7 @@ def main(cfg: DictConfig):
     checkpoint_model_args = checkpoint["model_args"]
     checkpoint_cfg = OmegaConf.create(checkpoint["config"])
 
-    if checkpoint_cfg.tokenizer.name == "ExponentialTimeTokenizer":
+    if checkpoint_cfg.tokenizer.class_name == "ExponentialTimeTokenizer":
         # What is *tokenizer_desc*? Naming should be consistent
         # so it should be stored as checkpoint["tokenizer_desc"] (or renamed)
         tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
@@ -215,7 +215,7 @@ def main(cfg: DictConfig):
                     training_mask = torch.unsqueeze(input=mask, dim=0)
                     logits, loss = model(training_input_ids, training_target_ids, training_mask)
 
-                print(loss)
+                print(f"loss: {loss.item()}")
                 metric_trackers["loss"][it] = loss.item()
                 for metric_name, values in batch_metrics.items():
                     if metric_name not in metric_trackers:

@@ -11,8 +11,6 @@ from data.dataset import MidiDataset
 from gpt2.model import GPT, GPTConfig
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
-from artifacts import special_tokens_in_the_wrong_place
-from data.tokenizer_utils import load_tokenizer_if_exists
 
 
 def load_cfg(checkpoint: dict) -> DictConfig:
@@ -24,18 +22,14 @@ def load_tokenizer(
     cfg: DictConfig,
     special_tokens: list[str],
 ):
-    tokenizer_cfg = OmegaConf.to_container(cfg.tokenizer)
-    tokenizer_parameters = tokenizer_cfg["parameters"]
-
-    # FIXME Hardcoding in a submodule is not a good way to pass special tokens
-    # it should be explicit somewhere in the training flow
-    special_tokens += special_tokens_in_the_wrong_place
-    tokenizer_parameters |= {"special_tokens": special_tokens}
-
-    if cfg.tokenizer.name == "AwesomeMidiTokenizer":
-        return load_tokenizer_if_exists(tokenizer_cfg=tokenizer_cfg)
+    tokenizer_options = OmegaConf.to_container(cfg.tokenizer)
+    tokenizer_config = tokenizer_options["config"]
+    if tokenizer_options["class_name"] == "ExponentialTimeTokenizer":
+        tokenizer = ExponentialTimeTokenizer.build_tokenizer(tokenizer_config=tokenizer_config)
+        tokenizer.add_special_tokens(special_tokens=special_tokens)
+        return tokenizer
     else:
-        return ExponentialTimeTokenizer(**tokenizer_parameters)
+        raise NotImplementedError(f"Unknown class name: {tokenizer_options.class_name}")
 
 
 def initialize_model(

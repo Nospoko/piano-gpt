@@ -28,12 +28,14 @@ import wandb
 from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf, DictConfig
+from midi_tokenizers import ExponentialTimeTokenizer
 from piano_dataset.piano_tasks import ParametricTaskManager
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
-from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
+import artifacts
 from gpt2.model import GPT, GPTConfig
+from data.piano_dataset import PianoDataset
 from gpt2.dataloader import CyclicalDataLoader
 from data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
 from gpt2.utils import (
@@ -99,8 +101,28 @@ def main(cfg: DictConfig):
         seed_offset = 0
         ddp_world_size = 1
 
+    if cfg.init_from == "scratch_next_token":
+        if cfg.stage == "piano_task":
+            raise NotImplementedError("piano_task stage cannot be run from scratch")
+        special_tokens = artifacts.dataset_tokens + artifacts.composer_tokens
+        tokenizer = load_tokenizer(
+            cfg=cfg,
+            special_tokens=special_tokens,
+        )
+
+        out_dir = to_absolute_path(cfg.out_dir)
+
+        pad_token_id = tokenizer.token_to_id["<PAD>"]
+        config = OmegaConf.to_container(cfg=cfg)
+        # init a new model from scratch
+        print("Initializing a new model from scratch")
+        # determine the vocab size we'll use for from-scratch training
+        model_args["vocab_size"] = tokenizer.vocab_size
+        gptconf = GPTConfig(**model_args)
+        model = GPT(config=gptconf, pad_token_id=pad_token_id)
+
     # First load checkpoint if init_from midi_gpt2*
-    if cfg.init_from.startswith("midi-gpt2"):
+    elif cfg.init_from.startswith("midi-gpt2"):
         # resume training from a checkpoint.
         ckpt_path = os.path.join("checkpoints/", cfg.init_from)
         checkpoint = torch.load(ckpt_path, map_location=device)
@@ -113,10 +135,13 @@ def main(cfg: DictConfig):
         cfg.tokenizer = checkpoint_cfg.tokenizer
         cfg.system.dtype = checkpoint_cfg.system.dtype
 
-        if cfg.tokenizer.name == "ExponentialTimeTokenizer":
+        if cfg.tokenizer.class_name == "ExponentialTimeTokenizer":
             tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+            special_tokens = piano_task_manager.get_special_tokens()
+            special_tokens.append(PianoDataset.generation_token)
+            tokenizer.add_special_tokens(special_tokens=special_tokens)
         else:
-            tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+            raise NotImplementedError(f"Unknown tokenizer: {cfg.tokenizer.class_name}")
 
         out_dir = to_absolute_path(cfg.out_dir)
         pad_token_id = tokenizer.token_to_id["<PAD>"]
@@ -143,23 +168,6 @@ def main(cfg: DictConfig):
         model.load_state_dict(state_dict)
         state_dict = None
 
-    elif cfg.init_from == "scratch":
-        tokenizer = load_tokenizer(
-            cfg=cfg,
-            special_tokens=piano_task_manager.get_special_tokens(),
-        )
-
-        out_dir = to_absolute_path(cfg.out_dir)
-
-        pad_token_id = tokenizer.token_to_id["<PAD>"]
-        config = OmegaConf.to_container(cfg=cfg)
-        # init a new model from scratch
-        print("Initializing a new model from scratch")
-        # determine the vocab size we'll use for from-scratch training
-        model_args["vocab_size"] = tokenizer.vocab_size
-        gptconf = GPTConfig(**model_args)
-        model = GPT(config=gptconf, pad_token_id=pad_token_id)
-
     if cfg.stage == "next_token_pretraining":
         hf_dataset = create_tokenized_dataset(cfg, tokenizer)
         datasets = create_next_token_datasets(
@@ -179,7 +187,7 @@ def main(cfg: DictConfig):
             piano_task_manager=piano_task_manager,
         )
     else:
-        raise ValueError(f"Unknown stage: {cfg.stage}")
+        raise NotImplementedError(f"Unknown stage: {cfg.stage}")
 
     train_dataset = datasets["train_split"]
     val_datasets = datasets["validation_splits"]  # this contains full, bach, chopin, mozart splits
@@ -251,7 +259,7 @@ def main(cfg: DictConfig):
     # attempt to derive vocab_size from the dataset
     meta_vocab_size = tokenizer.vocab_size
 
-    print(f"found vocab_size = {meta_vocab_size} (inside {tokenizer.name})")
+    print(f"found vocab_size = {meta_vocab_size} (inside {tokenizer})")
 
     # crop down the model block size if desired, using model surgery
     if cfg.data.sequence_length < model.config.block_size:

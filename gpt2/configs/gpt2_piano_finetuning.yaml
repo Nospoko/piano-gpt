@@ -1,0 +1,28 @@
+defaults:
+  - model: gpt2_medium
+  - data: default
+  - tokenizer: exponential
+  - dataset: augmented_every
+  - logging: finetuning
+  - lr: finetuning
+  - optimizer: default
+  - tasks: all
+  - _self_
+
+out_dir: 'checkpoints'
+eval_interval: 500
+eval_iters: 100
+eval_only: false
+always_save_checkpoint: false
+init_from: ''
+stage: piano_task
+loss_masking: finetuning
+
+system:
+  device: 'cuda'
+  dtype: 'float16'
+  compile: true
+  data_workers: 64
+
+ddp:
+  backend: 'nccl'

@@ -1,7 +1,5 @@
 import re
 
-# TODO How is this different from the manually defined sentinel tokens below?
-placeholder_tokens = [f"<SENTINEL_{idx}>" for idx in range(64)]
 dataset_tokens = [
     "<MAESTRO>",
     "<PIJAMA>",
@@ -60,40 +58,6 @@ piano_task_tokens = [
     "<NOISY_TIME>",
     "<NOISY>",
 ]
-
-# FIXME Not a good way to pass special tokens
-special_tokens_in_the_wrong_place = (
-    [
-        "<PAD>",
-        "<CLS>",
-        "<EOS>",
-        "<GENAI>",
-        "<SENTINEL_78>",
-        "<SENTINEL_79>",
-        "<SENTINEL_80>",
-        "<SENTINEL_81>",
-        "<SENTINEL_82>",
-        "<SENTINEL_83>",
-        "<SENTINEL_84>",
-        "<SENTINEL_85>",
-        "<SENTINEL_86>",
-        "<SENTINEL_87>",
-        "<SENTINEL_88>",
-        "<SENTINEL_89>",
-        "<SENTINEL_90>",
-        "<SENTINEL_91>",
-        "<SENTINEL_92>",
-        "<SENTINEL_93>",
-        "<SENTINEL_94>",
-        "<SENTINEL_95>",
-        "<SCORES>",
-        "<PERFORMANCE>",
-    ]
-    + piano_task_tokens
-    + composer_tokens
-    + dataset_tokens
-    + placeholder_tokens
-)
 
 composer_token_map: dict[str, str] = {
     "Alexander Scriabin": "<SCRIABIN>",

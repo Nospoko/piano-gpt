@@ -11,7 +11,7 @@ from midi_tokenizers import ExponentialTimeTokenizer
 from piano_dataset.piano_tasks import ParametricTaskManager
 
 from data.piano_dataset import PianoDataset
-from artifacts import special_tokens_in_the_wrong_place
+from artifacts import dataset_tokens, composer_tokens
 
 
 @st.cache_data()
@@ -154,7 +154,7 @@ def main():
         "base_dataset_name": base_dataset_name,
         "extra_datasets": [base_dataset_name],
     }
-    all_special_tokens = parametric_task_manager.get_special_tokens() + special_tokens_in_the_wrong_place
+    all_special_tokens = parametric_task_manager.get_special_tokens() + dataset_tokens + composer_tokens
     tokenizer_parameters = {
         "min_time_unit": min_time_unit,
         "n_velocity_bins": n_velocity_bins,

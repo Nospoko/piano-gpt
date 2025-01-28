@@ -14,6 +14,8 @@ from artifacts import get_dataset_token, get_composer_token
 
 
 class PianoDataset(MidiDataset):
+    generation_token = "<GENAI>"
+
     def __init__(
         self,
         dataset: HuggingFaceDataset,

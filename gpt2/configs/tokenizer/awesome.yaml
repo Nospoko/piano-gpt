@@ -1,4 +1,4 @@
-name: "AwesomeMidiTokenizer"
+class_name: "AwesomeMidiTokenizer"
 base_tokenizer: ExponentialTimeTokenizer
 base_tokenizer_parameters:
   min_time_unit: 0.01
