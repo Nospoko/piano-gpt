@@ -89,7 +89,7 @@ def create_next_token_datasets(
     train_dataset = NextTokenDataset(
         dataset=hf_dataset["train"],
         tokenizer=tokenizer,
-        sequence_length=cfg.data.sequence_length,
+        context_size=cfg.data.context_size,
         loss_masking=cfg.loss_masking,
         num_proc=cfg.system.data_workers,
     )
@@ -99,7 +99,7 @@ def create_next_token_datasets(
         name: NextTokenDataset(
             dataset=split,
             tokenizer=tokenizer,
-            sequence_length=cfg.data.sequence_length,
+            context_size=cfg.data.context_size,
             loss_masking=cfg.loss_masking,
             num_proc=cfg.system.data_workers,
         )
@@ -119,7 +119,7 @@ def create_piano_datasets(
     train_dataset = PianoDataset(
         dataset=hf_dataset["train"],
         tokenizer=tokenizer,
-        sequence_length=cfg.data.sequence_length,
+        context_size=cfg.data.context_size,
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         piano_task_manager=piano_task_manager,
@@ -131,7 +131,7 @@ def create_piano_datasets(
         name: PianoDataset(
             dataset=split,
             tokenizer=tokenizer,
-            sequence_length=cfg.data.sequence_length,
+            context_size=cfg.data.context_size,
             loss_masking=cfg.loss_masking,
             notes_per_record=cfg.data.notes_per_record,
             piano_task_manager=piano_task_manager,

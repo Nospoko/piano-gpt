@@ -20,8 +20,8 @@ class PianoDataset(MidiDataset):
         self,
         dataset: HuggingFaceDataset,
         tokenizer: AwesomeMidiTokenizer | ExponentialTimeTokenizer,
-        # TODO How can I find out what's the relation between *sequence_length* and *notes_per_record*?
-        sequence_length: int,
+        # TODO How can I find out what's the relation between *context_size* and *notes_per_record*?
+        context_size: int,
         notes_per_record: int,
         piano_task_manager: ParametricTaskManager,
         loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
@@ -29,7 +29,7 @@ class PianoDataset(MidiDataset):
     ):
         # Initialize the parent class and set instance variables
         super().__init__(dataset=dataset, tokenizer=tokenizer, loss_masking=loss_masking)
-        self.sequence_length = sequence_length
+        self.context_size = context_size
         self.notes_per_record = notes_per_record
         self.length = 0
         self.record_lengths = {}
@@ -46,7 +46,7 @@ class PianoDataset(MidiDataset):
         yield "size", len(self)
         yield "n_midi_records", len(self.record_lengths)
         yield "notes_per_record", self.notes_per_record
-        yield "sequence_length", self.sequence_length
+        yield "context_size", self.context_size
         yield "piano_tasks", self.task_names
 
     def _build_records(self):
@@ -139,12 +139,12 @@ class PianoDataset(MidiDataset):
 
         # Join both input and output into a single sequence
         encoding = prompt_token_ids + answer_token_ids
-        # Add safeguard ensuring the encoding is at most sequence_length + 1
-        encoding = encoding[: self.sequence_length + 1]
-        # encoding should be sequence_length + 1, because we are using [:-1] and [1:] when defining source and target
+        # Add safeguard ensuring the encoding is at most context_size + 1
+        encoding = encoding[: self.context_size + 1]
+        # encoding should be context_size + 1, because we are using [:-1] and [1:] when defining source and target
         encoding_padded = self.tokenizer.pad_to_size(
             token_ids=encoding,
-            target_size=self.sequence_length + 1,
+            target_size=self.context_size + 1,
         )
 
         # Convert into next-token-prediction task

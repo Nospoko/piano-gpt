@@ -48,7 +48,7 @@ def main(cfg: DictConfig):
     )["validation_splits"]
 
     model_args = {}
-    for k in ["n_layer", "n_head", "n_embd", "block_size", "bias", "vocab_size"]:
+    for k in ["n_layer", "n_head", "n_embd", "context_size", "bias", "vocab_size"]:
         model_args[k] = checkpoint_model_args[k]
 
     gptconf = GPTConfig(**model_args)
@@ -96,9 +96,9 @@ def main(cfg: DictConfig):
 
     # This can happen if we pretrain a model with a HUGE context size,
     # but want to use smaller context size for finetuning
-    if cfg.data.sequence_length < model.config.block_size:
-        model.crop_block_size(cfg.data.sequence_length)
-        model_args["block_size"] = cfg.data.sequence_length
+    if cfg.data.context_size < model.config.context_size:
+        model.crop_context_size(cfg.data.context_size)
+        model_args["context_size"] = cfg.data.context_size
 
     model.to(device)
 

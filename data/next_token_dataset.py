@@ -21,7 +21,7 @@ class NextTokenDataset(MidiDataset):
         self,
         dataset: HuggingFaceDataset,
         tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
-        sequence_length: int,
+        context_size: int,
         loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
         num_proc: int = 16,
     ):
@@ -31,11 +31,11 @@ class NextTokenDataset(MidiDataset):
         Parameters:
             dataset (HuggingFaceDataset): The HuggingFace dataset containing tokenized MIDI data.
             tokenizer (MidiTokenizer): The MidiTokenizer used for tokenizing the MIDI data.
-            sequence_length (int): The length of the input sequence.
+            context_size (int): The length of the input sequence.
             loss_masking (str): The type of loss masking to use.
         """
         super().__init__(dataset=dataset, tokenizer=tokenizer, loss_masking=loss_masking)
-        self.sequence_length = sequence_length
+        self.context_size = context_size
         self.length = 0
         self.record_lengths = {}
         self.num_proc = num_proc
@@ -44,7 +44,7 @@ class NextTokenDataset(MidiDataset):
     def __rich_repr__(self):
         yield "NextTokenDataset"
         yield "size", len(self)
-        yield "sequence_length", self.sequence_length
+        yield "context_size", self.context_size
         yield "n_midi_records", len(self.record_lengths)
 
     def _build_record_lengths(self):
@@ -53,9 +53,9 @@ class NextTokenDataset(MidiDataset):
         This method uses multiprocessing for efficiency.
         """
 
-        def get_length(record, idx, sequence_length, shared_dict):
+        def get_length(record, idx, context_size, shared_dict):
             n_tokens = len(record["note_token_ids"])
-            length = max(n_tokens - sequence_length, 0)
+            length = max(n_tokens - context_size, 0)
             shared_dict[idx] = length
 
         # Use HuggingFace's .map method for simplicity and multiprocessing.Manager for shared recources
@@ -63,7 +63,7 @@ class NextTokenDataset(MidiDataset):
             shared_dict = manager.dict()
             get_length_partial = partial(
                 get_length,
-                sequence_length=self.sequence_length,
+                context_size=self.context_size,
                 shared_dict=shared_dict,
             )
 
@@ -127,33 +127,27 @@ class NextTokenDataset(MidiDataset):
         full_encoding = record["note_token_ids"]
 
         # Extract the relevant sequence
-        # FIXME "sequence_length + 1" situation is very confusing
-        # TODO What's up with the +1?
-        encoding = full_encoding[start_point : start_point + self.sequence_length]
+        # encoding should be context_size + 1, because we are using [:-1] and [1:] when defining source and target
+        # which will make source and target token sequences one less than encoding length
+        encoding = full_encoding[start_point : start_point + self.context_size + 1]
 
         # Join with special tokens
         encoding = prefix_token_ids + encoding
 
         # Add padding if necessary
-        if len(encoding) <= self.sequence_length:
+        if len(encoding) <= self.context_size:
             full_encoding = self.tokenizer.pad_to_size(
                 token_ids=full_encoding,
-                target_size=self.sequence_length + 1,
+                target_size=self.context_size + 1,
             )
-            # TODO Explain +1, should it be included in the call above? How can I find it out?
-            # padding = [self.tokenizer.pad_token_id] * (self.sequence_length + 1 - n_tokens)
-            # full_encoding = full_encoding + padding
-
-            # TODO Why was is this under if??
-            # n_tokens = self.sequence_length + 1
 
         # Create source and target encodings
         source_encoding = encoding[:-1]
         target_encoding = encoding[1:]
 
         # Convert to tensors
-        source_token_ids = torch.tensor(source_encoding[: self.sequence_length], dtype=torch.int64)
-        target_token_ids = torch.tensor(target_encoding[: self.sequence_length], dtype=torch.int64)
+        source_token_ids = torch.tensor(source_encoding[: self.context_size], dtype=torch.int64)
+        target_token_ids = torch.tensor(target_encoding[: self.context_size], dtype=torch.int64)
 
         # Create target mask
         target_mask = target_token_ids != self.tokenizer.pad_token_id
@@ -167,7 +161,7 @@ class NextTokenDataset(MidiDataset):
             "source": record["source"],
             # In PIANO dataset this is the length of the prompt part of the sequence
             # Here we consider half of the sequence to be a prompt part for validation purpouses
-            "prompt_length": self.sequence_length // 2,
+            "prompt_length": self.context_size // 2,
             "prefix_tokens": prefix_tokens,
         }
         return out

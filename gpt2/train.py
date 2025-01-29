@@ -93,12 +93,11 @@ def main(cfg: DictConfig):
         out_dir = to_absolute_path(cfg.out_dir)
 
         pad_token_id = tokenizer.token_to_id["<PAD>"]
-        config = OmegaConf.to_container(cfg=cfg)
+        run_config = OmegaConf.to_container(cfg=cfg)
         # init a new model from scratch
         print("Initializing a new model from scratch")
-        # determine the vocab size we'll use for from-scratch training
+
         model_cfg = cfg.model
-        # block_size is how many tokens can we fit in the context
         model = GPT(
             config=model_cfg,
             vocab_size=tokenizer.vocab_size,
@@ -110,9 +109,9 @@ def main(cfg: DictConfig):
         # resume training from a checkpoint.
         ckpt_path = os.path.join("checkpoints/", cfg.init_from)
         checkpoint = torch.load(ckpt_path, map_location=device)
-        checkpoint_cfg = OmegaConf.create(checkpoint["config"])
+        checkpoint_cfg = OmegaConf.create(checkpoint["run_config"])
         # This will be saved to checkpoint
-        config = OmegaConf.to_container(cfg=cfg)
+        run_config = OmegaConf.to_container(cfg=cfg)
 
         # FIXME Configs should not be modified, if your loading
         # a checkpoint, reuse its config
@@ -121,20 +120,11 @@ def main(cfg: DictConfig):
         # TODO We'll need more elaborate configs to control piano tasks
         # For now let's see what will happen with the default setup
 
-        # TODO: If we want to be able to finetune with different task managers, we need to make sure
-        # that task tokens are created in the place of sentinel tokens used in pretraining!
-        # (ParametricTaskManager should be configurable even for finetuning)
-
         # Let's reate piano_task_manager here for now, the special tokens will be needed for both stages
         # (to create tokenizers, unless we implement a better way of handling the special tokens)
         piano_task_manager = ParametricTaskManager.load_default()
-        if checkpoint_cfg.tokenizer.class_name == "ExponentialTimeTokenizer":
+        if checkpoint["tokenizer"]["name"] == "ExponentialTimeTokenizer":
             tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
-            # TODO: Now we have to save a tokenizer class name to the checkpoint if we want to
-            # be able to start training from a finetuned model (which we should be able to do)
-            # The default config for finetuning does not contain ANY tokenizer key, we only add it here
-            # to make sure it can be loaded the same way. This is ugly.
-            config["tokenizer"] = {"class_name": "ExponentialTimeTokenizer"}
             special_tokens = piano_task_manager.get_special_tokens()
             special_tokens.append(PianoDataset.generation_token)
             tokenizer.add_special_tokens(special_tokens=special_tokens)
@@ -151,7 +141,7 @@ def main(cfg: DictConfig):
             model_cfg["dropout"] = cfg.model.dropout
 
         # create the model
-        # block_size is how many tokens can we fit in the context
+        # context_size is how many tokens can we fit in the context
         # We have vocab size and block size that are computed right before pre-traning,
         # Maybe we should still save all model_args seperately from the initial configuration?
         model = GPT(
@@ -173,10 +163,10 @@ def main(cfg: DictConfig):
         state_dict = None
         # crop down the model block size if desired, using model surgery
         # Happens when finetuning on smaller context than the model was pretrained on
-        if cfg.data.sequence_length < model.config.block_size:
-            model.crop_block_size(cfg.data.sequence_length)
+        if cfg.data.context_size < model.config.context_size:
+            model.crop_context_size(cfg.data.context_size)
             # so that the checkpoint will have the right value
-            model_cfg["block_size"] = cfg.data.sequence_length
+            model_cfg["context_size"] = cfg.data.context_size
 
     if cfg.stage == "next_token_pretraining":
         hf_dataset = create_tokenized_dataset(cfg, tokenizer)
@@ -202,11 +192,11 @@ def main(cfg: DictConfig):
     train_dataset = datasets["train_split"]
     val_datasets = datasets["validation_splits"]  # this contains full, bach, chopin, mozart splits
 
-    tokens_per_batch = cfg.data.batch_size * cfg.data.sequence_length
+    tokens_per_batch = cfg.data.batch_size * cfg.data.context_size
     tokens_per_iter = cfg.optimizer.gradient_accumulation_steps * ddp_world_size * tokens_per_batch
     print(f"tokens per iteration will be: {tokens_per_iter:,}")
     if cfg.stage != "next_token_pretraining":
-        tokens_in_dataset = train_dataset.dataset.num_rows * train_dataset.sequence_length
+        tokens_in_dataset = train_dataset.dataset.num_rows * train_dataset.context_size
         print(f"total tokens in the training dataset will be: {tokens_in_dataset:,}")
 
     if master_process:
@@ -336,7 +326,7 @@ def main(cfg: DictConfig):
         wandb.init(
             project=cfg.logging.wandb_project,
             name=run_name,
-            config=config,
+            config=run_config,
             dir="tmp",
         )
         # define our custom x axis metric
@@ -414,7 +404,7 @@ def main(cfg: DictConfig):
                 "best_val_loss": best_val_loss,
                 "val_loss": losses["full_val"].item(),
                 "train_loss": losses["train"].item(),
-                "config": config,
+                "run_config": run_config,
                 "wandb": wandb_link,
                 "wandb_id": wandb.run.id,
                 "total_tokens": total_tokens,
@@ -422,7 +412,7 @@ def main(cfg: DictConfig):
             }
 
             if cfg.stage == "piano_task":
-                checkpoint |= {"piano_tasks_config": piano_task_manager.tasks_config}
+                checkpoint["piano_tasks_config"] = piano_task_manager.tasks_config
 
             if losses["full_val"] < best_val_loss:
                 best_val_loss = losses["full_val"].item()
