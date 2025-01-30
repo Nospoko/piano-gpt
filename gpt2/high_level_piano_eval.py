@@ -1,4 +1,3 @@
-import os
 import math
 from contextlib import nullcontext
 
@@ -26,7 +25,7 @@ load_dotenv()
 def main(cfg: DictConfig):
     device = cfg.system.device
 
-    ckpt_path = os.path.join("checkpoints/", cfg.init_from)
+    ckpt_path = cfg.init_from
     checkpoint = torch.load(ckpt_path, map_location=device)
     checkpoint_model_args = checkpoint["model_args"]
     checkpoint_cfg = OmegaConf.create(checkpoint["config"])

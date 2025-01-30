@@ -58,6 +58,18 @@ def setup_device(cfg: DictConfig):
     return cfg.system.device, False
 
 
+def load_config(config_name: str, overrides: list[str] = None) -> DictConfig:
+    """
+    Use overrides like bash cli arguments, i.e.:
+
+    overrides = ["dataset_config=eee", "other_param=downsample"]
+    """
+    with hydra.initialize(version_base=None, config_path="configs", job_name="repl"):
+        cfg = hydra.compose(config_name=config_name, overrides=overrides)
+
+    return cfg
+
+
 @hydra.main(config_path="configs", config_name="gpt2_pretraining", version_base=None)
 def main(cfg: DictConfig):
     os.environ["TOKENIZERS_PARALLELISM"] = "1"  # for training BPE tokenizer
@@ -92,7 +104,6 @@ def main(cfg: DictConfig):
 
         out_dir = to_absolute_path(cfg.out_dir)
 
-        pad_token_id = tokenizer.token_to_id["<PAD>"]
         run_config = OmegaConf.to_container(cfg=cfg)
         # init a new model from scratch
         print("Initializing a new model from scratch")
@@ -101,7 +112,7 @@ def main(cfg: DictConfig):
         model = GPT(
             config=model_cfg,
             vocab_size=tokenizer.vocab_size,
-            pad_token_id=pad_token_id,
+            pad_token_id=tokenizer.pad_token_id,
         )
 
     # First load checkpoint if init_from midi_gpt2*
@@ -169,7 +180,10 @@ def main(cfg: DictConfig):
             model_cfg["context_size"] = cfg.data.context_size
 
     if cfg.stage == "next_token_pretraining":
-        hf_dataset = create_tokenized_dataset(cfg, tokenizer)
+        hf_dataset = create_tokenized_dataset(
+            cfg=cfg,
+            tokenizer=tokenizer,
+        )
         datasets = create_next_token_datasets(
             hf_dataset=hf_dataset,
             cfg=cfg,
@@ -190,7 +204,9 @@ def main(cfg: DictConfig):
         raise NotImplementedError(f"Unknown stage: {cfg.stage}")
 
     train_dataset = datasets["train_split"]
-    val_datasets = datasets["validation_splits"]  # this contains full, bach, chopin, mozart splits
+
+    # this contains full, bach, chopin, mozart splits
+    val_datasets = datasets["validation_splits"]
 
     tokens_per_batch = cfg.data.batch_size * cfg.data.context_size
     tokens_per_iter = cfg.optimizer.gradient_accumulation_steps * ddp_world_size * tokens_per_batch
@@ -205,7 +221,8 @@ def main(cfg: DictConfig):
     torch.backends.cuda.matmul.allow_tf32 = True  # allow tf32 on matmul
     torch.backends.cudnn.allow_tf32 = True  # allow tf32 on cudnn
 
-    torch.set_num_threads(math.floor(cfg.system.data_workers / ddp_world_size))
+    n_workers = math.floor(cfg.system.data_workers / ddp_world_size)
+    torch.set_num_threads(n_workers)
 
     device_type = "cuda" if "cuda" in device else "cpu"  # for later use in torch.autocast
 
@@ -256,15 +273,10 @@ def main(cfg: DictConfig):
     iter_num = 0
     best_val_loss = 1e9
 
-    # attempt to derive vocab_size from the dataset
-    meta_vocab_size = tokenizer.vocab_size
-
-    print(f"found vocab_size = {meta_vocab_size} (inside {tokenizer})")
-
     model.to(device)
 
     # initialize a GradScaler. If enabled=False scaler is a no-op
-    scaler = torch.cuda.amp.GradScaler(enabled=(cfg.system.dtype == "float16"))
+    grad_scaler = torch.cuda.amp.GradScaler(enabled=(cfg.system.dtype == "float16"))
 
     # optimizer
     optimizer = model.configure_optimizers(
@@ -372,19 +384,19 @@ def main(cfg: DictConfig):
             # immediately async prefetch next batch while model is doing the forward pass on the GPU
             X, Y, mask = get_batch("train")
             # backward pass, with gradient scaling if training in fp16
-            scaler.scale(loss).backward()
+            grad_scaler.scale(loss).backward()
 
         tokens_in_step = n_iter_tokens * ddp_world_size
         total_tokens += tokens_in_step
 
         # clip the gradient
         if cfg.optimizer.grad_clip != 0.0:
-            scaler.unscale_(optimizer)
+            grad_scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.optimizer.grad_clip)
 
         # step the optimizer and scaler if training in fp16
-        scaler.step(optimizer)
-        scaler.update()
+        grad_scaler.step(optimizer)
+        grad_scaler.update()
 
         t_forward_backward = time.time() - t00
         # timing and logging
