@@ -35,6 +35,7 @@ from torch.distributed import init_process_group, destroy_process_group
 
 import artifacts
 from gpt2.model import GPT
+from gpt2.lr_scheduler import LRScheduler
 from data.piano_dataset import PianoDataset
 from gpt2.dataloader import CyclicalDataLoader
 from data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
@@ -227,8 +228,17 @@ def main(cfg: DictConfig):
     device_type = "cuda" if "cuda" in device else "cpu"  # for later use in torch.autocast
 
     # note: float16 data type will automatically use a GradScaler
-    ptdtype = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}[cfg.system.dtype]
-    ctx = nullcontext() if device_type == "cpu" else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
+    ptdtype = {
+        "float32": torch.float32,
+        "bfloat16": torch.bfloat16,
+        "float16": torch.float16,
+    }[cfg.system.dtype]
+
+    # TODO What's the difference?
+    if device_type == "cpu":
+        ctx = nullcontext()
+    else:
+        ctx = torch.amp.autocast(device_type=device_type, dtype=ptdtype)
 
     for split_name, dataset in val_datasets.items():
         print(f"{split_name} split size: {len(dataset)}")
@@ -269,14 +279,12 @@ def main(cfg: DictConfig):
         else:
             return val_loaders[split].get_batch()
 
-    # init these up here, can override if init_from='resume' (i.e. from a checkpoint)
-    iter_num = 0
-    best_val_loss = 1e9
-
     model.to(device)
 
     # initialize a GradScaler. If enabled=False scaler is a no-op
-    grad_scaler = torch.cuda.amp.GradScaler(enabled=(cfg.system.dtype == "float16"))
+    # TODO Does this mean that the training will not work for anything other than float16?
+    enable_grad_scaler = cfg.system.dtype == "float16"
+    grad_scaler = torch.cuda.amp.GradScaler(enabled=enable_grad_scaler)
 
     # optimizer
     optimizer = model.configure_optimizers(
@@ -317,20 +325,7 @@ def main(cfg: DictConfig):
         return out
 
     # learning rate decay scheduler (cosine with warmup)
-    def get_lr(it):
-        # 1) linear warmup for warmup_iters steps
-        if it < cfg.lr.warmup_iters:
-            return cfg.lr.learning_rate * it / cfg.lr.warmup_iters
-
-        # 2) if it > lr_decay_iters, return min learning rate
-        if it > cfg.lr.lr_decay_iters:
-            return cfg.lr.min_lr
-
-        # 3) in between, use cosine decay down to min learning rate
-        decay_ratio = (it - cfg.lr.warmup_iters) / (cfg.lr.lr_decay_iters - cfg.lr.warmup_iters)
-        assert 0 <= decay_ratio <= 1
-        coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))  # coeff ranges 0..1
-        return cfg.lr.min_lr + coeff * (cfg.lr.learning_rate - cfg.lr.min_lr)
+    lr_scheduler = LRScheduler(scheduler_config=cfg.lr)
 
     run_name = f"midi-gpt2-{milion_params:.0f}M-{cfg.logging.wandb_run_name_suffix}-{cfg.logging.wandb_time_suffix}"
     # logging
@@ -349,18 +344,29 @@ def main(cfg: DictConfig):
         wandb.define_metric("train/loss", step_metric="total_tokens")
         wandb_link = wandb.run.get_url()
 
-    total_tokens = 0
     # training loop
-    X, Y, mask = get_batch("train")  # fetch the very first batch
+    # fetch the very first batch
+    X, Y, mask = get_batch("train")
 
     t0 = time.time()
-    local_iter_num = 0  # number of iterations in the lifetime of this process
-    raw_model = model.module if ddp else model  # unwrap DDP container if needed
+    # unwrap DDP container if needed
+    raw_model = model.module if ddp else model
     running_mfu = -1.0
+
+    # number of iterations in the lifetime of this process
+    # we count from 1 because of unknown reasons
     iter_num = 1
+
+    total_tokens = 0
+    best_val_loss = 1e9
+
     while True:
         # determine and set the learning rate for this iteration
-        lr = get_lr(iter_num) if cfg.lr.decay_lr else cfg.lr.learning_rate
+        if cfg.lr.decay_lr:
+            lr = lr_scheduler.get_lr(it=iter_num)
+        else:
+            lr = cfg.lr.learning_rate
+
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr
 
@@ -405,7 +411,7 @@ def main(cfg: DictConfig):
         t0 = t1
 
         # evaluate the loss on train/val sets and write checkpoints
-        if iter_num % cfg.eval_interval == 0 and master_process:
+        if iter_num % cfg.eval_interval == 1 and master_process:
             losses = estimate_loss()
             print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['full_val']:.4f}")
             checkpoint = {
@@ -454,7 +460,7 @@ def main(cfg: DictConfig):
         # flush the gradients as soon as we can, no need for this memory anymore
         optimizer.zero_grad(set_to_none=True)
 
-        if local_iter_num % cfg.logging.log_interval == 0 and master_process:
+        if iter_num % cfg.logging.log_interval == 1 and master_process:
             # get loss as float. note: this is a CPU-GPU sync point
             # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
             lossf = loss.item() * cfg.optimizer.gradient_accumulation_steps
@@ -480,7 +486,6 @@ def main(cfg: DictConfig):
                 f"iter {iter_num}: loss {lossf:.4f}, time {dt:.2f}s, mfu {running_mfu*100:.2f}%, tps {tps:.2f}",
             )
         iter_num += 1
-        local_iter_num += 1
 
         if iter_num == cfg.optimizer.max_iters:
             break
