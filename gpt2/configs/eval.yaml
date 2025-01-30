@@ -1,6 +1,5 @@
 defaults:
   - data: default
-  - tokenizer: exponential
   - dataset: augmented
   - tasks: subsequence
   - metrics: default
@@ -15,9 +14,8 @@ dataset:
     max_pitch_shift: 0
     speed_change_factors: []
 
-# should be 'midi-gpt2*'
-# init_from: midi-gpt2-0M-subsequence-2024-11-20-16-41last.pt
-init_from: midi-gpt2-302M-subsequence-4096-ctx-2024-09-08-19-42.pt
+# Relative path to the model
+init_from: ""
 
 stage: piano_task
 

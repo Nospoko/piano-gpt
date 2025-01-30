@@ -7,7 +7,7 @@ load_dotenv()
 HF_WRITE_TOKEN = os.environ.get("HF_WRITE_TOKEN")  # Make sure to keep this secret!
 
 # Set the local directory containing your checkpoints
-CHECKPOINTS_DIR = "checkpoints"
+CHECKPOINTS_DIR = "tmp/checkpoints"
 
 # Initialize Hugging Face API
 api = HfApi()

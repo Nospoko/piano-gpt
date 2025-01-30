@@ -116,8 +116,8 @@ def main(cfg: DictConfig):
             pad_token_id=tokenizer.pad_token_id,
         )
 
-    # First load checkpoint if init_from midi_gpt2*
-    elif cfg.init_from.startswith("midi-gpt2"):
+    # First load checkpoint if init_from *midi_gpt2*
+    elif "midi-gpt2" in cfg.init_from:
         # resume training from a checkpoint.
         ckpt_path = os.path.join("checkpoints/", cfg.init_from)
         checkpoint = torch.load(ckpt_path, map_location=device)
@@ -135,8 +135,8 @@ def main(cfg: DictConfig):
         # Let's reate piano_task_manager here for now, the special tokens will be needed for both stages
         # (to create tokenizers, unless we implement a better way of handling the special tokens)
         piano_task_manager = ParametricTaskManager.load_default()
-        if checkpoint["tokenizer"]["name"] == "ExponentialTimeTokenizer":
-            tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+        if checkpoint["tokenizer_desc"]["name"] == "ExponentialTimeTokenizer":
+            tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer_desc"])
             special_tokens = piano_task_manager.get_special_tokens()
             special_tokens.append(PianoDataset.generation_token)
             tokenizer.add_special_tokens(special_tokens=special_tokens)
@@ -426,7 +426,7 @@ def main(cfg: DictConfig):
                 "wandb": wandb_link,
                 "wandb_id": wandb.run.id,
                 "total_tokens": total_tokens,
-                "tokenizer": tokenizer.to_dict(),
+                "tokenizer_desc": tokenizer.to_dict(),
             }
 
             if cfg.stage == "piano_task":
