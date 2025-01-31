@@ -17,5 +17,5 @@ model.n_layer=8 \
 system.data_workers=64 \
 system.compile=true \
 loss_masking=pretrianing \
-init_from=scratch \
+init_from=scratch_next_token \
 logging.wandb_run_name_suffix=pretrianing \

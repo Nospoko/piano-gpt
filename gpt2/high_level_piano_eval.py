@@ -14,9 +14,9 @@ from piano_metrics.piano_metric import MetricsManager
 from piano_dataset.piano_tasks import ParametricTaskManager
 from midi_tokenizers import MidiTokenizer, AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
+import gpt2.utils as utils
 from gpt2.model import GPT
 from data.random_sampler import ValidationRandomSampler
-from gpt2.utils import create_piano_datasets, create_augmented_dataset
 
 load_dotenv()
 
@@ -181,14 +181,25 @@ def main(cfg: DictConfig):
     else:
         tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer_desc"])
 
-    piano_task_manager = ParametricTaskManager.load_default()
-    hf_dataset = create_augmented_dataset(cfg)
-    val_datasets = create_piano_datasets(
-        hf_dataset=hf_dataset,
-        cfg=cfg,
-        tokenizer=tokenizer,
-        piano_task_manager=piano_task_manager,
-    )["validation_splits"]
+    if cfg.stage == "piano_task":
+        piano_task_manager = ParametricTaskManager.load_default()
+        hf_dataset = utils.create_augmented_dataset(cfg)
+        val_datasets = utils.create_piano_datasets(
+            hf_dataset=hf_dataset,
+            cfg=cfg,
+            tokenizer=tokenizer,
+            piano_task_manager=piano_task_manager,
+        )["validation_splits"]
+    elif cfg.stage == "next_token_pretraining":
+        hf_dataset = utils.create_tokenized_dataset(
+            cfg=cfg,
+            tokenizer=tokenizer,
+        )
+        val_datasets = utils.create_next_token_datasets(
+            hf_dataset=hf_dataset,
+            cfg=cfg,
+            tokenizer=tokenizer,
+        )
 
     pad_token_id = tokenizer.token_to_id["<PAD>"]
     model_cfg = checkpoint["model_cfg"]
