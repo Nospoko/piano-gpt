@@ -199,7 +199,7 @@ def main(cfg: DictConfig):
             hf_dataset=hf_dataset,
             cfg=cfg,
             tokenizer=tokenizer,
-        )
+        )["validation_splits"]
 
     pad_token_id = tokenizer.token_to_id["<PAD>"]
     model_cfg = checkpoint["model_cfg"]
