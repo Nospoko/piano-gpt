@@ -119,7 +119,7 @@ def main(cfg: DictConfig):
     # First load checkpoint if init_from *midi_gpt2*
     elif "midi-gpt2" in cfg.init_from:
         # resume training from a checkpoint.
-        ckpt_path = os.path.join("checkpoints/", cfg.init_from)
+        ckpt_path = cfg.init_from
         checkpoint = torch.load(ckpt_path, map_location=device)
         checkpoint_cfg = OmegaConf.create(checkpoint["run_config"])
         # This will be saved to checkpoint
