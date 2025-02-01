@@ -274,7 +274,7 @@ def main(cfg: DictConfig):
                 sampler=sampler,
                 batch_size=cfg.data.batch_size,
                 pin_memory=device_type == "cuda",
-                num_workers=cfg.system.data_workers,
+                num_workers=cfg.system.data_workers // ddp_world_size,
                 device=device,
             )
 
