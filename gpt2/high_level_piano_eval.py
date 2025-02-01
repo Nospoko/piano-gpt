@@ -171,7 +171,11 @@ def main(cfg: DictConfig):
     device = cfg.system.device
 
     ckpt_path = cfg.init_from
-    checkpoint = torch.load(ckpt_path, map_location=device)
+    checkpoint = torch.load(
+        ckpt_path,
+        map_location=device,
+        weights_only=False,
+    )
     checkpoint_cfg = OmegaConf.create(checkpoint["run_config"])
 
     if checkpoint["tokenizer_desc"]["name"] == "ExponentialTimeTokenizer":

@@ -43,7 +43,7 @@ def load_raw_dataset(cfg: DictConfig, tokenizer: MidiTokenizer) -> Dataset:
     return load_dataset(
         dataset_path,
         trust_remote_code=True,
-        num_proc=cfg.system.data_workers,
+        num_proc=16,
         **dataset_config,
     )
 

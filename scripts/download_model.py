@@ -26,7 +26,10 @@ def download_model(repo_id, filename):
 def load_model(model_path):
     """Load a PyTorch model from a file."""
     try:
-        model = torch.load(model_path)
+        model = torch.load(
+            model_path,
+            weights_only=False,
+        )
         print(f"Loaded model from {model_path}")
         return model
     except Exception as e:

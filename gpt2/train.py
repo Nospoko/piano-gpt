@@ -120,7 +120,11 @@ def main(cfg: DictConfig):
     elif "midi-gpt2" in cfg.init_from:
         # resume training from a checkpoint.
         ckpt_path = cfg.init_from
-        checkpoint = torch.load(ckpt_path, map_location=device)
+        checkpoint = torch.load(
+            ckpt_path,
+            map_location=device,
+            weights_only=False,
+        )
         checkpoint_cfg = OmegaConf.create(checkpoint["run_config"])
         # This will be saved to checkpoint
         run_config = OmegaConf.to_container(cfg=cfg)
@@ -257,21 +261,22 @@ def main(cfg: DictConfig):
         device=device,
     )
     val_loaders = {}
-
-    for split_name, dataset in val_datasets.items():
-        sampler = ValidationRandomSampler(
-            data_source=dataset,
-            seed=4,
-            num_samples=cfg.data.batch_size * cfg.eval_iters,
-        )
-        val_loaders[split_name] = CyclicalDataLoader(
-            dataset=dataset,
-            sampler=sampler,
-            batch_size=cfg.data.batch_size,
-            pin_memory=device_type == "cuda",
-            num_workers=cfg.system.data_workers,
-            device=device,
-        )
+    # We need validation only for the master process - this is the only place it will be performed
+    if master_process:
+        for split_name, dataset in val_datasets.items():
+            sampler = ValidationRandomSampler(
+                data_source=dataset,
+                seed=4,
+                num_samples=cfg.data.batch_size * cfg.eval_iters,
+            )
+            val_loaders[split_name] = CyclicalDataLoader(
+                dataset=dataset,
+                sampler=sampler,
+                batch_size=cfg.data.batch_size,
+                pin_memory=device_type == "cuda",
+                num_workers=cfg.system.data_workers,
+                device=device,
+            )
 
     def get_batch(split: str):
         if split == "train":
