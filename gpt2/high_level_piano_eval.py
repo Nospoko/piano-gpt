@@ -185,7 +185,7 @@ def main(cfg: DictConfig):
     else:
         tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer_desc"])
 
-    if cfg.stage == "piano_task":
+    if checkpoint_cfg.stage == "piano_task":
         piano_task_manager = ParametricTaskManager.load_default()
         hf_dataset = utils.create_augmented_dataset(cfg)
         val_datasets = utils.create_piano_datasets(
@@ -194,7 +194,7 @@ def main(cfg: DictConfig):
             tokenizer=tokenizer,
             piano_task_manager=piano_task_manager,
         )["validation_splits"]
-    elif cfg.stage == "next_token_pretraining":
+    elif checkpoint_cfg.stage == "next_token_pretraining":
         hf_dataset = utils.create_tokenized_dataset(
             cfg=cfg,
             tokenizer=tokenizer,
