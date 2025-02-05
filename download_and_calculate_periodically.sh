@@ -11,7 +11,7 @@ model_name=$1
 run_commands() {
     echo "Starting metrics calculation at $(date)"
     command1="python3.10 -m scripts.download_model $model_name"
-    command2="python3.10 -m gpt2.high_level_piano_eval logging.wandb_log=true stage=piano_task init_from="tmp/checkpoints/$model_name"
+    command2="python3.10 -m gpt2.high_level_piano_eval logging.wandb_log=true stage=piano_task init_from='tmp/checkpoints/$model_name'"
 
     # Run the commands sequentially
     eval "$command1"

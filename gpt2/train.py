@@ -59,7 +59,10 @@ def setup_device(cfg: DictConfig):
     return cfg.system.device, False
 
 
-def load_config(config_name: str, overrides: list[str] = None) -> DictConfig:
+def load_config(
+    config_name: str = "gpt2_pretraining",
+    overrides: list[str] = None,
+) -> DictConfig:
     """
     Use overrides like bash cli arguments, i.e.:
 
@@ -222,6 +225,7 @@ def main(cfg: DictConfig):
 
     if master_process:
         os.makedirs(out_dir, exist_ok=True)
+
     torch.manual_seed(1337 + seed_offset)
     torch.backends.cuda.matmul.allow_tf32 = True  # allow tf32 on matmul
     torch.backends.cudnn.allow_tf32 = True  # allow tf32 on cudnn
@@ -244,6 +248,7 @@ def main(cfg: DictConfig):
     else:
         ctx = torch.amp.autocast(device_type=device_type, dtype=ptdtype)
 
+    print("Data splits used for validation:")
     for split_name, dataset in val_datasets.items():
         print(f"{split_name} split size: {len(dataset)}")
 
@@ -315,7 +320,6 @@ def main(cfg: DictConfig):
     @torch.no_grad()
     def estimate_loss():
         splits = ["train"] + list(val_loaders.keys())
-        print(splits)
         out = {}
         model.eval()
         for split in splits:
@@ -440,11 +444,13 @@ def main(cfg: DictConfig):
             if losses["full_val"] < best_val_loss:
                 best_val_loss = losses["full_val"].item()
                 checkpoint["best_val_loss"] = best_val_loss
-                print(f"saving checkpoint to {out_dir}")
-                torch.save(checkpoint, os.path.join(out_dir, run_name + ".pt"))
+                best_checkpoint_path = os.path.join(out_dir, run_name + ".pt")
+                print(f"saving best checkpoint to {best_checkpoint_path}")
+                torch.save(checkpoint, best_checkpoint_path)
 
-            print(f"saving checkpoint to {out_dir}")
-            torch.save(checkpoint, os.path.join(out_dir, run_name + "last.pt"))
+            checkpoint_path = os.path.join(out_dir, run_name + "last.pt")
+            print(f"saving latest checkpoint to {checkpoint_path}")
+            torch.save(checkpoint, checkpoint_path)
             if cfg.logging.wandb_log:
                 # TODO: this is ugly
                 validation_results = {

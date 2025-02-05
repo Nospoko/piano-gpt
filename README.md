@@ -1,5 +1,20 @@
 # Piano-GPT: MIDI Piano Music Generation
 
+## Quickstart
+
+Train a 10M model:
+
+```sh
+# This will create checkpoints in ./tmp/checkpoints
+python -m gpt2.train dataset=small model=gpt2_10M
+```
+
+Calculate PIANO metrics:
+
+```sh
+python -m gpt2.high_level_piano_eval init_from=<checkpoint path>
+```
+
 ## Overview
 
 Piano-GPT is a project leveraging the GPT-2 architecture for generating and processing MIDI piano music. It introduces the PIANO (Performance Inference And Note Orchestration) dataset, a multi-task benchmark for voice and dynamic reconstruction in MIDI piano rolls.

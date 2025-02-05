@@ -1,3 +1,4 @@
+import json
 import math
 from contextlib import nullcontext
 
@@ -58,6 +59,7 @@ def run_eval(
     )
 
     for split, sampler in zip(splits, val_samplers):
+        print("Validation for split:", split)
         # FIXME Not a good way to initialize
         metric_trackers = {
             "loss": torch.zeros(cfg.eval_iters),
@@ -145,7 +147,6 @@ def run_eval(
                 training_mask = torch.unsqueeze(input=mask, dim=0)
                 logits, loss = model(training_input_ids, training_target_ids, training_mask)
 
-            print(f"loss: {loss.item()}")
             metric_trackers["loss"][it] = loss.item()
             for metric_name, values in batch_metrics.items():
                 if metric_name not in metric_trackers:
@@ -153,10 +154,10 @@ def run_eval(
                 metric_trackers[metric_name][it] = torch.tensor(values).mean()
 
             if it % 5 == 0:
-                metrics_str = f"{split}, iter: {it}, loss: {loss.item():.4f}"
+                metrics_str = f"{split}, iter: {it}/{cfg.eval_iters}, loss: {loss.item():.4f}"
                 for metric_name, tracker in metric_trackers.items():
                     if metric_name != "loss":
-                        metrics_str += f", {metric_name}: {tracker[it]:.4f}"
+                        metrics_str += f"\n- {metric_name}: {tracker[it]:.4f}"
                 print(metrics_str)
 
         # Compute final metrics for this split
@@ -169,6 +170,9 @@ def run_eval(
 @torch.no_grad()
 def main(cfg: DictConfig):
     device = cfg.system.device
+
+    print("Running high level piano eval with config:")
+    print(json.dumps(OmegaConf.to_container(cfg), indent=2))
 
     ckpt_path = cfg.init_from
     checkpoint = torch.load(
