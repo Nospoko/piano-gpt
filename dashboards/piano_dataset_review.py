@@ -8,7 +8,7 @@ import streamlit_pianoroll
 import matplotlib.pyplot as plt
 from datasets import Dataset, load_dataset
 from midi_tokenizers import ExponentialTimeTokenizer
-from piano_dataset.piano_tasks import ParametricTaskManager
+from piano_dataset.piano_tasks import PianoTaskManager
 
 from data.piano_dataset import PianoDataset
 from artifacts import dataset_tokens, composer_tokens
@@ -78,7 +78,7 @@ def load_piano_dataset(
         return composer_match and title_match
 
     filtered_dataset = dataset.filter(filter_dataset)
-    parametric_task_manager = ParametricTaskManager.load_default()
+    parametric_task_manager = PianoTaskManager.load_default()
 
     tokenizer = ExponentialTimeTokenizer(**tokenizer_parameters)
     piano_dataset = PianoDataset(
@@ -148,7 +148,7 @@ def main():
 
         st.form_submit_button(label="Update Tokenizer")
 
-    parametric_task_manager = ParametricTaskManager.load_default()
+    parametric_task_manager = PianoTaskManager.load_default()
 
     config = {
         "base_dataset_name": base_dataset_name,

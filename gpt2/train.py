@@ -29,7 +29,7 @@ from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf, DictConfig
 from midi_tokenizers import ExponentialTimeTokenizer
-from piano_dataset.piano_tasks import ParametricTaskManager
+from piano_dataset.piano_tasks import PianoTaskManager
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 
@@ -138,7 +138,7 @@ def main(cfg: DictConfig):
 
         # Let's reate piano_task_manager here for now, the special tokens will be needed for both stages
         # (to create tokenizers, unless we implement a better way of handling the special tokens)
-        piano_task_manager = ParametricTaskManager.load_default()
+        piano_task_manager = PianoTaskManager.load_default()
         if checkpoint["tokenizer_desc"]["name"] == "ExponentialTimeTokenizer":
             tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer_desc"])
             special_tokens = piano_task_manager.get_special_tokens()

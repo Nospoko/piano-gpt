@@ -6,7 +6,7 @@ from multiprocessing import Manager
 import torch
 import pandas as pd
 from datasets import Dataset as HuggingFaceDataset
-from piano_dataset.piano_tasks import ParametricTaskManager
+from piano_dataset.piano_tasks import PianoTaskManager
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
@@ -23,7 +23,7 @@ class PianoDataset(MidiDataset):
         # TODO How can I find out what's the relation between *context_size* and *notes_per_record*?
         context_size: int,
         notes_per_record: int,
-        piano_task_manager: ParametricTaskManager,
+        piano_task_manager: PianoTaskManager,
         loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
         num_proc: int = 16,
     ):

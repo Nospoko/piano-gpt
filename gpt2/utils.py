@@ -3,7 +3,7 @@ import json
 from hydra.utils import to_absolute_path
 from datasets import Dataset, load_dataset
 from omegaconf import OmegaConf, DictConfig
-from piano_dataset.piano_tasks import ParametricTaskManager
+from piano_dataset.piano_tasks import PianoTaskManager
 from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
@@ -113,7 +113,7 @@ def create_piano_datasets(
     hf_dataset: Dataset,
     cfg: DictConfig,
     tokenizer: MidiTokenizer,
-    piano_task_manager: ParametricTaskManager,
+    piano_task_manager: PianoTaskManager,
 ) -> dict[str, MidiDataset | dict[str, MidiDataset]]:
     """Create piano task datasets."""
     train_dataset = PianoDataset(

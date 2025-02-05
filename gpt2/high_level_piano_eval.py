@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from torch.utils.data import Dataset
 from omegaconf import OmegaConf, DictConfig
 from piano_metrics.piano_metric import MetricsManager
-from piano_dataset.piano_tasks import ParametricTaskManager
+from piano_dataset.piano_tasks import PianoTaskManager
 from midi_tokenizers import MidiTokenizer, AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 import gpt2.utils as utils
@@ -186,7 +186,7 @@ def main(cfg: DictConfig):
         tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer_desc"])
 
     if checkpoint_cfg.stage == "piano_task":
-        piano_task_manager = ParametricTaskManager.load_default()
+        piano_task_manager = PianoTaskManager.load_default()
         hf_dataset = utils.create_augmented_dataset(cfg)
         val_datasets = utils.create_piano_datasets(
             hf_dataset=hf_dataset,
