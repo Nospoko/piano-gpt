@@ -1,5 +1,5 @@
 base_dataset_name: "epr-labs/maestro-sustain-v2"
-extra_datasets: ["epr-labs/maestro-sustain-v2", "epr-labs/giant-midi-sustain-v2", "epr-labs/pianofor-ai-sustain-v2"]
+extra_datasets: ["epr-labs/maestro-sustain-v2", "epr-labs/giant-midi-sustain-v2", "epr-labs/pianofor-ai-augmented"]
 pause_detection_threshold: 4
 augmentation:
   speed_change_factors: []
