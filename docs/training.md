@@ -187,12 +187,12 @@ model.require_backward_grad_sync = micro_step == cfg.optimizer.gradient_accumula
 
 This means that all GPU nodes cumulatively always perform `gradient_accumulation_steps` forward passes before a backward pass.
 
-#### ⚠️ Gradient scaling currently overrides the run config
-Currently the gradients are scaled down using
-```py
-cfg.optimizer.gradient_accumulation_steps //= ddp_world_size
-```
-It would be better to not override the config.
+> #### ⚠️ WARNING: Gradient scaling currently overrides the run config
+> Currently the gradients are scaled down using
+> ```py
+> cfg.optimizer.gradient_accumulation_steps //= ddp_world_size
+> ```
+> It would be better to not override the config.
 
 ### Resource Management
 
