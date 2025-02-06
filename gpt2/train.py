@@ -89,6 +89,7 @@ def main(cfg: DictConfig):
         # World_size number of processes will be training simultaneously, so we can scale
         # down the desired gradient accumulation iterations per process proportionally
         assert cfg.optimizer.gradient_accumulation_steps % ddp_world_size == 0
+        # TODO: maybe we should not change what is inside the config?
         cfg.optimizer.gradient_accumulation_steps //= ddp_world_size
 
     else:
