@@ -235,14 +235,14 @@ def main(cfg: DictConfig):
     torch.backends.cudnn.allow_tf32 = True
     torch.set_num_threads(math.floor(cfg.system.data_workers))
 
-    val_samplers = [
-        ValidationRandomSampler(
+    val_samplers = {
+        split_name: ValidationRandomSampler(
             n_records=len(dataset),
             seed=4,
             num_samples=cfg.data.batch_size * cfg.eval_iters,
         )
         for split_name, dataset in val_datasets.items()
-    ]
+    }
 
     # This can happen if we pretrain a model with a HUGE context size,
     # but want to use smaller context size for finetuning
