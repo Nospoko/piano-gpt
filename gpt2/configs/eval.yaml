@@ -1,18 +1,10 @@
 defaults:
   - data: default
-  - dataset: augmented
-  - tasks: subsequence
+  - dataset: validation
   - metrics: default
-  - logging: eval
   - _self_
 
 eval_iters: 10
-
-dataset:
-  extra_datasets: ["epr-labs/maestro-sustain-v2"]
-  augmentation:
-    max_pitch_shift: 0
-    speed_change_factors: []
 
 # Available splits: "full_val", "bach", "chopin", "mozart"
 eval_splits:
@@ -21,13 +13,18 @@ eval_splits:
 # Relative path to the model
 init_from: ""
 
-stage: piano_task
-
-loss_masking: pretraining
 temperature: 1
+
+# TODO This should be in the data config?
+loss_masking: pretraining
 
 system:
   device: 'cuda'  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
   dtype: 'float16'  # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
   compile: true  # use PyTorch 2.0 to compile the model to be faster
   data_workers: 8
+
+logging:
+  wandb_log: True
+  wandb_project: 'piano-gpt'
+  log_interval: 20

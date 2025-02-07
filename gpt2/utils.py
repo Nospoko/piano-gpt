@@ -83,7 +83,9 @@ def create_augmented_dataset(cfg: DictConfig) -> Dataset:
 
 
 def create_next_token_datasets(
-    hf_dataset: Dataset, cfg: DictConfig, tokenizer: MidiTokenizer
+    hf_dataset: Dataset,
+    cfg: DictConfig,
+    tokenizer: MidiTokenizer,
 ) -> dict[str, MidiDataset | dict[str, MidiDataset]]:
     """Create next token prediction datasets."""
     train_dataset = NextTokenDataset(
