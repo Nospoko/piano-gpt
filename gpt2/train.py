@@ -24,7 +24,6 @@ from contextlib import nullcontext
 
 import hydra
 import torch
-import wandb
 from dotenv import load_dotenv
 from hydra.utils import to_absolute_path
 from omegaconf import OmegaConf, DictConfig
@@ -33,6 +32,7 @@ from piano_dataset.piano_tasks import PianoTaskManager
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 
+import wandb
 import artifacts
 from gpt2.model import GPT
 from gpt2.lr_scheduler import LRScheduler
@@ -271,7 +271,7 @@ def main(cfg: DictConfig):
     if master_process:
         for split_name, dataset in val_datasets.items():
             sampler = ValidationRandomSampler(
-                data_source=dataset,
+                n_records=len(dataset),
                 seed=4,
                 num_samples=cfg.data.batch_size * cfg.eval_iters,
             )

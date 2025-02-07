@@ -1,3 +1,4 @@
-wandb_log: False
+wandb_log: True
+# TODO: Can this be read from the checkpoint?
 wandb_project: 'piano-gpt'
 log_interval: 20

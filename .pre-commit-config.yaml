@@ -20,7 +20,7 @@ repos:
     rev: 23.7.0
     hooks:
     - id: black
-      args: [--line-length=130]
+      args: [--line-length=120]
       additional_dependencies: ['click==8.0.4']
   - repo: https://github.com/pycqa/isort
     rev: 5.12.0

@@ -4,7 +4,6 @@ from contextlib import nullcontext
 
 import hydra
 import torch
-import wandb
 import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
@@ -15,6 +14,7 @@ from piano_metrics.piano_metric import MetricsManager
 from piano_dataset.piano_tasks import PianoTaskManager
 from midi_tokenizers import MidiTokenizer, AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
+import wandb
 import gpt2.utils as utils
 from gpt2.model import GPT
 from data.random_sampler import ValidationRandomSampler
@@ -38,7 +38,6 @@ def run_eval(
     # *batch_metrics*, *example_metrics* (variable names should reflect those differences)
     out = {}
     model.eval()
-    splits = ["full_val", "bach", "chopin", "mozart"]
 
     # For visualization
     example_generations = {}
@@ -49,16 +48,14 @@ def run_eval(
         "bfloat16": torch.bfloat16,
         "float16": torch.float16,
     }[dtype]
-    ctx = (
-        nullcontext()
-        if device_type == "cpu"
-        else torch.amp.autocast(
-            device_type=device_type,
-            dtype=ptdtype,
-        )
-    )
 
-    for split, sampler in zip(splits, val_samplers):
+    # TODO What's the difference?
+    if device_type == "cpu":
+        ctx = nullcontext()
+    else:
+        ctx = torch.amp.autocast(device_type=device_type, dtype=ptdtype)
+
+    for split, sampler in val_samplers.items():
         print("Validation for split:", split)
         # FIXME Not a good way to initialize
         metric_trackers = {
@@ -209,6 +206,11 @@ def main(cfg: DictConfig):
             tokenizer=tokenizer,
         )["validation_splits"]
 
+    # To speed up the eval process you can pick less validation splits in the eval cfg
+    val_datasets = {
+        split_name: dataset for split_name, dataset in val_datasets.items() if split_name in cfg.eval_splits
+    }
+
     pad_token_id = tokenizer.token_to_id["<PAD>"]
     model_cfg = checkpoint["model_cfg"]
     model = GPT(
@@ -235,11 +237,11 @@ def main(cfg: DictConfig):
 
     val_samplers = [
         ValidationRandomSampler(
-            data_source=dataset,
+            n_records=len(dataset),
             seed=4,
             num_samples=cfg.data.batch_size * cfg.eval_iters,
         )
-        for dataset in val_datasets
+        for split_name, dataset in val_datasets.items()
     ]
 
     # This can happen if we pretrain a model with a HUGE context size,

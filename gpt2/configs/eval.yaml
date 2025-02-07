@@ -14,6 +14,10 @@ dataset:
     max_pitch_shift: 0
     speed_change_factors: []
 
+# Available splits: "full_val", "bach", "chopin", "mozart"
+eval_splits:
+  - full_val
+
 # Relative path to the model
 init_from: ""
 

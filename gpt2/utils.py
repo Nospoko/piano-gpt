@@ -96,14 +96,14 @@ def create_next_token_datasets(
 
     validation_splits = create_validation_splits(hf_dataset["validation"])
     validation_datasets = {
-        name: NextTokenDataset(
-            dataset=split,
+        split_name: NextTokenDataset(
+            dataset=split_dataset,
             tokenizer=tokenizer,
             context_size=cfg.data.context_size,
             loss_masking=cfg.loss_masking,
             num_proc=cfg.system.data_workers,
         )
-        for name, split in validation_splits.items()
+        for split_name, split_dataset in validation_splits.items()
     }
 
     return {"train_split": train_dataset, "validation_splits": validation_datasets}
