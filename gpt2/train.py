@@ -342,7 +342,8 @@ def main(cfg: DictConfig):
     if cfg.logging.wandb_log and master_process:
         wandb.init(
             project=cfg.logging.wandb_project,
-            name=run_name,
+            name="training-loop",
+            group=run_name,
             config=run_config,
             dir="tmp",
         )
@@ -434,6 +435,7 @@ def main(cfg: DictConfig):
                 "train_loss": losses["train"].item(),
                 "run_config": run_config,
                 "wandb": wandb_link,
+                "wandb_run_name": run_name,
                 "wandb_id": wandb.run.id,
                 "total_tokens": total_tokens,
                 "tokenizer_desc": tokenizer.to_dict(),

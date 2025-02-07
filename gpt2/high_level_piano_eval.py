@@ -1,5 +1,6 @@
 import json
 import math
+import time
 from contextlib import nullcontext
 
 import hydra
@@ -64,6 +65,7 @@ def run_eval(
         sampler_iter = iter(sampler)
 
         for it in range(cfg.eval_iters):
+            t0 = time.time()
             sample_idx = next(sampler_iter)
             record = val_datasets[split][sample_idx]
             prompt_length = record["prompt_length"]
@@ -80,6 +82,7 @@ def run_eval(
                 dim=0,
             )
 
+            # TODO What is 2048? How is this related to the context length? Shouldn't this be in the config?
             out_tokens = model.generate(
                 input_token_ids,
                 max_new_tokens=2048 - prompt_length,
@@ -150,7 +153,9 @@ def run_eval(
                     metric_trackers[metric_name] = torch.zeros(cfg.eval_iters)
                 metric_trackers[metric_name][it] = torch.tensor(values).mean()
 
+            iteration_time = time.time() - t0
             if it % 5 == 0:
+                print(f"Iteration time: {iteration_time:.2f}s")
                 metrics_str = f"{split}, iter: {it}/{cfg.eval_iters}, loss: {loss.item():.4f}"
                 for metric_name, tracker in metric_trackers.items():
                     if metric_name != "loss":
@@ -267,7 +272,11 @@ def main(cfg: DictConfig):
     )
 
     if cfg.logging.wandb_log:
-        wandb.init(id=checkpoint["wandb_id"], resume="must")
+        setup_wandb(
+            eval_cfg=cfg,
+            wandb_group=checkpoint["wandb_run_name"],
+        )
+
         metrics_flat = {}
         for split in metrics:
             metrics_flat |= {
@@ -311,6 +320,41 @@ def main(cfg: DictConfig):
         streamlit_pianoroll.from_fortepyan(
             piece=prompt_piece,
             secondary_piece=original_piece,
+        )
+
+
+def setup_wandb(eval_cfg: dict, wandb_group: str):
+    # This is because I want to resume a run only knowing it's group
+    # and wandb is being defensive about discovery options
+    api = wandb.Api()
+
+    # so we have to check all the runs within that group
+    # to see if we already have an eval run
+    runs = api.runs(
+        path="roszcz/piano-gpt",
+        filters={"group": wandb_group},
+    )
+
+    eval_run_name = "high-level-eval"
+    eval_run = next((run for run in runs if run.name == eval_run_name), None)
+
+    if eval_run is None:
+        print("Initializing wandb eval run!")
+        eval_config = OmegaConf.to_container(eval_cfg)
+        wandb.init(
+            project=eval_cfg.logging.wandb_project,
+            name="high-level-eval",
+            group=wandb_group,
+            config=eval_config,
+            dir="tmp",
+        )
+    else:
+        print("Appending to an existing wandb run:", eval_run.name)
+        wandb.init(
+            project=eval_cfg.logging.wandb_project,
+            id=eval_run.id,
+            resume="must",
+            dir="tmp",
         )
 
 

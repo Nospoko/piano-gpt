@@ -6,7 +6,7 @@ defaults:
   - logging: eval
   - _self_
 
-eval_iters: 50
+eval_iters: 10
 
 dataset:
   extra_datasets: ["epr-labs/maestro-sustain-v2"]
