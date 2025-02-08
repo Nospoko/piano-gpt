@@ -2,7 +2,7 @@ defaults:
   - model: finetuning
   - data: default
   - dataset: augmented_every
-  - logging: finetuning
+  - logging: subsequence
   - lr: finetuning
   - optimizer: default
   - tasks: all
