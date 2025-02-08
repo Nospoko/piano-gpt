@@ -9,7 +9,7 @@ HF_READ_TOKEN = os.environ.get("HF_READ_TOKEN")
 
 MODELS_DIR = "tmp/checkpoints"
 
-REPO_ID = "wmatejuk/piano-gpt"
+REPO_ID = "epr-labs/piano-gpt"
 
 api = HfApi()
 

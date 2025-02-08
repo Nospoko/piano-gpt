@@ -15,7 +15,7 @@ api = HfApi()
 # Main script
 if __name__ == "__main__":
     # Create a repository name based on the subdirectory name
-    repo_name = "wmatejuk/piano-gpt"
+    repo_name = "epr-labs/piano-gpt"
 
     try:
         api.upload_folder(folder_path=CHECKPOINTS_DIR, repo_id=repo_name, repo_type="model", token=HF_WRITE_TOKEN)

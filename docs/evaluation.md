@@ -162,7 +162,7 @@ wandb.log({
 
 
 ### Script Details
-> ⚠️ WARNING: Currently "wmatejuk" repository is hardcoded: you will need to change that
+> ⚠️ WARNING: Currently "epr-labs" repository is hardcoded: you will need to change that
 1. Upload Script:
 ```python
 # upload_models.py
@@ -174,7 +174,7 @@ def upload_models():
     try:
         api.upload_folder(
             folder_path=CHECKPOINTS_DIR,
-            repo_id="wmatejuk/piano-gpt",
+            repo_id="epr-labs/piano-gpt",
             repo_type="model",
             token=HF_WRITE_TOKEN
         )
