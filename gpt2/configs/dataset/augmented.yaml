@@ -1,3 +1,6 @@
+# What to expect:
+# Downloads: ~20m (at 17MB/s)
+# Generating train split: 2001498 examples [1:15:27, 442.10 examples/s]
 base_dataset_name: "epr-labs/maestro-sustain-v2"
 extra_datasets:
   - 'epr-labs/maestro-augmented'
@@ -6,9 +9,7 @@ extra_datasets:
   - 'epr-labs/imslp-augmented'
   - 'epr-labs/pijamia-midi-v1'
   - 'epr-labs/vgmidi'
-  # FIXME Looks like chorales has a wrong order of keys in the *notes* field
-  # should be: 'duration', 'end', 'pitch', 'start', 'velocity' (consistent with other datasets)
-  # - 'epr-labs/jsb-chorales'
+  - 'epr-labs/jsb-chorales'
   - 'epr-labs/piano-midi-de'
   - 'epr-labs/atepp-1.1-sustain-v2'
   - 'epr-labs/music-net'
