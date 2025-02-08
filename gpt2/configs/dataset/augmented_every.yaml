@@ -1,4 +1,4 @@
-base_dataset_name: "roszcz/maestro-sustain-v2"
+base_dataset_name: "epr-labs/maestro-sustain-v2"
 pause_detection_threshold: 4
 extra_datasets:
   - 'epr-labs/maestro-augmented'
@@ -12,6 +12,7 @@ extra_datasets:
   - 'epr-labs/piano-midi-de'
   - 'epr-labs/atepp-1.1-sustain-v2'
   - 'epr-labs/music-net'
+  - 'epr-labs/piast-midi'
 
 augmentation:
   max_pitch_shift: 0
