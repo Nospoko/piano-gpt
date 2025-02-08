@@ -130,11 +130,14 @@ class MidiTokenizedDataset(GeneratorBasedBuilder):
         """
         try:
             encoding = self.tokenizer.encode_notes_df(notes_df=piece.df)
+            n_tokens = len(encoding)
         except KeyError:
             # TODO Why would that happen?
             encoding = None
+            n_tokens = 0
 
         record = {
+            "n_tokens": n_tokens,
             "note_token_ids": encoding,
             "source": json.dumps(piece.source),
         }

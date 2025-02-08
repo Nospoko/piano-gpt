@@ -1,9 +1,8 @@
 import json
 from typing import Literal
-from functools import partial
-from multiprocessing import Manager
 
 import torch
+import numpy as np
 from datasets import Dataset as HuggingFaceDataset
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
@@ -37,7 +36,6 @@ class NextTokenDataset(MidiDataset):
         super().__init__(dataset=dataset, tokenizer=tokenizer, loss_masking=loss_masking)
         self.context_size = context_size
         self.length = 0
-        self.record_lengths = {}
         self.num_proc = num_proc
         self._build_record_lengths()
 
@@ -52,31 +50,15 @@ class NextTokenDataset(MidiDataset):
         Calculate the length of each record in the dataset.
         This method uses multiprocessing for efficiency.
         """
+        # Each record in the input dataset offers a *record_length* number
+        # of possible starting points to get a subsequence with *context_size*
+        record_lengths = np.array(self.dataset["n_tokens"]) - self.context_size
 
-        def get_length(record, idx, context_size, shared_dict):
-            n_tokens = len(record["note_token_ids"])
-            length = max(n_tokens - context_size, 0)
-            shared_dict[idx] = length
-
-        # Use HuggingFace's .map method for simplicity and multiprocessing.Manager for shared recources
-        with Manager() as manager:
-            shared_dict = manager.dict()
-            get_length_partial = partial(
-                get_length,
-                context_size=self.context_size,
-                shared_dict=shared_dict,
-            )
-
-            self.dataset.map(
-                get_length_partial,
-                num_proc=self.num_proc,
-                desc="Building record lengths",
-                with_indices=True,
-            )
-            self.record_lengths = dict(shared_dict)
+        # Records shorted than context are effectively discarded
+        self.record_lengths = record_lengths.clip(min=0)
 
         # Calculate total dataset length
-        self.length = sum(self.record_lengths.values())
+        self.length = self.record_lengths.sum()
 
     def __len__(self) -> int:
         """Return the total length of the dataset."""
@@ -92,10 +74,13 @@ class NextTokenDataset(MidiDataset):
         Returns:
             tuple: (record_id, start_position)
         """
-        for record_id, length in self.record_lengths.items():
-            if idx < length:
-                return record_id, idx
-            idx -= length
+        start_point = idx
+
+        for record_id, length in enumerate(self.record_lengths):
+            if start_point < length:
+                return record_id, start_point
+            start_point -= length
+
         raise IndexError("Index out of range")
 
     def __getitem__(self, idx: int) -> dict:
