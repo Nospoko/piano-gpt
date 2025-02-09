@@ -337,7 +337,7 @@ def main(cfg: DictConfig):
     # learning rate decay scheduler (cosine with warmup)
     lr_scheduler = LRScheduler(scheduler_config=cfg.lr)
 
-    run_name = f"midi-gpt2-{milion_params:.0f}M-{cfg.logging.wandb_run_name_suffix}-{cfg.logging.wandb_time_suffix}"
+    run_name = f"{milion_params:.0f}M-{cfg.logging.wandb_run_name_suffix}-{cfg.logging.wandb_time_suffix}"
     # logging
     if cfg.logging.wandb_log and master_process:
         wandb.init(
