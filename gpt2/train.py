@@ -424,7 +424,8 @@ def main(cfg: DictConfig):
         # evaluate the loss on train/val sets and write checkpoints
         if iter_num % cfg.eval_interval == 1 and master_process:
             losses = estimate_loss()
-            print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['full_val']:.4f}")
+            ts = datetime.datetime.now().strftime("%Y-%m-%d %X")
+            print(f"{ts} iter {iter_num}: train loss {losses['train']:.4f}, val loss {losses['full_val']:.4f}")
             checkpoint = {
                 "model": raw_model.state_dict(),
                 "optimizer": optimizer.state_dict(),
@@ -457,16 +458,16 @@ def main(cfg: DictConfig):
             if cfg.logging.wandb_log:
                 # TODO: this is ugly
                 validation_results = {
-                    f"val/{split}": loss.item() for split, loss in losses.items() if split not in ["train", "full_val"]
+                    f"loss/val_{split}": loss.item() for split, loss in losses.items() if split not in ["train", "full_val"]
                 }
                 wandb.log(
                     {
                         "iter": iter_num,
-                        "train/loss_batch": losses["train"].item(),
-                        "val/loss_batch": losses["full_val"].item(),
-                        **validation_results,
                         "total_tokens": total_tokens,
-                        "best_val_loss": best_val_loss,
+                        "loss/train_loss_batch": losses["train"].item(),
+                        "loss/best_val_loss": best_val_loss,
+                        "loss/val_loss_batch": losses["full_val"].item(),
+                        **validation_results,
                     },
                     step=iter_num,
                 )
@@ -484,11 +485,12 @@ def main(cfg: DictConfig):
             )
             running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
             tps = tokens_in_step / t_forward_backward
+            ts = datetime.datetime.now().strftime("%Y-%m-%d %X")
             if cfg.logging.wandb_log:
                 wandb.log(
                     {
                         "iter": iter_num,
-                        "train/loss": lossf,
+                        "loss/train_loss": lossf,
                         "lr": lr,
                         "mfu": running_mfu * 100,  # convert to percentage
                         "total_tokens": total_tokens,
@@ -497,7 +499,7 @@ def main(cfg: DictConfig):
                     step=iter_num,
                 )
             print(
-                f"iter {iter_num}: loss {lossf:.4f}, time {dt:.2f}s, mfu {running_mfu*100:.2f}%, tps {tps:.2f}",
+                f"{ts} iter {iter_num}: loss {lossf:.4f}, time {dt:.2f}s, mfu {running_mfu*100:.2f}%, tps {tps:.2f}",
             )
         iter_num += 1
 
