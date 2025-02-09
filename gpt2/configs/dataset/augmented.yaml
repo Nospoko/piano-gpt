@@ -13,6 +13,7 @@ extra_datasets:
   - 'epr-labs/piano-midi-de'
   - 'epr-labs/atepp-1.1-sustain-v2'
   - 'epr-labs/music-net'
+  - 'epr-labs/piast-midi'
 
 pause_detection_threshold: 4
 augmentation:
