@@ -4,7 +4,7 @@ defaults:
   - metrics: default
   - _self_
 
-eval_iters: 10
+eval_iters: 30
 
 # Available splits: "full_val", "bach", "chopin", "mozart"
 eval_splits:

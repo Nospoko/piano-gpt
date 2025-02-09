@@ -2,10 +2,8 @@ defaults:
   - model: finetuning
   - data: default
   - dataset: augmented_every
-  - logging: subsequence
   - lr: finetuning
   - optimizer: default
-  - tasks: all
   - _self_
 
 out_dir: 'tmp/checkpoints'
@@ -21,7 +19,14 @@ system:
   device: 'cuda'
   dtype: 'float16'
   compile: true
-  data_workers: 64
+  data_workers: 16
 
 ddp:
   backend: 'nccl'
+
+logging:
+  wandb_log: True
+  wandb_project: 'piano-gpt'
+  wandb_time_suffix: ${now:%Y-%m-%d-%H-%M}
+  wandb_run_name_suffix: subsequence
+  log_interval: 20

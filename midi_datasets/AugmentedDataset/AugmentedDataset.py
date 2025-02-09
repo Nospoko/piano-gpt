@@ -123,6 +123,7 @@ class AugmentedDataset(GeneratorBasedBuilder):
         """
         record = {
             "notes": piece.df,
+            "n_notes": len(piece.df),
             "source": json.dumps(piece.source),
         }
 

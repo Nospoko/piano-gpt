@@ -143,6 +143,7 @@ class NextTokenDataset(MidiDataset):
             "target_token_ids": target_token_ids,
             "target_mask": target_mask,
             "start_point": start_point,
+            "record_id": record_id,
             "source": record["source"],
             # In PIANO dataset this is the length of the prompt part of the sequence
             # Here we consider half of the sequence to be a prompt part for validation purpouses

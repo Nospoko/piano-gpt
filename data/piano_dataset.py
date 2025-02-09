@@ -1,9 +1,8 @@
 import json
 from typing import Literal
-from functools import partial
-from multiprocessing import Manager
 
 import torch
+import numpy as np
 import pandas as pd
 from datasets import Dataset as HuggingFaceDataset
 from piano_dataset.piano_tasks import PianoTaskManager
@@ -32,7 +31,6 @@ class PianoDataset(MidiDataset):
         self.context_size = context_size
         self.notes_per_record = notes_per_record
         self.length = 0
-        self.record_lengths = {}
 
         self.piano_task_manager = piano_task_manager
         # TODO Maybe a .get_task(task_id) would be better for task management
@@ -47,49 +45,38 @@ class PianoDataset(MidiDataset):
         yield "n_midi_records", len(self.record_lengths)
         yield "notes_per_record", self.notes_per_record
         yield "context_size", self.context_size
-        yield "piano_tasks", self.task_names
+        yield "piano_tasks", self.piano_task_names
 
     def _build_records(self):
-        # Helper function to calculate the length of each record
-        def get_record_definition(record, idx, notes_per_record, shared_dict):
-            length = len(record["notes"]["pitch"]) - notes_per_record + 1
-            shared_dict[idx] = max(length, 0)
+        """
+        Calculate the length of each record in the dataset.
+        This method uses multiprocessing for efficiency.
+        """
+        # Each record in the input dataset offers a *record_length* number
+        # of possible starting points to get a note subsequence with *notes_per_record*
+        record_lengths = np.array(self.dataset["n_notes"]) - self.notes_per_record + 1
 
-        # Use HuggingFace's .map method for simplicity and multiprocessing.Manager for shared recources
-        with Manager() as manager:
-            shared_dict = manager.dict()
-            get_length_partial = partial(
-                get_record_definition,
-                notes_per_record=self.notes_per_record,
-                shared_dict=shared_dict,
-            )
-
-            self.dataset.map(
-                get_length_partial,
-                num_proc=self.num_proc,
-                desc="Building record lengths",
-                with_indices=True,
-            )
-            self.record_lengths = dict(shared_dict)
+        # Records shorted than context are effectively discarded
+        self.record_lengths = record_lengths.clip(min=0)
 
         # Calculate total dataset length
-        self.length = sum([record_length for record_length in self.record_lengths.values()]) * self.num_tasks
+        self.length = self.record_lengths.sum() * self.num_tasks
 
     def __len__(self):
         # Return the total length of the dataset
         return self.length
 
-    def _index_to_record(self, idx):
+    def _index_to_record(self, idx: int) -> tuple[int, int, str]:
         # Convert global index to record ID and start point within that record
         # First get the task number
         task_number = idx % self.num_tasks
         task_name = self.piano_task_names[task_number]
-        idx = idx // self.num_tasks
 
-        for record_id, record_length in self.record_lengths.items():
-            if idx < record_length:
-                return record_id, idx, task_name
-            idx -= record_length
+        start_point = idx // self.num_tasks
+        for record_id, record_length in enumerate(self.record_lengths):
+            if start_point < record_length:
+                return record_id, start_point, task_name
+            start_point -= record_length
         raise IndexError("Index out of range")
 
     def __getitem__(self, idx: int) -> dict:

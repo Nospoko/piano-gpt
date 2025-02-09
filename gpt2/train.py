@@ -120,6 +120,7 @@ def main(cfg: DictConfig):
             pad_token_id=tokenizer.pad_token_id,
         )
 
+    # FIXME This assumes the stage
     # First load checkpoint if init_from *midi_gpt2*
     elif "midi-gpt2" in cfg.init_from:
         # resume training from a checkpoint.
@@ -152,7 +153,6 @@ def main(cfg: DictConfig):
             raise NotImplementedError(f"Unknown tokenizer: {cfg.tokenizer.class_name}")
 
         out_dir = to_absolute_path(cfg.out_dir)
-        pad_token_id = tokenizer.token_to_id["<PAD>"]
 
         # force these config attributes to be equal otherwise we can't even resume training
         # the rest of the attributes (e.g. dropout) can stay as desired from config
@@ -167,7 +167,7 @@ def main(cfg: DictConfig):
         model = GPT(
             config=model_cfg,
             vocab_size=tokenizer.vocab_size,
-            pad_token_id=pad_token_id,
+            pad_token_id=tokenizer.pad_token_id,
         )
         state_dict = checkpoint["model"]
         checkpoint = None  # free up memory
@@ -458,7 +458,9 @@ def main(cfg: DictConfig):
             if cfg.logging.wandb_log:
                 # TODO: this is ugly
                 validation_results = {
-                    f"loss/val_{split}": loss.item() for split, loss in losses.items() if split not in ["train", "full_val"]
+                    f"loss/val_{split}": loss.item()
+                    for split, loss in losses.items()
+                    if split not in ["train", "full_val"]
                 }
                 wandb.log(
                     {
