@@ -32,6 +32,24 @@ def prepare_augmented_dataset(
     return dataset
 
 
+def augmentation_storage_process(
+    dataset_name: str,
+    augmentation_config: dict,
+):
+    target_dataset = f"epr-labs/{dataset_name}"
+    dataset = prepare_augmented_dataset(
+        target_dataset=target_dataset,
+        augmentation_config=augmentation_config,
+    )
+    dataset = dataset["train"]
+
+    new_dataset_name = dataset_name + "-augmented"
+    new_dataset_path = f"epr-labs/{new_dataset_name}"
+
+    print("Uploading:", new_dataset_path)
+    dataset.push_to_hub(new_dataset_path, token=HF_WRITE_TOKEN, private=True)
+
+
 if __name__ == "__main__":
     augmentation_config = {
         "speed_change_factors": [0.95, 0.975, 1.025, 1.05],
@@ -84,17 +102,8 @@ if __name__ == "__main__":
         "piast-midi",
     ]
     for dataset_name in dataset_names:
-        target_dataset = f"epr-labs/{dataset_name}"
-        print("Augmenting:", target_dataset)
-
-        dataset = prepare_augmented_dataset(
-            target_dataset=target_dataset,
+        print("Augmenting:", dataset_name)
+        augmentation_storage_process(
+            dataset_name=dataset_name,
             augmentation_config=augmentation_config,
         )
-        dataset = dataset["train"]
-
-        new_dataset_name = dataset_name + "-augmented"
-        new_dataset_path = f"epr-labs/{new_dataset_name}"
-
-        print("Uploading:", new_dataset_path)
-        dataset.push_to_hub(new_dataset_path, token=HF_WRITE_TOKEN, private=True)
