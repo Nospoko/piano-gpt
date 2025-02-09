@@ -51,6 +51,7 @@ def augmentation_storage_process(
 
 
 if __name__ == "__main__":
+    # Augmentation adds new samples, so speed=1, and shift=0 are not needed
     augmentation_config = {
         "speed_change_factors": [0.95, 0.975, 1.025, 1.05],
         "max_pitch_shift": 5,

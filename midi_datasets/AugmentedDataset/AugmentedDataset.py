@@ -52,8 +52,10 @@ class AugmentedDataset(GeneratorBasedBuilder):
         )
 
         # Enable multiprocessing by splitting the dataset into shards
+        n_train_shards = 128
+        train_shards = [dataset.shard(n_train_shards, it) for it in range(n_train_shards)]
+
         n_shards = 64
-        train_shards = [dataset.shard(n_shards, it) for it in range(n_shards)]
         validation_shards = [base["validation"].shard(n_shards, it) for it in range(n_shards)]
         test_shards = [base["test"].shard(n_shards, it) for it in range(n_shards)]
 
