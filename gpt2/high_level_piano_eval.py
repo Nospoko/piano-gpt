@@ -192,7 +192,9 @@ def main(cfg: DictConfig):
         tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer_desc"])
 
     if checkpoint_cfg.stage == "piano_task":
-        piano_task_manager = PianoTaskManager.load_default()
+        # TODO: Make it possible to run on a subset of tasks from training
+        tasks_config = checkpoint["piano_task_config"]
+        piano_task_manager = PianoTaskManager(tasks_config=tasks_config)
         hf_dataset = utils.create_augmented_dataset(cfg)
         val_datasets = utils.create_piano_datasets(
             hf_dataset=hf_dataset,
