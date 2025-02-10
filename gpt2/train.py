@@ -456,7 +456,6 @@ def main(cfg: DictConfig):
             print(f"saving latest checkpoint to {checkpoint_path}")
             torch.save(checkpoint, checkpoint_path)
             if cfg.logging.wandb_log:
-                # TODO: this is ugly
                 validation_results = {
                     f"loss/val_{split}": loss.item()
                     for split, loss in losses.items()
