@@ -7,7 +7,7 @@ defaults:
   - logging: pretraining
   - lr: pretraining
   - optimizer: default
-  - tasks: all
+  - tasks: piano_default
   - _self_
 
 out_dir: 'tmp/checkpoints'

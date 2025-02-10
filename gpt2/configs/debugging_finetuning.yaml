@@ -5,7 +5,7 @@ defaults:
   - logging: subsequence
   - lr: pretraining
   - optimizer: default
-  - tasks: denoising
+  - tasks: piano_default
   - _self_
 
 out_dir: 'tmp/checkpoints'

@@ -4,6 +4,7 @@ defaults:
   - dataset: augmented_every
   - lr: finetuning
   - optimizer: default
+  - tasks: piano_default
   - _self_
 
 out_dir: 'tmp/checkpoints'
