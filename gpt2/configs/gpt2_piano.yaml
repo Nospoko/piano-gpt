@@ -13,7 +13,6 @@ out_dir: 'tmp/checkpoints'
 eval_interval: 500
 
 eval_iters: 100
-eval_only: false  # if True, script exits right after the first eval
 always_save_checkpoint: false  # if True, always save a checkpoint after each eval
 init_from: 'scratch'  # 'scratch' or 'midi-gpt2*'
 

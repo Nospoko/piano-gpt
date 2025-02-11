@@ -11,7 +11,6 @@ defaults:
 out_dir: 'tmp/checkpoints'
 eval_interval: 64
 eval_iters: 32
-eval_only: false  # if True, script exits right after the first eval
 always_save_checkpoint: false  # if True, always save a checkpoint after each eval
 init_from: 'midi-gpt2-0M-subsequence-2025-01-29-21-20.pt'  # 'scratch_next_token' or 'midi-gpt2*'
 stage: piano_task

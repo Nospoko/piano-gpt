@@ -83,12 +83,16 @@ def main(cfg: DictConfig):
         ddp_rank = int(os.environ["RANK"])
         ddp_local_rank = int(os.environ["LOCAL_RANK"])
         ddp_world_size = int(os.environ["WORLD_SIZE"])
-        master_process = ddp_rank == 0  # this process will do logging, checkpointing etc.
-        seed_offset = ddp_rank  # each process gets a different seed
+
+        # this process will do logging, checkpointing etc.
+        master_process = ddp_rank == 0
+        # each process gets a different seed
+        seed_offset = ddp_rank
 
         # World_size number of processes will be training simultaneously, so we can scale
         # down the desired gradient accumulation iterations per process proportionally
         assert cfg.optimizer.gradient_accumulation_steps % ddp_world_size == 0
+
         # TODO: maybe we should not change what is inside the config?
         cfg.optimizer.gradient_accumulation_steps //= ddp_world_size
 
@@ -437,12 +441,16 @@ def main(cfg: DictConfig):
                 "val_loss": losses["full_val"].item(),
                 "train_loss": losses["train"].item(),
                 "run_config": run_config,
-                "wandb": wandb_link,
-                "wandb_run_name": run_name,
-                "wandb_id": wandb.run.id,
                 "total_tokens": total_tokens,
                 "tokenizer_desc": tokenizer.to_dict(),
             }
+
+            if cfg.logging.wandb_log:
+                checkpoint |= {
+                    "wandb": wandb_link,
+                    "wandb_run_name": run_name,
+                    "wandb_id": wandb.run.id,
+                }
 
             if cfg.stage == "piano_task":
                 checkpoint["piano_tasks_config"] = piano_task_manager.tasks_config
@@ -457,6 +465,7 @@ def main(cfg: DictConfig):
             checkpoint_path = os.path.join(out_dir, run_name + "last.pt")
             print(f"saving latest checkpoint to {checkpoint_path}")
             torch.save(checkpoint, checkpoint_path)
+
             if cfg.logging.wandb_log:
                 validation_results = {
                     f"loss/val_{split}": loss.item()

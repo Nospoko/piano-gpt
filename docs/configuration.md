@@ -8,15 +8,12 @@ Controls training stage and model initialization:
 stage: "piano_task"
 init_from: "scratch_next_token"
 loss_masking: "pretraining"
-
-tasks: TODO
 ```
 
 Important parameters:
 - `stage`: Training stage ("piano_task" or "next_token_pretraining")
 - `init_from`: Initialization mode ("scratch_next_token" or path to checkpoint for finetuning)
 - `loss_masking`: Loss calculation mode ("pretraining" or "finetuning"). Finetuning makes the loss be calculated only on target tokens (those after the `<GENAI>` token in the sequence).
-- `tasks`: NOT IMPLEMENTED
 
 Implementation:
 
@@ -183,7 +180,7 @@ lr:
   min_lr: 8e-6
   warmup_iters: 1000
   decay_lr: true
-  lr_decay_iters: ${optimizer.max_iters}
+  lr_decay_iters: 10000
 ```
 
 Important parameters:
@@ -231,7 +228,6 @@ Controls evaluation frequency and logging:
 ```yaml
 eval_interval: 500
 eval_iters: 100
-eval_only: false
 
 logging:
   wandb_log: True
@@ -242,7 +238,6 @@ logging:
 Important parameters:
 - `eval_interval`: Steps between evaluations
 - `eval_iters`: Number of batches per evaluation
-- `eval_only`: Run only evaluation - NOT IMPLEMENTED
 - `wandb_log`: Enable wandb logging
 - `wandb_project`: Wandb project name
 - `log_interval`: Steps between logging

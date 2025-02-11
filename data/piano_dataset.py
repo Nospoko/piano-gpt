@@ -120,15 +120,18 @@ class PianoDataset(MidiDataset):
             notes_df=piece_split.target_df,
         )
         # TODO I think this should be a tokenizer-level special token, similar to <PAD>?
-        target_prefix_tokens = ["<GENAI>"]
+        target_prefix_tokens = [self.generation_token]
         target_prefix_token_ids = self.tokenizer.encode_tokens(target_prefix_tokens)
         answer_token_ids = target_prefix_token_ids + target_token_ids
 
         # Join both input and output into a single sequence
         encoding = prompt_token_ids + answer_token_ids
+
         # Add safeguard ensuring the encoding is at most context_size + 1
         encoding = encoding[: self.context_size + 1]
-        # encoding should be context_size + 1, because we are using [:-1] and [1:] when defining source and target
+
+        # encoding should be context_size + 1,
+        # because we are using [:-1] and [1:] when defining source and target
         encoding_padded = self.tokenizer.pad_to_size(
             token_ids=encoding,
             target_size=self.context_size + 1,

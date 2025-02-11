@@ -13,7 +13,6 @@ defaults:
 out_dir: 'tmp/checkpoints'
 eval_interval: 500
 eval_iters: 100
-eval_only: false
 always_save_checkpoint: false
 init_from: 'scratch'
 stage: piano_task
