@@ -143,10 +143,9 @@ def main(cfg: DictConfig):
 
         # Let's reate piano_task_manager here for now, the special tokens will be needed for both stages
         # (to create tokenizers, unless we implement a better way of handling the special tokens)
-        # In hydra, tasks config are within a "list" field
+
         tasks_config = OmegaConf.to_container(cfg.tasks, resolve=True)
-        print(tasks_config["list"])
-        piano_task_manager = PianoTaskManager(tasks_config=tasks_config["list"])
+        piano_task_manager = PianoTaskManager(tasks_config=tasks_config)
         if checkpoint["tokenizer_desc"]["name"] == "ExponentialTimeTokenizer":
             tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer_desc"])
             special_tokens = piano_task_manager.get_special_tokens()
