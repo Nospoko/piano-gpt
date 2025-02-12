@@ -1,3 +1,5 @@
+type: CosineDecay
+
 # whether to decay the learning rate
 decay_lr: true
 

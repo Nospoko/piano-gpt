@@ -3,7 +3,7 @@ defaults:
   - data: default
   - dataset: augmented
   - logging: subsequence
-  - lr: pretraining
+  - lr: cosine_decay
   - optimizer: default
   - tokenizer: exponential
   - tasks: denoising

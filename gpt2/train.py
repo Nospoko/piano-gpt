@@ -35,9 +35,9 @@ from torch.distributed import init_process_group, destroy_process_group
 import wandb
 import artifacts
 from gpt2.model import GPT
-from gpt2.lr_scheduler import LRScheduler
 from data.piano_dataset import PianoDataset
 from gpt2.dataloader import CyclicalDataLoader
+from gpt2.lr_scheduler import get_lr_scheduler
 from data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
 from gpt2.utils import (
     load_tokenizer,
@@ -340,8 +340,9 @@ def main(cfg: DictConfig):
         model.train()
         return out
 
-    # learning rate decay scheduler (cosine with warmup)
-    lr_scheduler = LRScheduler(scheduler_config=cfg.lr)
+    # learning rate decay scheduler
+    lr_config = OmegaConf.to_container(cfg=cfg.lr)
+    lr_scheduler = get_lr_scheduler(lr_config=lr_config)
 
     run_name = f"{milion_params:.0f}M-{cfg.logging.wandb_run_name_suffix}-{cfg.logging.wandb_time_suffix}"
     # logging
@@ -378,12 +379,8 @@ def main(cfg: DictConfig):
     best_val_loss = 1e9
 
     while True:
-        # determine and set the learning rate for this iteration
-        if cfg.lr.decay_lr:
-            lr = lr_scheduler.get_lr(it=iter_num)
-        else:
-            lr = cfg.lr.learning_rate
-
+        # Get the scheduled learning rate for this step
+        lr = lr_scheduler.get_lr(it=iter_num)
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr
 

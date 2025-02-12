@@ -3,7 +3,7 @@ defaults:
   - data: default
   - tokenizer: exponential
   - dataset: tokenized
-  - lr: pretraining
+  - lr: cosine_decay
   - optimizer: default
   - _self_
 

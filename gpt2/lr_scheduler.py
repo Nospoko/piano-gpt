@@ -1,7 +1,7 @@
 import math
 
 
-class LRScheduler:
+class CosineDecayLRScheduler:
     def __init__(self, scheduler_config: dict):
         self.min_lr = scheduler_config["min_lr"]
         self.warmup_iters = scheduler_config["warmup_iters"]
@@ -24,3 +24,24 @@ class LRScheduler:
         # coeff ranges 0..1
         coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
         return self.min_lr + coeff * (self.learning_rate - self.min_lr)
+
+
+class ConstandLRScheduler:
+    def __init__(self, scheduler_config: dict):
+        self.learning_rate = scheduler_config["learning_rate"]
+
+    def get_lr(self, it: int) -> float:
+        return self.learning_rate
+
+
+def get_lr_scheduler(lr_config: dict):
+    scheduler_type = lr_config.pop("type")
+
+    if scheduler_type == "CosineDecay":
+        lr_scheduler = CosineDecayLRScheduler(lr_config)
+    elif scheduler_type == "Constant":
+        lr_scheduler = ConstandLRScheduler(lr_config)
+    else:
+        raise ValueError(f"LR type not supported {scheduler_type}")
+
+    return lr_scheduler
