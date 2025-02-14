@@ -9,7 +9,6 @@ This code comes from https://github.com/karpathy/nanoGPT/
 """
 
 import math
-import inspect
 
 import torch
 import torch.nn as nn
@@ -212,7 +211,13 @@ class GPT(nn.Module):
             if hasattr(block.attn, "bias"):
                 block.attn.bias = block.attn.bias[:, :, :context_size, :context_size]
 
-    def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
+    def configure_optimizers(
+        self,
+        weight_decay: float,
+        learning_rate: float,
+        betas: tuple[float, float],
+        device_type: str,
+    ):
         # start with all of the candidate parameters
         param_dict = {pn: p for pn, p in self.named_parameters()}
 
@@ -233,16 +238,17 @@ class GPT(nn.Module):
         print(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
 
         # Create AdamW optimizer and use the fused version if it is available
-        fused_available = "fused" in inspect.signature(torch.optim.AdamW).parameters
-        use_fused = fused_available and device_type == "cuda"
-        extra_args = dict(fused=True) if use_fused else dict()
-        optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
-        print(f"using fused AdamW: {use_fused}")
+        optimizer = torch.optim.AdamW(
+            params=optim_groups,
+            lr=learning_rate,
+            betas=betas,
+            fused=True,
+        )
+        print("Using fused AdamW}")
 
         return optimizer
 
-    # TODO Typehints
-    def estimate_mfu(self, fwdbwd_per_iter, dt):
+    def estimate_mfu(self, fwdbwd_per_iter: float, dt: float) -> float:
         """estimate model flops utilization (MFU) in units of A100 bfloat16 peak FLOPS"""
         # first estimate the number of flops we do per iteration.
         # see PaLM paper Appendix B as ref: https://arxiv.org/abs/2204.02311
@@ -252,6 +258,7 @@ class GPT(nn.Module):
         flops_per_token = 6 * N + 12 * L * H * Q * T
         flops_per_fwdbwd = flops_per_token * T
         flops_per_iter = flops_per_fwdbwd * fwdbwd_per_iter
+
         # express our flops throughput as ratio of A100 bfloat16 peak flops
         flops_achieved = flops_per_iter * (1.0 / dt)  # per second
         flops_promised = 312e12  # A100 GPU bfloat16 peak flops is 312 TFLOPS

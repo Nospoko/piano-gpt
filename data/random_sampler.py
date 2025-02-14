@@ -22,7 +22,12 @@ class MemoryEfficientRandomSampler(Sampler):
         return self
 
     def __next__(self) -> int:
-        return torch.randint(0, self.num_samples, (1,), generator=self.generator).item()
+        return torch.randint(
+            low=0,
+            high=self.num_samples,
+            size=(1,),
+            generator=self.generator,
+        ).item()
 
     def __len__(self) -> int:
         return self.num_samples

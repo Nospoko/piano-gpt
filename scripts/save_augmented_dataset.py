@@ -101,6 +101,7 @@ if __name__ == "__main__":
         "atepp-1.1-sustain-v2",
         "music-net",
         "piast-midi",
+        "pianofor-ai-base-v3",
     ]
     for dataset_name in dataset_names:
         print("Augmenting:", dataset_name)

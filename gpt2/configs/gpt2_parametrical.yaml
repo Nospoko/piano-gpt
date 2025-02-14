@@ -5,7 +5,7 @@ defaults:
   - tokenizer: exponential
   - dataset: augmented_every
   - logging: pretraining
-  - lr: pretraining
+  - lr: cosine_decay
   - optimizer: default
   - tasks: piano_default
   - _self_
