@@ -46,7 +46,6 @@ The PIANO dataset is designed to standardize approaches and provide a benchmark 
 
 ## Project Structure
 
-- `artifacts.py`: Utility functions and constants
 - `tmp/checkpoints/`: Saved model checkpoints
 - `dashboards/`: Streamlit dashboards for data visualization
 - `data/`: Dataset handling and preprocessing modules

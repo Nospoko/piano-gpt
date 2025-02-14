@@ -9,7 +9,7 @@ from piano_dataset.piano_tasks import PianoTaskManager
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
-from artifacts import get_dataset_token, get_composer_token
+from data.musicality import MusicManager
 
 
 class PianoDataset(MidiDataset):
@@ -22,22 +22,23 @@ class PianoDataset(MidiDataset):
         # TODO How can I find out what's the relation between *context_size* and *notes_per_record*?
         context_size: int,
         notes_per_record: int,
+        music_manager: MusicManager,
         piano_task_manager: PianoTaskManager,
         loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
-        num_proc: int = 16,
     ):
         # Initialize the parent class and set instance variables
         super().__init__(dataset=dataset, tokenizer=tokenizer, loss_masking=loss_masking)
-        self.context_size = context_size
-        self.notes_per_record = notes_per_record
+
         self.length = 0
+        self.context_size = context_size
+        self.music_manager = music_manager
+        self.notes_per_record = notes_per_record
 
         self.piano_task_manager = piano_task_manager
         # TODO Maybe a .get_task(task_id) would be better for task management
         self.piano_task_names = piano_task_manager.list_task_names()
         self.num_tasks = len(self.piano_task_manager.tasks)
 
-        self.num_proc = num_proc
         self._build_records()
 
     def __rich_repr__(self):
@@ -103,10 +104,10 @@ class PianoDataset(MidiDataset):
             notes_df=piece_split.source_df,
         )
         # ... add special tokens ...
-        composer_token = get_composer_token(
+        composer_token = self.music_manager.get_composer_token(
             composer=piece_source.get("composer", ""),
         )
-        dataset_token = get_dataset_token(
+        dataset_token = self.music_manager.get_dataset_token(
             piece_source=piece_source,
         )
         source_prefix_tokens = [dataset_token, composer_token] + piano_task.prefix_tokens
@@ -147,6 +148,7 @@ class PianoDataset(MidiDataset):
 
         # Create target mask
         target_mask = target_token_ids != self.tokenizer.pad_token_id
+
         if self.loss_masking == "finetuning":
             target_mask[: len(prompt_token_ids)] = False
 
