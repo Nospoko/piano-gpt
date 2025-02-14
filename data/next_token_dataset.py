@@ -1,5 +1,4 @@
 import json
-from typing import Literal
 
 import torch
 import numpy as np
@@ -7,7 +6,7 @@ from datasets import Dataset as HuggingFaceDataset
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
-from artifacts import get_dataset_token, get_composer_token
+from data.musicality import MusicManager
 
 
 class NextTokenDataset(MidiDataset):
@@ -20,9 +19,8 @@ class NextTokenDataset(MidiDataset):
         self,
         dataset: HuggingFaceDataset,
         tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
+        music_manager: MusicManager,
         context_size: int,
-        loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
-        num_proc: int = 16,
     ):
         """
         Initialize the NextTokenDataset.
@@ -31,12 +29,11 @@ class NextTokenDataset(MidiDataset):
             dataset (HuggingFaceDataset): The HuggingFace dataset containing tokenized MIDI data.
             tokenizer (MidiTokenizer): The MidiTokenizer used for tokenizing the MIDI data.
             context_size (int): The length of the input sequence.
-            loss_masking (str): The type of loss masking to use.
         """
-        super().__init__(dataset=dataset, tokenizer=tokenizer, loss_masking=loss_masking)
+        super().__init__(dataset=dataset, tokenizer=tokenizer)
         self.context_size = context_size
+        self.music_manager = music_manager
         self.length = 0
-        self.num_proc = num_proc
         self._build_record_lengths()
 
     def __rich_repr__(self):
@@ -99,10 +96,10 @@ class NextTokenDataset(MidiDataset):
 
         # Prepare tokens with music metadata
         piece_source = json.loads(record["source"])
-        composer_token = get_composer_token(
+        composer_token = self.music_manager.get_composer_token(
             composer=piece_source.get("composer", ""),
         )
-        dataset_token = get_dataset_token(
+        dataset_token = self.music_manager.get_dataset_token(
             piece_source=piece_source,
         )
         prefix_tokens = [dataset_token, composer_token]

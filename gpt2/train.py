@@ -33,8 +33,8 @@ from piano_dataset.piano_tasks import PianoTaskManager
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 import wandb
-import artifacts
 from gpt2.model import GPT
+from data.musicality import MusicManager
 from data.piano_dataset import PianoDataset
 from gpt2.dataloader import CyclicalDataLoader
 from gpt2.lr_scheduler import get_lr_scheduler
@@ -71,6 +71,7 @@ def main(cfg: DictConfig):
     device_setup = hardware_setup.setup_device(cfg)
     print("Device setup:", device_setup)
 
+    # FIXME: Find a config design where this is not necessary
     if device_setup.is_ddp:
         # World_size number of processes will be training simultaneously, so we can scale
         # down the desired gradient accumulation iterations per process proportionally
@@ -83,10 +84,10 @@ def main(cfg: DictConfig):
         if cfg.stage == "piano_task":
             raise NotImplementedError("piano_task stage cannot be run from scratch")
 
-        special_tokens = artifacts.dataset_tokens + artifacts.composer_tokens
+        music_manager = MusicManager()
         tokenizer = load_tokenizer(
             cfg=cfg,
-            special_tokens=special_tokens,
+            special_tokens=music_manager.tokens,
         )
 
         out_dir = to_absolute_path(cfg.out_dir)
@@ -178,9 +179,7 @@ def main(cfg: DictConfig):
             tokenizer=tokenizer,
         )
         datasets = create_next_token_datasets(
-            hf_dataset=hf_dataset,
-            cfg=cfg,
-            tokenizer=tokenizer,
+            hf_dataset=hf_dataset, cfg=cfg, tokenizer=tokenizer, music_manager=music_manager
         )
 
     elif cfg.stage == "piano_task":

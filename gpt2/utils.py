@@ -7,6 +7,7 @@ from piano_dataset.piano_tasks import PianoTaskManager
 from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
+from data.musicality import MusicManager
 from data.piano_dataset import PianoDataset
 from data.next_token_dataset import NextTokenDataset
 
@@ -86,14 +87,14 @@ def create_next_token_datasets(
     hf_dataset: Dataset,
     cfg: DictConfig,
     tokenizer: MidiTokenizer,
+    music_manager: MusicManager,
 ) -> dict[str, MidiDataset | dict[str, MidiDataset]]:
     """Create next token prediction datasets."""
     train_dataset = NextTokenDataset(
         dataset=hf_dataset["train"],
         tokenizer=tokenizer,
+        music_manager=music_manager,
         context_size=cfg.data.context_size,
-        loss_masking=cfg.loss_masking,
-        num_proc=cfg.system.data_workers,
     )
 
     validation_splits = create_validation_splits(hf_dataset["validation"])
@@ -101,9 +102,8 @@ def create_next_token_datasets(
         split_name: NextTokenDataset(
             dataset=split_dataset,
             tokenizer=tokenizer,
+            music_manager=music_manager,
             context_size=cfg.data.context_size,
-            loss_masking=cfg.loss_masking,
-            num_proc=cfg.system.data_workers,
         )
         for split_name, split_dataset in validation_splits.items()
     }
