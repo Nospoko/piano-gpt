@@ -1,11 +1,16 @@
 defaults:
-  - model: gpt2 # "gpt2_minimal", "gpt2_medium", "gpt2_large", "gpt2_xl"
+  - model: gpt2
   - data: default
   - tokenizer: exponential
   - dataset: tokenized
   - lr: cosine_decay
   - optimizer: default
+  - tasks: piano_default
   - _self_
+
+command: init
+model_task: next_token_prediction
+run_name_suffix: pretraining-${now:%Y-%m-%d-%H-%M}
 
 out_dir: 'tmp/checkpoints'
 always_save_checkpoint: false  # if True, always save a checkpoint after each eval
@@ -18,17 +23,18 @@ stage: next_token_pretraining
 loss_masking: pretraining
 
 ddp:
-  backend: 'nccl'  # 'nccl', 'gloo', etc.
+  # 'nccl', 'gloo', etc.
+  backend: 'nccl'
 
 system:
-  device: 'cuda'  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
-  dtype: 'float16'  # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
-  compile: true  # use PyTorch 2.0 to compile the model to be faster
+  device: 'cuda'
+  # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
+  dtype: 'float16'
+  compile: true
   data_workers: 16
 
 logging:
   wandb_log: True
+  wandb_entity: 'epr-labs'
   wandb_project: 'piano-gpt'
-  wandb_time_suffix: ${now:%Y-%m-%d-%H-%M}
-  wandb_run_name_suffix: pretraining
   log_interval: 20

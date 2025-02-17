@@ -1,7 +1,15 @@
 import math
+from abc import ABC, abstractmethod
 
 
-class CosineDecayLRScheduler:
+class LearningRateScheduler(ABC):
+    @abstractmethod
+    def get_lr(self, it: int) -> float:
+        """Return the learning rate for the given iteration/step."""
+        pass
+
+
+class CosineDecayLRScheduler(LearningRateScheduler):
     def __init__(self, scheduler_config: dict):
         self.min_lr = scheduler_config["min_lr"]
         self.warmup_iters = scheduler_config["warmup_iters"]
@@ -26,7 +34,7 @@ class CosineDecayLRScheduler:
         return self.min_lr + coeff * (self.learning_rate - self.min_lr)
 
 
-class ConstandLRScheduler:
+class ConstandLRScheduler(LearningRateScheduler):
     def __init__(self, scheduler_config: dict):
         self.learning_rate = scheduler_config["learning_rate"]
 

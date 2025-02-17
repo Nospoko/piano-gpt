@@ -28,6 +28,8 @@ class NextTokenDataset(MidiDataset):
         Parameters:
             dataset (HuggingFaceDataset): The HuggingFace dataset containing tokenized MIDI data.
             tokenizer (MidiTokenizer): The MidiTokenizer used for tokenizing the MIDI data.
+            music_manager (MusicManager): Helper class to manage meta info we have about the data.
+                Currently this handles composer and dataset tokens.
             context_size (int): The length of the input sequence.
         """
         super().__init__(dataset=dataset, tokenizer=tokenizer)

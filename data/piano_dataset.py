@@ -27,9 +27,10 @@ class PianoDataset(MidiDataset):
         loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
     ):
         # Initialize the parent class and set instance variables
-        super().__init__(dataset=dataset, tokenizer=tokenizer, loss_masking=loss_masking)
+        super().__init__(dataset=dataset, tokenizer=tokenizer)
 
         self.length = 0
+        self.loss_masking = loss_masking
         self.context_size = context_size
         self.music_manager = music_manager
         self.notes_per_record = notes_per_record

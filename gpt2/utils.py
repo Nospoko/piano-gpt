@@ -115,17 +115,18 @@ def create_piano_datasets(
     hf_dataset: Dataset,
     cfg: DictConfig,
     tokenizer: MidiTokenizer,
+    music_manager: MusicManager,
     piano_task_manager: PianoTaskManager,
 ) -> dict[str, MidiDataset | dict[str, MidiDataset]]:
     """Create piano task datasets."""
     train_dataset = PianoDataset(
         dataset=hf_dataset["train"],
         tokenizer=tokenizer,
+        music_manager=music_manager,
         context_size=cfg.data.context_size,
         loss_masking=cfg.loss_masking,
         notes_per_record=cfg.data.notes_per_record,
         piano_task_manager=piano_task_manager,
-        num_proc=cfg.system.data_workers,
     )
 
     validation_splits = create_validation_splits(hf_dataset["validation"])
@@ -133,11 +134,11 @@ def create_piano_datasets(
         name: PianoDataset(
             dataset=split,
             tokenizer=tokenizer,
+            music_manager=music_manager,
             context_size=cfg.data.context_size,
             loss_masking=cfg.loss_masking,
             notes_per_record=cfg.data.notes_per_record,
             piano_task_manager=piano_task_manager,
-            num_proc=cfg.system.data_workers,
         )
         for name, split in validation_splits.items()
     }

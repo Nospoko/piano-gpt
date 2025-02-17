@@ -5,6 +5,7 @@ from contextlib import nullcontext
 
 import hydra
 import torch
+import wandb
 import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
@@ -15,7 +16,6 @@ from piano_metrics.piano_metric import MetricsManager
 from piano_dataset.piano_tasks import PianoTaskManager
 from midi_tokenizers import MidiTokenizer, AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
-import wandb
 import gpt2.utils as utils
 from gpt2.model import GPT
 from data.random_sampler import ValidationRandomSampler
@@ -214,9 +214,10 @@ def main(cfg: DictConfig):
         )["validation_splits"]
 
     # To speed up the eval process you can pick less validation splits in the eval cfg
-    val_datasets = {
-        split_name: dataset for split_name, dataset in val_datasets.items() if split_name in cfg.eval_splits
-    }
+    val_datasets = {}
+    for split_name, dataset in val_datasets.items():
+        if split_name in cfg.eval_splits:
+            val_datasets[split_name] = dataset
 
     pad_token_id = tokenizer.token_to_id["<PAD>"]
     model_cfg = checkpoint["model_cfg"]
