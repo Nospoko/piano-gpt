@@ -166,10 +166,6 @@ def training_from_scratch(
         print("compiling the model... (takes a ~minute)")
         model = torch.compile(model)
 
-    # wrap model into DDP container
-    if device_setup.is_ddp:
-        model = DDP(model, device_ids=[device_setup.local_rank])
-
     # learning rate decay scheduler
     lr_config = OmegaConf.to_container(cfg=cfg.lr)
     lr_scheduler = get_lr_scheduler(lr_config=lr_config)
@@ -177,10 +173,15 @@ def training_from_scratch(
     milion_params = model.get_num_params() / 1e6
     run_name = f"{milion_params:.0f}M-" f"{cfg.run_name_suffix}"
 
-    logging_setup.wandb_init(
-        run_name=run_name,
-        cfg=cfg,
-    )
+    # wrap model into DDP container
+    if device_setup.is_ddp:
+        model = DDP(model, device_ids=[device_setup.local_rank])
+
+    if device_setup.is_master_process:
+        logging_setup.wandb_init(
+            run_name=run_name,
+            cfg=cfg,
+        )
 
     training_loop(
         cfg=cfg,
