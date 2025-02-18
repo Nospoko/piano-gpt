@@ -35,9 +35,9 @@ from data.musicality import MusicManager
 from gpt2.model import GPT, estimate_mfu
 from data.piano_dataset import PianoDataset
 from gpt2.setup.hardware import DeviceSetup
+from gpt2.setup import datasets as data_setup
 from gpt2.dataloader import CyclicalDataLoader
 from gpt2.setup import logging as logging_setup
-from gpt2.setup import datasets as datasets_setup
 from gpt2.setup import hardware as hardware_setup
 from gpt2.lr_scheduler import LearningRateScheduler, get_lr_scheduler
 from data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
@@ -67,30 +67,85 @@ def load_config(
     return cfg
 
 
-def training_from_scratch(
+def resume_training(
     cfg: DictConfig,
     device_setup: DeviceSetup,
 ):
-    music_manager = MusicManager()
-    tokenizer = load_tokenizer(
-        cfg=cfg,
-        special_tokens=music_manager.tokens,
+    checkpoint = torch.load(
+        cfg.checkpoint_path,
+        map_location=device_setup.device,
+        weights_only=False,
     )
 
-    out_dir = to_absolute_path(cfg.out_dir)
-    if device_setup.is_master_process:
-        os.makedirs(out_dir, exist_ok=True)
+    # Load tokenizer
+    tokenizer_desc = checkpoint["tokenizer_desc"]
+    tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc)
 
-    # init a new model from scratch
-    print("Initializing a new model from scratch")
-
-    model_cfg = cfg.model
+    # TODO vocab and padding info should be checkpointed
+    model_cfg = checkpoint["model_cfg"]
     model = GPT(
         config=model_cfg,
         vocab_size=tokenizer.vocab_size,
         pad_token_id=tokenizer.pad_token_id,
     )
+    state_dict = checkpoint["model"]
 
+    # free up memory
+    # checkpoint = None
+
+    # fix the keys of the state dictionary :(
+    # This may be resolved by using the not-compiled model object:
+    # https://discuss.pytorch.org/t/how-to-save-load-a-model-with-torch-compile/179739
+    unwanted_prefix = "_orig_mod."
+    for param_name, _ in list(state_dict.items()):
+        if param_name.startswith(unwanted_prefix):
+            fixed_name = param_name[len(unwanted_prefix) :]
+            state_dict[fixed_name] = state_dict.pop(param_name)
+
+    model.load_state_dict(state_dict)
+
+    # load data
+
+
+def training_from_scratch(
+    cfg: DictConfig,
+    device_setup: DeviceSetup,
+):
+    music_manager = MusicManager()
+
+    out_dir = to_absolute_path(cfg.out_dir)
+    if device_setup.is_master_process:
+        os.makedirs(out_dir, exist_ok=True)
+
+    if cfg.model_task == "next_token_prediction":
+        datasets_setup = data_setup.next_token_prediction_setup(
+            cfg=cfg,
+            device_setup=device_setup,
+            music_manager=music_manager,
+        )
+    elif cfg.model_task == "piano_task":
+        datasets_setup = data_setup.piano_task_setup(
+            cfg=cfg,
+            device_setup=device_setup,
+            music_manager=music_manager,
+        )
+
+    # Tokenizer has a dynamic state (we add tokens), so
+    # it's not enough to keep track of the initial config
+    checkpoint_addons = {
+        "tokenizer_desc": datasets_setup.tokenizer.to_dict(),
+    }
+
+    # init a new model from scratch
+    print("Initializing a new model from scratch")
+
+    # TODO I don't like two sources of model config: vocab size
+    # and pad id should be merged with the rest of options somehow
+    model = GPT(
+        config=cfg.model,
+        vocab_size=datasets_setup.tokenizer.vocab_size,
+        pad_token_id=datasets_setup.tokenizer.pad_token_id,
+    )
     model.to(device_setup.device)
 
     # TODO: I'm not convinved it's a good approach to have
@@ -115,49 +170,6 @@ def training_from_scratch(
     if device_setup.is_ddp:
         model = DDP(model, device_ids=[device_setup.local_rank])
 
-    checkpoint_addons = {}
-    if cfg.model_task == "next_token_prediction":
-        hf_dataset = create_tokenized_dataset(
-            cfg=cfg,
-            tokenizer=tokenizer,
-        )
-        datasets = create_next_token_datasets(
-            cfg=cfg,
-            tokenizer=tokenizer,
-            hf_dataset=hf_dataset,
-            music_manager=music_manager,
-        )
-    elif cfg.model_task == "piano_task":
-        tasks_config = OmegaConf.to_container(cfg.tasks, resolve=True)
-        piano_task_manager = PianoTaskManager(tasks_config=tasks_config)
-        hf_dataset = create_augmented_dataset(cfg)
-        datasets = create_piano_datasets(
-            hf_dataset=hf_dataset,
-            cfg=cfg,
-            tokenizer=tokenizer,
-            music_manager=music_manager,
-            piano_task_manager=piano_task_manager,
-        )
-
-        # There are dataset-specific tokens for PIANO tasks
-        special_tokens = piano_task_manager.get_special_tokens()
-        special_tokens.append(PianoDataset.generation_token)
-        tokenizer.add_special_tokens(special_tokens)
-
-        checkpoint_addons["piano_tasks_config"] = piano_task_manager.tasks_config
-
-    checkpoint_addons["tokenizer_desc"] = tokenizer.to_dict()
-
-    # Wrap datasets into loaders
-    train_dataset = datasets["train_split"]
-    val_datasets = datasets["validation_splits"]
-    train_loader, val_loaders = datasets_setup.loaders_setup(
-        cfg=cfg,
-        train_dataset=train_dataset,
-        val_datasets=val_datasets,
-        device_setup=device_setup,
-    )
-
     # learning rate decay scheduler
     lr_config = OmegaConf.to_container(cfg=cfg.lr)
     lr_scheduler = get_lr_scheduler(lr_config=lr_config)
@@ -173,20 +185,22 @@ def training_from_scratch(
     training_loop(
         cfg=cfg,
         model=model,
+        out_dir=out_dir,
         run_name=run_name,
         optimizer=optimizer,
         grad_scaler=grad_scaler,
-        val_loaders=val_loaders,
         device_setup=device_setup,
-        train_loader=train_loader,
         lr_scheduler=lr_scheduler,
         checkpoint_addons=checkpoint_addons,
+        val_loaders=datasets_setup.val_loaders,
+        train_loader=datasets_setup.train_loader,
     )
 
 
 def training_loop(
     run_name: str,
     cfg: DictConfig,
+    out_dir: str,
     model: torch.nn.Module,
     checkpoint_addons: dict,
     device_setup: DeviceSetup,
@@ -218,8 +232,6 @@ def training_loop(
             out[split] = losses.mean()
         model.train()
         return out
-
-    out_dir = to_absolute_path(cfg.out_dir)
 
     # Fetch the very first batch before the loop starts
     X, Y, mask = get_batch("train")
@@ -278,7 +290,7 @@ def training_loop(
 
         # End of deep learning \o/
 
-        # Stat of metrics and logs
+        # Start of metrics and logs
         t_forward_backward = time.time() - t0
 
         # Count tokens
@@ -338,7 +350,7 @@ def training_loop(
                 "best_val_loss": best_val_loss,
                 "val_loss": losses["full_val"].item(),
                 "train_loss": losses["train"].item(),
-                "run_config": OmegaConf.to_container(cfg),
+                "run_config": cfg,
                 "total_tokens": total_tokens,
             }
 

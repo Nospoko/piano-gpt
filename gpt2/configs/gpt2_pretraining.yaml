@@ -18,7 +18,7 @@ always_save_checkpoint: false  # if True, always save a checkpoint after each ev
 eval_interval: 500
 eval_iters: 100
 
-init_from: 'scratch_next_token'  # 'scratch_next_token' or 'midi-gpt2*'
+init_from: 'scratch_next_token'
 stage: next_token_pretraining
 loss_masking: pretraining
 
