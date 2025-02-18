@@ -29,7 +29,6 @@ def main(cfg: DictConfig):
         ...
     elif cfg.command == "resume":
         gpt2_train.resume_training(cfg=cfg, device_setup=device_setup)
-        ...
     else:
         raise ValueError("Incorrect command/config")
 

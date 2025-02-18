@@ -13,8 +13,8 @@ api = HfApi()
 
 def main():
     parser = argparse.ArgumentParser(description="Upload a model checkpoint to HF repository")
-    parser.add_argument("--path", type=str, help="Path to the file")
-    parser.add_argument("--repo_name", type=str, help="Huggingface repo name")
+    parser.add_argument("-p", "--path", type=str, help="Path to the file")
+    parser.add_argument("-r", "--repo_id", type=str, help="Huggingface repo ID")
     args = parser.parse_args()
 
     path_in_repo = os.path.join("/checkpoints", os.path.basename(args.path))
@@ -24,7 +24,7 @@ def main():
     api.upload_file(
         path_or_fileobj=args.path,
         path_in_repo=path_in_repo,
-        repo_id=args.repo_name,
+        repo_id=args.repo_id,
         repo_type="model",
         token=HF_WRITE_TOKEN,
     )
@@ -33,5 +33,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # python -m scripts.upload_model_file tmp/checkpoints/midi-gpt2-10M-pretraining-2025-02-09-07-21.pt
+    # python -m scripts.upload_model_file -p tmp/checkpoints/10M-pretraining-2025-02-09-07-21.pt -r epr-lab/piano-gpt
     main()
