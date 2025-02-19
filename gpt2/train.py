@@ -117,9 +117,19 @@ def training_from_scratch(
 ):
     music_manager = MusicManager()
 
+    # Resolve config:
+    # - out_dir has to be calculated during runtime, because hydra moves paths around
     cfg.out_dir = to_absolute_path(cfg.out_dir_relative)
     if device_setup.is_master_process:
         os.makedirs(cfg.out_dir, exist_ok=True)
+
+    # - gradient_accumulation_steps is derived from batch, microbatch, and ddp settings
+    gradient_accumulation_steps = cfg.training.batch_size // cfg.training.microbatch_size
+    if device_setup.is_ddp:
+        assert gradient_accumulation_steps % device_setup.world_size == 0
+        gradient_accumulation_steps //= device_setup.world_size
+
+    cfg.training.gradient_accumulation_steps = gradient_accumulation_steps
 
     if cfg.model_task == "next_token_prediction":
         datasets_setup = data_setup.next_token_prediction_setup(
@@ -232,20 +242,21 @@ def training_loop(
         # forward backward update, with optional gradient accumulation to simulate larger batch size
         # and using the GradScaler if data type is float16
         n_iter_tokens = 0
-        for micro_step in range(cfg.optimizer.gradient_accumulation_steps):
+        for micro_step in range(cfg.training.gradient_accumulation_steps):
             if device_setup.is_ddp:
                 # in DDP training we only need to sync gradients at the last micro step.
                 # the official way to do this is with model.no_sync() context manager, but
                 # I really dislike that this bloats the code and forces us to repeat code
                 # looking at the source of that context manager, it just toggles this variable
-                model.require_backward_grad_sync = micro_step == cfg.optimizer.gradient_accumulation_steps - 1
+                sync_gradients = micro_step == cfg.training.gradient_accumulation_steps - 1
+                model.require_backward_grad_sync = sync_gradients
 
             with device_setup.autocast_ctx:
                 n_iter_tokens += X.numel()
                 logits, loss = model(X, Y, mask)
 
                 # scale the loss to account for gradient accumulation
-                loss = loss / cfg.optimizer.gradient_accumulation_steps
+                loss = loss / cfg.training.gradient_accumulation_steps
 
             # immediately async prefetch next batch while model is doing the forward pass on the GPU
             X, Y, mask = get_batch("train")
@@ -278,10 +289,10 @@ def training_loop(
         if iter_num % cfg.logging.log_interval == 1 and device_setup.is_master_process:
             # get loss as float. note: this is a CPU-GPU sync point
             # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
-            lossf = loss.item() * cfg.optimizer.gradient_accumulation_steps
+            lossf = loss.item() * cfg.training.gradient_accumulation_steps
             mfu = estimate_mfu(
                 model=model.module if device_setup.is_ddp else model,
-                fwdbwd_per_iter=cfg.data.batch_size * cfg.optimizer.gradient_accumulation_steps,
+                fwdbwd_per_iter=cfg.training.batch_size * cfg.training.gradient_accumulation_steps,
                 dt=t_forward_backward,
             )
             running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu

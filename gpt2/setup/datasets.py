@@ -43,7 +43,7 @@ def loaders_setup(
     train_loader = CyclicalDataLoader(
         train_dataset,
         sampler=train_sampler,
-        batch_size=cfg.data.batch_size,
+        batch_size=cfg.training.microbatch_size,
         pin_memory=device_setup.device_type == "cuda",
         num_workers=cfg.system.data_workers // device_setup.world_size,
         device=device_setup.device,
@@ -56,12 +56,12 @@ def loaders_setup(
             sampler = ValidationRandomSampler(
                 n_records=len(dataset),
                 seed=4,
-                num_samples=cfg.data.batch_size * cfg.eval_iters,
+                num_samples=cfg.training.microbatch_size * cfg.eval_iters,
             )
             val_loaders[split_name] = CyclicalDataLoader(
                 dataset=dataset,
                 sampler=sampler,
-                batch_size=cfg.data.batch_size,
+                batch_size=cfg.training.microbatch_size,
                 pin_memory=device_setup.device_type == "cuda",
                 num_workers=cfg.system.data_workers // device_setup.world_size,
                 device=device_setup.device,

@@ -94,7 +94,7 @@ def create_next_token_datasets(
         dataset=hf_dataset["train"],
         tokenizer=tokenizer,
         music_manager=music_manager,
-        context_size=cfg.data.context_size,
+        context_size=cfg.training.context_size,
     )
 
     validation_splits = create_validation_splits(hf_dataset["validation"])
@@ -103,7 +103,7 @@ def create_next_token_datasets(
             dataset=split_dataset,
             tokenizer=tokenizer,
             music_manager=music_manager,
-            context_size=cfg.data.context_size,
+            context_size=cfg.training.context_size,
         )
         for split_name, split_dataset in validation_splits.items()
     }
@@ -123,9 +123,9 @@ def create_piano_datasets(
         dataset=hf_dataset["train"],
         tokenizer=tokenizer,
         music_manager=music_manager,
-        context_size=cfg.data.context_size,
-        loss_masking=cfg.loss_masking,
-        notes_per_record=cfg.data.notes_per_record,
+        context_size=cfg.training.context_size,
+        loss_masking=cfg.training.loss_masking,
+        notes_per_record=cfg.training.notes_per_record,
         piano_task_manager=piano_task_manager,
     )
 
@@ -135,9 +135,9 @@ def create_piano_datasets(
             dataset=split,
             tokenizer=tokenizer,
             music_manager=music_manager,
-            context_size=cfg.data.context_size,
-            loss_masking=cfg.loss_masking,
-            notes_per_record=cfg.data.notes_per_record,
+            context_size=cfg.training.context_size,
+            loss_masking=cfg.training.loss_masking,
+            notes_per_record=cfg.training.notes_per_record,
             piano_task_manager=piano_task_manager,
         )
         for name, split in validation_splits.items()

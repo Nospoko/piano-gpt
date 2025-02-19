@@ -9,7 +9,7 @@ Train a 10M model:
 python -m gpt2.train dataset=small model=gpt2_10M
 
 # No wandb, small memory footprint
-python -m gpt2.train dataset=small model=gpt2_10M data.batch_size=2 logging.wandb_log=false
+python -m gpt2.train dataset=small model=gpt2_10M training.microbatch_size=2 logging.wandb_log=false
 ```
 
 Calculate PIANO metrics:

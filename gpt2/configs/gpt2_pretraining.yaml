@@ -22,9 +22,14 @@ always_save_checkpoint: false
 eval_interval: 500
 eval_iters: 100
 
-init_from: 'scratch_next_token'
-stage: next_token_pretraining
-loss_masking: pretraining
+training:
+  loss_masking: pretraining
+  context_size: 2048
+  notes_per_record: 128
+  batch_size: 64
+  microbatch_size: 8
+  # This is calculated during runtime
+  gradient_accumulation_steps:
 
 ddp:
   # 'nccl', 'gloo', etc.
