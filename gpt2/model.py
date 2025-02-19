@@ -244,7 +244,7 @@ class GPT(nn.Module):
             betas=betas,
             fused=True,
         )
-        print("Using fused AdamW}")
+        print("Using fused AdamW")
 
         return optimizer
 

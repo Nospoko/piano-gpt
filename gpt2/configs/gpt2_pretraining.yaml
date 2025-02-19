@@ -12,8 +12,12 @@ command: init
 model_task: next_token_prediction
 run_name_suffix: pretraining-${now:%Y-%m-%d-%H-%M}
 
-out_dir: 'tmp/checkpoints'
-always_save_checkpoint: false  # if True, always save a checkpoint after each eval
+out_dir_relative: 'tmp/checkpoints'
+# This is filled during runtime
+out_dir:
+
+# if True, always save a checkpoint after each eval
+always_save_checkpoint: false
 
 eval_interval: 500
 eval_iters: 100
