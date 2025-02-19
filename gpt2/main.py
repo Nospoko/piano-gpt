@@ -14,14 +14,6 @@ def main(cfg: DictConfig):
     device_setup = hardware_setup.setup_device(cfg)
     print("Device setup:", device_setup)
 
-    # FIXME: Find a config design where this is not necessary
-    if device_setup.is_ddp:
-        # World_size number of processes will be training simultaneously, so we can scale
-        # down the desired gradient accumulation iterations per process proportionally
-        assert cfg.optimizer.gradient_accumulation_steps % device_setup.world_size == 0
-
-        cfg.optimizer.gradient_accumulation_steps //= device_setup.world_size
-
     if cfg.command == "init":
         gpt2_train.training_from_scratch(
             cfg=cfg,

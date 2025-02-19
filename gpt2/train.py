@@ -13,6 +13,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from data.musicality import MusicManager
 from gpt2.model import GPT, estimate_mfu
+from gpt2.setup.training import RunStats
 from gpt2.setup.hardware import DeviceSetup
 from gpt2.setup import datasets as data_setup
 from gpt2.setup.datasets import DatasetsSetup
@@ -196,6 +197,7 @@ def training_loop(
     device_setup: DeviceSetup,
     backprop_setup: BackpropSetup,
     datasets_setup: DatasetsSetup,
+    run_stats: RunStats = RunStats(),
 ):
     # TODO: Helper methods that we might want to refactor out
     def get_batch(split: str):
@@ -223,19 +225,11 @@ def training_loop(
     # Fetch the very first batch before the loop starts
     X, Y, mask = get_batch("train")
 
-    # number of iterations in the lifetime of this process
-    # we count from 1 because of unknown reasons
-    iter_num = 1
-
-    total_tokens = 0
-    running_mfu = -1.0
-    best_val_loss = 1e9
-
     while True:
         t0 = time.time()
 
         # Get the scheduled learning rate for this step
-        lr = backprop_setup.lr_scheduler.get_lr(it=iter_num)
+        lr = backprop_setup.lr_scheduler.get_lr(it=run_stats.iter)
         for param_group in backprop_setup.optimizer.param_groups:
             param_group["lr"] = lr
 
@@ -283,10 +277,10 @@ def training_loop(
 
         # Count tokens
         tokens_in_step = n_iter_tokens * device_setup.world_size
-        total_tokens += tokens_in_step
+        run_stats.total_tokens += tokens_in_step
 
         # Common log
-        if iter_num % cfg.logging.log_interval == 1 and device_setup.is_master_process:
+        if run_stats.iter % cfg.logging.log_interval == 1 and device_setup.is_master_process:
             # get loss as float. note: this is a CPU-GPU sync point
             # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
             lossf = loss.item() * cfg.training.gradient_accumulation_steps
@@ -295,35 +289,35 @@ def training_loop(
                 fwdbwd_per_iter=cfg.training.batch_size * cfg.training.gradient_accumulation_steps,
                 dt=t_forward_backward,
             )
-            running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
+            run_stats.running_mfu = mfu if run_stats.running_mfu == -1.0 else 0.9 * run_stats.running_mfu + 0.1 * mfu
             tps = tokens_in_step / t_forward_backward
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %X")
             if cfg.logging.wandb_log:
                 wandb.log(
                     {
-                        "iter": iter_num,
+                        "iter": run_stats.iter,
                         "loss/train_loss": lossf,
                         "lr": lr,
-                        "mfu": running_mfu * 100,  # convert to percentage
-                        "total_tokens": total_tokens,
+                        "mfu": run_stats.running_mfu * 100,  # convert to percentage
+                        "total_tokens": run_stats.total_tokens,
                         "tps": tps,
                     },
-                    step=iter_num,
+                    step=run_stats.iter,
                 )
             print(
-                f"{timestamp} iter {iter_num}: "
+                f"{timestamp} iter {run_stats.iter}: "
                 f"loss {lossf:.4f}, "
                 f"time {t_forward_backward:.2f}s, "
-                f"mfu {running_mfu * 100:.2f}%, "
+                f"mfu {run_stats.running_mfu * 100:.2f}%, "
                 f"tps {tps:.2f}"
             )
 
         # Eval log
-        if iter_num % cfg.eval_interval == 1 and device_setup.is_master_process:
+        if run_stats.iter % cfg.eval_interval == 1 and device_setup.is_master_process:
             losses = estimate_loss()
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %X")
             print(
-                f"{timestamp} iter {iter_num}: "
+                f"{timestamp} iter {run_stats.iter}: "
                 f"train loss {losses['train']:.4f}, "
                 f"val loss {losses['full_val']:.4f}"
             )
@@ -331,16 +325,16 @@ def training_loop(
             # Unwrap DataParallel
             state_dict = model.module.state_dict() if device_setup.is_ddp else model.state_dict()
             checkpoint = {
-                "model": state_dict,
-                "optimizer": backprop_setup.optimizer.state_dict(),
-                "model_cfg": cfg.model,
-                "iter_num": iter_num,
-                "best_val_loss": best_val_loss,
-                "val_loss": losses["full_val"].item(),
-                "train_loss": losses["train"].item(),
                 "run_config": cfg,
-                "total_tokens": total_tokens,
+                "model": state_dict,
+                "iter_num": run_stats.iter,
                 "run_name": run_name,
+                "model_cfg": cfg.model,
+                "total_tokens": run_stats.total_tokens,
+                "best_val_loss": run_stats.best_val_loss,
+                "train_loss": losses["train"].item(),
+                "val_loss": losses["full_val"].item(),
+                "optimizer": backprop_setup.optimizer.state_dict(),
                 "tokenizer_desc": datasets_setup.tokenizer.to_dict(),
             }
 
@@ -349,9 +343,9 @@ def training_loop(
                     "wandb_id": wandb.run.id,
                 }
 
-            if losses["full_val"] < best_val_loss:
-                best_val_loss = losses["full_val"].item()
-                checkpoint["best_val_loss"] = best_val_loss
+            if losses["full_val"] < run_stats.best_val_loss:
+                run_stats.best_val_loss = losses["full_val"].item()
+                checkpoint["best_val_loss"] = run_stats.best_val_loss
                 best_checkpoint_path = os.path.join(cfg.out_dir, run_name + "-best.pt")
                 print(f"saving best checkpoint to {best_checkpoint_path}")
                 torch.save(checkpoint, best_checkpoint_path)
@@ -368,20 +362,20 @@ def training_loop(
                 }
                 wandb.log(
                     {
-                        "iter": iter_num,
-                        "total_tokens": total_tokens,
+                        "iter": run_stats.iter,
+                        "total_tokens": run_stats.total_tokens,
                         "loss/train_loss_batch": losses["train"].item(),
-                        "loss/best_val_loss": best_val_loss,
+                        "loss/best_val_loss": run_stats.best_val_loss,
                         "loss/val_loss_batch": losses["full_val"].item(),
                         **validation_results,
                     },
-                    step=iter_num,
+                    step=run_stats.iter,
                 )
 
         # Loop end
-        iter_num += 1
+        run_stats.iter += 1
 
-        if iter_num == cfg.optimizer.max_iters:
+        if run_stats.iter == cfg.optimizer.max_iters:
             break
 
     if device_setup.is_ddp:
