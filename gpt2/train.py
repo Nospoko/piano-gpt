@@ -5,8 +5,8 @@ import datetime
 import hydra
 import torch
 import wandb
+from omegaconf import DictConfig
 from hydra.utils import to_absolute_path
-from omegaconf import OmegaConf, DictConfig
 from torch.distributed import destroy_process_group
 from midi_tokenizers import ExponentialTimeTokenizer
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -16,7 +16,6 @@ from gpt2.model import GPT, estimate_mfu
 from gpt2.setup.hardware import DeviceSetup
 from gpt2.setup import datasets as data_setup
 from gpt2.setup.datasets import DatasetsSetup
-from gpt2.lr_scheduler import get_lr_scheduler
 from gpt2.setup import logging as logging_setup
 from gpt2.setup.backprop import BackpropSetup, setup_backprop
 
@@ -37,11 +36,11 @@ def load_config(
 
 
 def resume_training(
-    cfg: DictConfig,
+    resume_cfg: DictConfig,
     device_setup: DeviceSetup,
 ):
     checkpoint = torch.load(
-        cfg.checkpoint_path,
+        resume_cfg.checkpoint_path,
         weights_only=False,
     )
 
@@ -73,56 +72,37 @@ def resume_training(
 
     model.load_state_dict(state_dict)
 
-    # TODO: I'm not convinved it's a good approach to have
-    # optimizer setup as a model method
-    optimizer = model.configure_optimizers(
-        weight_decay=run_cfg.optimizer.weight_decay,
-        learning_rate=run_cfg.lr.learning_rate,
-        betas=(run_cfg.optimizer.beta1, run_cfg.optimizer.beta2),
-        device_type=device_setup.device_type,
+    backprop_setup = setup_backprop(
+        cfg=run_cfg,
+        model=model,
+        device_setup=device_setup,
     )
-    optimizer.load_state_dict(checkpoint["optimizer"])
+
+    backprop_setup.optimizer.load_state_dict(checkpoint["optimizer"])
 
     music_manager = MusicManager()
-    if cfg.model_task == "next_token_prediction":
+    if run_cfg.model_task == "next_token_prediction":
         datasets_setup = data_setup.next_token_prediction_setup(
             cfg=run_cfg,
             device_setup=device_setup,
             music_manager=music_manager,
         )
-    elif cfg.model_task == "piano_task":
+    elif run_cfg.model_task == "piano_task":
         datasets_setup = data_setup.piano_task_setup(
             cfg=run_cfg,
             device_setup=device_setup,
             music_manager=music_manager,
         )
 
-    # learning rate decay scheduler
-    lr_config = OmegaConf.to_container(cfg=cfg.lr)
-    lr_scheduler = get_lr_scheduler(lr_config=lr_config)
-    checkpoint_addons = {
-        "tokenizer_desc": datasets_setup.tokenizer.to_dict(),
-    }
-
     run_name = checkpoint["run_name"]
 
-    enable_grad_scaler = cfg.system.dtype == "float16"
-    grad_scaler = torch.amp.GradScaler(
-        device=device_setup.device_type,
-        enabled=enable_grad_scaler,
-    )
-
     training_loop(
-        cfg=cfg,
+        cfg=run_cfg,
         model=model,
         run_name=run_name,
-        optimizer=optimizer,
-        grad_scaler=grad_scaler,
         device_setup=device_setup,
-        lr_scheduler=lr_scheduler,
-        checkpoint_addons=checkpoint_addons,
-        val_loaders=datasets_setup.val_loaders,
-        train_loader=datasets_setup.train_loader,
+        backprop_setup=backprop_setup,
+        datasets_setup=datasets_setup,
     )
 
 
