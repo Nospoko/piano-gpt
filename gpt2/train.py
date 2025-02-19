@@ -15,7 +15,7 @@ from data.musicality import MusicManager
 from gpt2.model import GPT, estimate_mfu
 from gpt2.setup.hardware import DeviceSetup
 from gpt2.setup import datasets as data_setup
-from gpt2.dataloader import CyclicalDataLoader
+from gpt2.setup.datasets import DatasetsSetup
 from gpt2.lr_scheduler import get_lr_scheduler
 from gpt2.setup import logging as logging_setup
 from gpt2.setup.backprop import BackpropSetup, setup_backprop
@@ -149,12 +149,6 @@ def training_from_scratch(
             music_manager=music_manager,
         )
 
-    # Tokenizer has a dynamic state (we add tokens), so
-    # it's not enough to keep track of the initial config
-    checkpoint_addons = {
-        "tokenizer_desc": datasets_setup.tokenizer.to_dict(),
-    }
-
     # init a new model from scratch
     print("Initializing a new model from scratch")
 
@@ -196,9 +190,7 @@ def training_from_scratch(
         run_name=run_name,
         device_setup=device_setup,
         backprop_setup=backprop_setup,
-        checkpoint_addons=checkpoint_addons,
-        val_loaders=datasets_setup.val_loaders,
-        train_loader=datasets_setup.train_loader,
+        datasets_setup=datasets_setup,
     )
 
 
@@ -206,22 +198,20 @@ def training_loop(
     run_name: str,
     cfg: DictConfig,
     model: torch.nn.Module,
-    checkpoint_addons: dict,
     device_setup: DeviceSetup,
     backprop_setup: BackpropSetup,
-    train_loader: CyclicalDataLoader,
-    val_loaders: dict[str, CyclicalDataLoader],
+    datasets_setup: DatasetsSetup,
 ):
     # TODO: Helper methods that we might want to refactor out
     def get_batch(split: str):
         if split == "train":
-            return train_loader.get_batch()
+            return datasets_setup.train_loader.get_batch()
         else:
-            return val_loaders[split].get_batch()
+            return datasets_setup.val_loaders[split].get_batch()
 
     @torch.no_grad()
     def estimate_loss():
-        splits = ["train"] + list(val_loaders.keys())
+        splits = ["train"] + list(datasets_setup.val_loaders.keys())
         out = {}
         model.eval()
         for split in splits:
@@ -355,10 +345,8 @@ def training_loop(
                 "run_config": cfg,
                 "total_tokens": total_tokens,
                 "run_name": run_name,
+                "tokenizer_desc": datasets_setup.tokenizer.to_dict(),
             }
-
-            # Include the configs of data preprocessing elements (tokenizer, piano tasks)
-            checkpoint |= checkpoint_addons
 
             if cfg.logging.wandb_log:
                 checkpoint |= {
