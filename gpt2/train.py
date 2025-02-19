@@ -72,6 +72,11 @@ def resume_training(
 
     model.load_state_dict(state_dict)
 
+    # TODO Not sure if this is a "system" setting
+    if run_cfg.system.compile:
+        print("compiling the model... (takes a ~minute)")
+        model = torch.compile(model)
+
     backprop_setup = setup_backprop(
         cfg=run_cfg,
         model=model,
