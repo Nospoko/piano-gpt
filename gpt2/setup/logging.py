@@ -22,5 +22,22 @@ def wandb_init(
     )
 
 
-def wandb_resume():
-    ...
+def wandb_resume(
+    run_id: str,
+    cfg: DictConfig,
+):
+    """
+    Resuming wandb runs is problematic, because if there were logs sent
+    after the checkpoint you're resuming from, the new run will not override them.
+    It will also annoy you with warning until it gets past the last step logged into wandb.
+    """
+    if not cfg.logging.wandb_log:
+        return
+
+    wandb.init(
+        entity=cfg.logging.wandb_entity,
+        project=cfg.logging.wandb_project,
+        id=run_id,
+        resume="must",
+        dir="tmp",
+    )

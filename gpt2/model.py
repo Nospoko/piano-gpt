@@ -286,6 +286,18 @@ class GPT(nn.Module):
         generated_tokens = output[:, initial_length:]
         return generated_tokens
 
+    def load_state(self, state_dict: dict):
+        # This may be resolved by using the not-compiled model object:
+        # https://discuss.pytorch.org/t/how-to-save-load-a-model-with-torch-compile/179739
+        unwanted_prefix = "_orig_mod."
+        for param_name, _ in list(state_dict.items()):
+            if param_name.startswith(unwanted_prefix):
+                fixed_name = param_name[len(unwanted_prefix) :]
+                state_dict[fixed_name] = state_dict.pop(param_name)
+
+        self.load_state_dict(state_dict)
+        print("Model state loaded!")
+
 
 def estimate_mfu(
     model: GPT,

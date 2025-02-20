@@ -12,6 +12,12 @@ python -m gpt2.train dataset=small model=gpt2_10M
 python -m gpt2.train dataset=small model=gpt2_10M training.microbatch_size=2 logging.wandb_log=false
 ```
 
+Resume training:
+
+```sh
+python -m gpt2.main --config-name=resume_training checkpoint_path=</path/to/checkpoint.pt>
+```
+
 Calculate PIANO metrics:
 
 ```sh

@@ -2,7 +2,6 @@ import os
 import time
 import datetime
 
-import hydra
 import torch
 import wandb
 from omegaconf import DictConfig
@@ -18,34 +17,19 @@ from gpt2.setup.hardware import DeviceSetup
 from gpt2.setup import datasets as data_setup
 from gpt2.setup.datasets import DatasetsSetup
 from gpt2.setup import logging as logging_setup
+from gpt2.setup import hardware as hardware_setup
 from gpt2.setup.backprop import BackpropSetup, setup_backprop
 
 
-def load_config(
-    config_name: str = "gpt2_pretraining",
-    overrides: list[str] = None,
-) -> DictConfig:
-    """
-    Use overrides like bash cli arguments, i.e.:
-
-    overrides = ["dataset_config=eee", "other_param=downsample"]
-    """
-    with hydra.initialize(version_base=None, config_path="configs", job_name="repl"):
-        cfg = hydra.compose(config_name=config_name, overrides=overrides)
-
-    return cfg
-
-
-def resume_training(
-    resume_cfg: DictConfig,
-    device_setup: DeviceSetup,
-):
+def resume_training(resume_cfg: DictConfig):
     checkpoint = torch.load(
         resume_cfg.checkpoint_path,
         weights_only=False,
     )
 
     run_cfg: DictConfig = checkpoint["run_config"]
+    device_setup = hardware_setup.setup_device(run_cfg)
+    print("Device setup:", device_setup)
 
     # Load tokenizer
     tokenizer_desc = checkpoint["tokenizer_desc"]
@@ -59,19 +43,8 @@ def resume_training(
         pad_token_id=tokenizer.pad_token_id,
     )
     state_dict = checkpoint["model"]
-
-    # free up memory
-    # checkpoint = None
-
-    # This may be resolved by using the not-compiled model object:
-    # https://discuss.pytorch.org/t/how-to-save-load-a-model-with-torch-compile/179739
-    unwanted_prefix = "_orig_mod."
-    for param_name, _ in list(state_dict.items()):
-        if param_name.startswith(unwanted_prefix):
-            fixed_name = param_name[len(unwanted_prefix) :]
-            state_dict[fixed_name] = state_dict.pop(param_name)
-
-    model.load_state_dict(state_dict)
+    model.load_state(state_dict=state_dict)
+    model.to(device_setup.device)
 
     # TODO Not sure if this is a "system" setting
     if run_cfg.system.compile:
@@ -100,23 +73,32 @@ def resume_training(
             music_manager=music_manager,
         )
 
+    logging_setup.wandb_resume(
+        run_id=checkpoint["wandb_id"],
+        cfg=run_cfg,
+    )
+
     run_name = checkpoint["run_name"]
+    run_stats = RunStats(**checkpoint["run_stats"])
+    # Start from the next step
+    run_stats.iter += 1
+
+    print("Resuming from:", run_stats)
 
     training_loop(
         cfg=run_cfg,
         model=model,
         run_name=run_name,
+        run_stats=run_stats,
         device_setup=device_setup,
         backprop_setup=backprop_setup,
         datasets_setup=datasets_setup,
     )
 
 
-def training_from_scratch(
-    cfg: DictConfig,
-    device_setup: DeviceSetup,
-):
-    music_manager = MusicManager()
+def training_from_scratch(cfg: DictConfig):
+    device_setup = hardware_setup.setup_device(cfg)
+    print("Device setup:", device_setup)
 
     # Resolve config:
     # - out_dir has to be calculated during runtime, because hydra moves paths around
@@ -132,6 +114,8 @@ def training_from_scratch(
 
     cfg.training.gradient_accumulation_steps = gradient_accumulation_steps
 
+    # TODO This manager should probably go to the dataset setup
+    music_manager = MusicManager()
     if cfg.model_task == "next_token_prediction":
         datasets_setup = data_setup.next_token_prediction_setup(
             cfg=cfg,
@@ -327,13 +311,11 @@ def training_loop(
             checkpoint = {
                 "run_config": cfg,
                 "model": state_dict,
-                "iter_num": run_stats.iter,
                 "run_name": run_name,
                 "model_cfg": cfg.model,
-                "total_tokens": run_stats.total_tokens,
-                "best_val_loss": run_stats.best_val_loss,
                 "train_loss": losses["train"].item(),
                 "val_loss": losses["full_val"].item(),
+                "run_stats": run_stats.__dict__,
                 "optimizer": backprop_setup.optimizer.state_dict(),
                 "tokenizer_desc": datasets_setup.tokenizer.to_dict(),
             }
@@ -344,8 +326,10 @@ def training_loop(
                 }
 
             if losses["full_val"] < run_stats.best_val_loss:
+                # New best validation loss!
                 run_stats.best_val_loss = losses["full_val"].item()
-                checkpoint["best_val_loss"] = run_stats.best_val_loss
+                checkpoint["run_stats"] = run_stats.__dict__
+
                 best_checkpoint_path = os.path.join(cfg.out_dir, run_name + "-best.pt")
                 print(f"saving best checkpoint to {best_checkpoint_path}")
                 torch.save(checkpoint, best_checkpoint_path)

@@ -26,9 +26,11 @@ training:
   loss_masking: pretraining
   context_size: 2048
   notes_per_record: 128
+  # What you want the model to see
   batch_size: 64
+  # What can fit in a single GPU
   microbatch_size: 8
-  # This is calculated during runtime
+  # This is calculated during runtime accounting in the DDP setup
   gradient_accumulation_steps:
 
 ddp:

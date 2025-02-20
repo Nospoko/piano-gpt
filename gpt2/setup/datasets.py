@@ -26,8 +26,6 @@ class DatasetsSetup(NamedTuple):
     tokenizer: ExponentialTimeTokenizer
     val_loaders: dict[str, CyclicalDataLoader]
 
-    special_tokens: list[str] = []
-
 
 def loaders_setup(
     cfg: DictConfig,
@@ -148,7 +146,6 @@ def piano_task_setup(
     )
 
     datasets_setup = DatasetsSetup(
-        special_tokens=special_tokens,
         train_loader=train_loader,
         val_loaders=val_loaders,
         hf_dataset=hf_dataset,
