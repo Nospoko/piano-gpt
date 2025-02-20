@@ -1,0 +1,7 @@
+# ~9.7M parameters
+n_layer: 12
+n_head: 8
+n_embd: 256
+dropout: 0.0  # for pretraining 0 is good, for finetuning try 0.1+
+bias: false  # do we use bias inside LayerNorm and Linear layers?
+context_size: ${training.context_size}

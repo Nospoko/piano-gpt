@@ -8,7 +8,7 @@ import streamlit_pianoroll
 import matplotlib.pyplot as plt
 from datasets import Dataset, load_dataset
 from midi_tokenizers import ExponentialTimeTokenizer
-from piano_dataset.piano_tasks import ParametricTaskManager
+from piano_dataset.piano_tasks import PianoTaskManager
 
 from data.piano_dataset import PianoDataset
 from artifacts import dataset_tokens, composer_tokens
@@ -58,7 +58,7 @@ def load_piano_dataset(
     config: dict,
     dataset_name: str,
     dataset_split: str,
-    sequence_length: int,
+    context_size: int,
     notes_per_record: int,
     loss_masking: str,
     selected_composers: list[str],
@@ -78,13 +78,13 @@ def load_piano_dataset(
         return composer_match and title_match
 
     filtered_dataset = dataset.filter(filter_dataset)
-    parametric_task_manager = ParametricTaskManager.load_default()
+    parametric_task_manager = PianoTaskManager.load_default()
 
     tokenizer = ExponentialTimeTokenizer(**tokenizer_parameters)
     piano_dataset = PianoDataset(
         dataset=filtered_dataset,
         tokenizer=tokenizer,
-        sequence_length=sequence_length,
+        context_size=context_size,
         notes_per_record=notes_per_record,
         piano_task_manager=parametric_task_manager,
         loss_masking=loss_masking,
@@ -110,7 +110,7 @@ def main():
                 value=256,
             )
         with col2:
-            sequence_length = st.number_input(
+            context_size = st.number_input(
                 label="Sequence Length",
                 min_value=1,
                 value=2048,
@@ -148,7 +148,7 @@ def main():
 
         st.form_submit_button(label="Update Tokenizer")
 
-    parametric_task_manager = ParametricTaskManager.load_default()
+    parametric_task_manager = PianoTaskManager.load_default()
 
     config = {
         "base_dataset_name": base_dataset_name,
@@ -186,7 +186,7 @@ def main():
         config=config,
         dataset_name=dataset_name,
         dataset_split=dataset_split,
-        sequence_length=sequence_length,
+        context_size=context_size,
         notes_per_record=notes_per_record,
         loss_masking=loss_masking,
         selected_composers=selected_composers,

@@ -7,8 +7,9 @@ class MidiTokenizedDatasetConfig(BuilderConfig):
     Configuration class for creating a sub-sequence MIDI dataset.
 
     Attributes:
-        base_dataset_name (str): Name of the base dataset.
-        extra_datasets (list[str]): List of additional datasets.
+        base_dataset_name (str): Name of the dataset used for test and validation – right now we only
+            use maestro for this, as it already has well defined splits. Train split is ignored for this dataset.
+        extra_datasets (list[str]): List of datasets used for training, splits other than "train" are ignored.
         notes_per_record (int): Length of the sequences.
         step (int): Step size between sequences.
         pause_detection_threshold (int): Threshold for detecting pauses.

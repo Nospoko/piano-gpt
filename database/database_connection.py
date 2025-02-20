@@ -9,7 +9,9 @@ POSTGRES_PASSWORD = os.environ["POSTGRES_PASSWORD"]
 POSTGRES_USER = os.environ["POSTGRES_USER"]
 POSTGRES_HOST = os.environ["POSTGRES_HOST"]
 POSTGRES_PORT = os.environ["POSTGRES_PORT"]
-DB_DSN = f"postgresql://{POSTGRES_HOST}:{POSTGRES_PORT}/midi_transformers?user={POSTGRES_USER}&password={POSTGRES_PASSWORD}"
+DB_DSN = (
+    f"postgresql://{POSTGRES_HOST}:{POSTGRES_PORT}/midi_transformers?user={POSTGRES_USER}&password={POSTGRES_PASSWORD}"
+)
 
 
 class DatabaseConnection:

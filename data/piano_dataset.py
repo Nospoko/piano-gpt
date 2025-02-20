@@ -1,16 +1,15 @@
 import json
 from typing import Literal
-from functools import partial
-from multiprocessing import Manager
 
 import torch
+import numpy as np
 import pandas as pd
 from datasets import Dataset as HuggingFaceDataset
-from piano_dataset.piano_tasks import ParametricTaskManager
+from piano_dataset.piano_tasks import PianoTaskManager
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from data.dataset import MidiDataset
-from artifacts import get_dataset_token, get_composer_token
+from data.musicality import MusicManager
 
 
 class PianoDataset(MidiDataset):
@@ -20,76 +19,66 @@ class PianoDataset(MidiDataset):
         self,
         dataset: HuggingFaceDataset,
         tokenizer: AwesomeMidiTokenizer | ExponentialTimeTokenizer,
-        # TODO How can I find out what's the relation between *sequence_length* and *notes_per_record*?
-        sequence_length: int,
+        # TODO How can I find out what's the relation between *context_size* and *notes_per_record*?
+        context_size: int,
         notes_per_record: int,
-        piano_task_manager: ParametricTaskManager,
+        music_manager: MusicManager,
+        piano_task_manager: PianoTaskManager,
         loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
-        num_proc: int = 16,
     ):
         # Initialize the parent class and set instance variables
-        super().__init__(dataset=dataset, tokenizer=tokenizer, loss_masking=loss_masking)
-        self.sequence_length = sequence_length
-        self.notes_per_record = notes_per_record
+        super().__init__(dataset=dataset, tokenizer=tokenizer)
+
         self.length = 0
-        self.record_lengths = {}
+        self.loss_masking = loss_masking
+        self.context_size = context_size
+        self.music_manager = music_manager
+        self.notes_per_record = notes_per_record
 
         self.piano_task_manager = piano_task_manager
         # TODO Maybe a .get_task(task_id) would be better for task management
         self.piano_task_names = piano_task_manager.list_task_names()
         self.num_tasks = len(self.piano_task_manager.tasks)
 
-        self.num_proc = num_proc
         self._build_records()
 
     def __rich_repr__(self):
         yield "size", len(self)
         yield "n_midi_records", len(self.record_lengths)
         yield "notes_per_record", self.notes_per_record
-        yield "sequence_length", self.sequence_length
-        yield "piano_tasks", self.task_names
+        yield "context_size", self.context_size
+        yield "piano_tasks", self.piano_task_names
 
     def _build_records(self):
-        # Helper function to calculate the length of each record
-        def get_record_definition(record, idx, notes_per_record, shared_dict):
-            length = len(record["notes"]["pitch"]) - notes_per_record + 1
-            shared_dict[idx] = max(length, 0)
+        """
+        Calculate the length of each record in the dataset.
+        This method uses multiprocessing for efficiency.
+        """
+        # Each record in the input dataset offers a *record_length* number
+        # of possible starting points to get a note subsequence with *notes_per_record*
+        record_lengths = np.array(self.dataset["n_notes"]) - self.notes_per_record + 1
 
-        # Use HuggingFace's .map method for simplicity and multiprocessing.Manager for shared recources
-        with Manager() as manager:
-            shared_dict = manager.dict()
-            get_length_partial = partial(
-                get_record_definition,
-                notes_per_record=self.notes_per_record,
-                shared_dict=shared_dict,
-            )
-
-            self.dataset.map(
-                get_length_partial,
-                num_proc=self.num_proc,
-                desc="Building record lengths",
-                with_indices=True,
-            )
-            self.record_lengths = dict(shared_dict)
+        # Records shorted than context are effectively discarded
+        self.record_lengths = record_lengths.clip(min=0)
 
         # Calculate total dataset length
-        self.length = sum([record_length for record_length in self.record_lengths.values()]) * self.num_tasks
+        self.length = self.record_lengths.sum() * self.num_tasks
 
     def __len__(self):
         # Return the total length of the dataset
         return self.length
 
-    def _index_to_record(self, idx):
+    def _index_to_record(self, idx: int) -> tuple[int, int, str]:
         # Convert global index to record ID and start point within that record
         # First get the task number
         task_number = idx % self.num_tasks
         task_name = self.piano_task_names[task_number]
-        idx = idx // self.num_tasks
 
-        for record_id, record_length in self.record_lengths.items():
-            if idx < record_length:
-                return record_id, idx, task_name
-            idx -= record_length
+        start_point = idx // self.num_tasks
+        for record_id, record_length in enumerate(self.record_lengths):
+            if start_point < record_length:
+                return record_id, start_point, task_name
+            start_point -= record_length
         raise IndexError("Index out of range")
 
     def __getitem__(self, idx: int) -> dict:
@@ -116,10 +105,10 @@ class PianoDataset(MidiDataset):
             notes_df=piece_split.source_df,
         )
         # ... add special tokens ...
-        composer_token = get_composer_token(
+        composer_token = self.music_manager.get_composer_token(
             composer=piece_source.get("composer", ""),
         )
-        dataset_token = get_dataset_token(
+        dataset_token = self.music_manager.get_dataset_token(
             piece_source=piece_source,
         )
         source_prefix_tokens = [dataset_token, composer_token] + piano_task.prefix_tokens
@@ -133,18 +122,21 @@ class PianoDataset(MidiDataset):
             notes_df=piece_split.target_df,
         )
         # TODO I think this should be a tokenizer-level special token, similar to <PAD>?
-        target_prefix_tokens = ["<GENAI>"]
+        target_prefix_tokens = [self.generation_token]
         target_prefix_token_ids = self.tokenizer.encode_tokens(target_prefix_tokens)
         answer_token_ids = target_prefix_token_ids + target_token_ids
 
         # Join both input and output into a single sequence
         encoding = prompt_token_ids + answer_token_ids
-        # Add safeguard ensuring the encoding is at most sequence_length + 1
-        encoding = encoding[: self.sequence_length + 1]
-        # encoding should be sequence_length + 1, because we are using [:-1] and [1:] when defining source and target
+
+        # Add safeguard ensuring the encoding is at most context_size + 1
+        encoding = encoding[: self.context_size + 1]
+
+        # encoding should be context_size + 1,
+        # because we are using [:-1] and [1:] when defining source and target
         encoding_padded = self.tokenizer.pad_to_size(
             token_ids=encoding,
-            target_size=self.sequence_length + 1,
+            target_size=self.context_size + 1,
         )
 
         # Convert into next-token-prediction task
@@ -157,6 +149,7 @@ class PianoDataset(MidiDataset):
 
         # Create target mask
         target_mask = target_token_ids != self.tokenizer.pad_token_id
+
         if self.loss_masking == "finetuning":
             target_mask[: len(prompt_token_ids)] = False
 

@@ -1,0 +1,2 @@
+# For finetuning only dropout is configurable
+dropout: 0.01

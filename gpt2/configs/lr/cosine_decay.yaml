@@ -1,0 +1,16 @@
+type: CosineDecay
+
+# whether to decay the learning rate
+decay_lr: true
+
+# how many steps to warm up for
+warmup_iters: 1000
+
+# should be ~= max_iters per Chinchilla
+lr_decay_iters: 10000
+
+# minimum learning rate, should be ~= learning_rate/10 per Chinchilla
+min_lr: 8e-6
+
+# max learning rate
+learning_rate: 8e-5
