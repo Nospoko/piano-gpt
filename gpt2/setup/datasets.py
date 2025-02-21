@@ -22,15 +22,18 @@ from gpt2.utils import (
 
 class DatasetsSetup(NamedTuple):
     hf_dataset: HFDataset
+    train_dataset: MidiDataset
+    music_manager: MusicManager
     train_loader: CyclicalDataLoader
     tokenizer: ExponentialTimeTokenizer
+    val_datasets: dict[str, MidiDataset]
     val_loaders: dict[str, CyclicalDataLoader]
 
 
 def loaders_setup(
     cfg: DictConfig,
     train_dataset: MidiDataset,
-    val_datasets: dict[str:MidiDataset],
+    val_datasets: dict[str, MidiDataset],
     device_setup: DeviceSetup,
 ) -> tuple[CyclicalDataLoader, dict[str, CyclicalDataLoader]]:
     train_sampler = MemoryEfficientRandomSampler(
@@ -71,12 +74,14 @@ def loaders_setup(
 def next_token_prediction_setup(
     cfg: DictConfig,
     device_setup: DeviceSetup,
-    music_manager: MusicManager,
+    tokenizer: ExponentialTimeTokenizer = None,
 ) -> DatasetsSetup:
-    tokenizer = load_tokenizer(
-        cfg=cfg,
-        special_tokens=music_manager.tokens,
-    )
+    music_manager = MusicManager()
+    if not tokenizer:
+        tokenizer = load_tokenizer(
+            cfg=cfg,
+            special_tokens=music_manager.tokens,
+        )
     hf_dataset = create_tokenized_dataset(
         cfg=cfg,
         tokenizer=tokenizer,
@@ -99,6 +104,9 @@ def next_token_prediction_setup(
     )
 
     datasets_setup = DatasetsSetup(
+        music_manager=music_manager,
+        train_dataset=train_dataset,
+        val_datasets=val_datasets,
         train_loader=train_loader,
         val_loaders=val_loaders,
         hf_dataset=hf_dataset,
@@ -111,14 +119,16 @@ def next_token_prediction_setup(
 def piano_task_setup(
     cfg: DictConfig,
     device_setup: DeviceSetup,
-    music_manager: MusicManager,
+    tokenizer: ExponentialTimeTokenizer = None,
 ) -> DatasetsSetup:
     hf_dataset = create_augmented_dataset(cfg)
 
-    tokenizer = load_tokenizer(
-        cfg=cfg,
-        special_tokens=music_manager.tokens,
-    )
+    music_manager = MusicManager()
+    if not tokenizer:
+        tokenizer = load_tokenizer(
+            cfg=cfg,
+            special_tokens=music_manager.tokens,
+        )
 
     tasks_config = OmegaConf.to_container(cfg.tasks, resolve=True)
     piano_task_manager = PianoTaskManager(tasks_config=tasks_config)
@@ -146,6 +156,9 @@ def piano_task_setup(
     )
 
     datasets_setup = DatasetsSetup(
+        music_manager=music_manager,
+        train_dataset=train_dataset,
+        val_datasets=val_datasets,
         train_loader=train_loader,
         val_loaders=val_loaders,
         hf_dataset=hf_dataset,

@@ -10,7 +10,6 @@ from torch.distributed import destroy_process_group
 from midi_tokenizers import ExponentialTimeTokenizer
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from data.musicality import MusicManager
 from gpt2.model import GPT, estimate_mfu
 from gpt2.setup.training import RunStats
 from gpt2.setup.hardware import DeviceSetup
@@ -59,18 +58,17 @@ def resume_training(resume_cfg: DictConfig):
 
     backprop_setup.optimizer.load_state_dict(checkpoint["optimizer"])
 
-    music_manager = MusicManager()
     if run_cfg.model_task == "next_token_prediction":
         datasets_setup = data_setup.next_token_prediction_setup(
             cfg=run_cfg,
+            tokenizer=tokenizer,
             device_setup=device_setup,
-            music_manager=music_manager,
         )
     elif run_cfg.model_task == "piano_task":
         datasets_setup = data_setup.piano_task_setup(
             cfg=run_cfg,
+            tokenizer=tokenizer,
             device_setup=device_setup,
-            music_manager=music_manager,
         )
 
     logging_setup.wandb_resume(
@@ -115,18 +113,15 @@ def training_from_scratch(cfg: DictConfig):
     cfg.training.gradient_accumulation_steps = gradient_accumulation_steps
 
     # TODO This manager should probably go to the dataset setup
-    music_manager = MusicManager()
     if cfg.model_task == "next_token_prediction":
         datasets_setup = data_setup.next_token_prediction_setup(
             cfg=cfg,
             device_setup=device_setup,
-            music_manager=music_manager,
         )
     elif cfg.model_task == "piano_task":
         datasets_setup = data_setup.piano_task_setup(
             cfg=cfg,
             device_setup=device_setup,
-            music_manager=music_manager,
         )
 
     # init a new model from scratch

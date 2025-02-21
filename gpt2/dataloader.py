@@ -27,6 +27,7 @@ class CyclicalDataLoader:
             num_workers=num_workers,
         )
         self.iterator = iter(self.dataloader)
+        self.epoch = 0
 
     def get_batch(self):
         try:
@@ -35,6 +36,7 @@ class CyclicalDataLoader:
             # Reset the iterator when it's exhausted
             self.iterator = iter(self.dataloader)
             batch = next(self.iterator)
+            self.epoch += 1
 
         x = batch["source_token_ids"].to(self.device, non_blocking=True)
         y = batch["target_token_ids"].to(self.device, non_blocking=True)

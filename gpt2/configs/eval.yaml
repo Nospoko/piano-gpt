@@ -11,7 +11,7 @@ eval_splits:
   - full_val
 
 # Relative path to the model
-init_from: ""
+checkpoint_path:
 
 temperature: 1
 
@@ -26,5 +26,6 @@ system:
 
 logging:
   wandb_log: True
+  wandb_entity: 'epr-labs'
   wandb_project: 'piano-gpt'
   log_interval: 20
