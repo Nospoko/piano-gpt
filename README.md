@@ -21,7 +21,7 @@ python -m gpt2.main --config-name=resume_training checkpoint_path=</path/to/chec
 Calculate PIANO metrics:
 
 ```sh
-python -m gpt2.high_level_piano_eval init_from=<checkpoint path>
+python -m gpt2.piano_eval init_from=<checkpoint path>
 ```
 
 ## Overview

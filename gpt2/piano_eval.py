@@ -9,8 +9,8 @@ import streamlit as st
 import streamlit_pianoroll
 from dotenv import load_dotenv
 from omegaconf import OmegaConf, DictConfig
+from midi_tokenizers import ExponentialTimeTokenizer
 from piano_metrics.piano_metric import MetricsManager
-from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
 
 from gpt2.model import GPT
 from gpt2.setup.hardware import DeviceSetup
@@ -23,8 +23,6 @@ load_dotenv()
 
 @hydra.main(config_path="configs", config_name="eval", version_base=None)
 def main(eval_cfg: DictConfig):
-    device = eval_cfg.system.device
-
     print("Running high level piano eval with config:")
     print(json.dumps(OmegaConf.to_container(eval_cfg), indent=2))
 
@@ -33,6 +31,11 @@ def main(eval_cfg: DictConfig):
         weights_only=False,
     )
     run_cfg = OmegaConf.create(checkpoint["run_config"])
+    if "wandb_run_name" not in checkpoint:
+        print("This script is dedicated to uploading eval results to wandb")
+        print("Refusing to run on a checkpoint that wasn't tracked in wandb!")
+        return
+
     device_setup = hardware_setup.setup_device(run_cfg)
 
     # Load tokenizer
@@ -55,18 +58,12 @@ def main(eval_cfg: DictConfig):
     model_cfg = checkpoint["model_cfg"]
     model = GPT(
         config=model_cfg,
-        vocab_size=tokenizer.vocab_size,
-        pad_token_id=tokenizer.pad_token_id,
+        vocab_size=datasets_setup.tokenizer.vocab_size,
+        pad_token_id=datasets_setup.tokenizer.pad_token_id,
     )
     state_dict = checkpoint["model"]
     model.load_state(state_dict=state_dict)
     model.to(device_setup.device)
-
-    # This can happen if we pretrain a model with a HUGE context size,
-    # but want to use smaller context size for finetuning
-    if eval_cfg.data.context_size < model.config.context_size:
-        model.crop_context_size(eval_cfg.data.context_size)
-        model_cfg["context_size"] = eval_cfg.data.context_size
 
     if eval_cfg.system.compile:
         print("compiling the model... (takes a ~minute)")
@@ -75,7 +72,7 @@ def main(eval_cfg: DictConfig):
     metrics, example_generations = run_eval(
         cfg=eval_cfg,
         model=model,
-        device=device,
+        device_setup=device_setup,
         datasets_setup=datasets_setup,
         dtype=eval_cfg.system.dtype,
     )
@@ -137,7 +134,6 @@ def run_eval(
     cfg: DictConfig,
     model: GPT,
     device_setup: DeviceSetup,
-    tokenizer: MidiTokenizer,
     datasets_setup: DatasetsSetup,
     dtype: str,
 ):
@@ -162,7 +158,7 @@ def run_eval(
 
         # FIXME Not a good way to initialize
         metric_trackers = {
-            "loss": torch.zeros(cfg.eval_iters),
+            "loss": torch.zeros(cfg.n_eval_samples),
         }
 
         for it, record in enumerate(records):
@@ -185,19 +181,19 @@ def run_eval(
             # TODO What is 2048?
             # How is this related to the context length? Shouldn't this be in the config?
             out_tokens = model.generate(
-                input_token_ids,
+                idx=input_token_ids,
                 max_new_tokens=2048 - prompt_length,
                 temperature=cfg.temperature,
             )
             generated_token_ids = out_tokens[0, prompt_length:].cpu().numpy()
-            generated_df = tokenizer.decode(token_ids=generated_token_ids)
+            generated_df = datasets_setup.tokenizer.decode(token_ids=generated_token_ids)
 
             if generated_df.empty:
                 print("No valid dataframe generated, moving forward")
                 continue
 
             original_token_ids = target_token_ids[prompt_length:].cpu().numpy()
-            target_df = tokenizer.decode(token_ids=original_token_ids)
+            target_df = datasets_setup.tokenizer.decode(token_ids=original_token_ids)
 
             # Cropping because we have no EOS token
             if not generated_df.empty:
@@ -207,7 +203,7 @@ def run_eval(
 
             # Store first example from each split for visualization
             prompt_token_ids = source_token_ids[:prompt_length].cpu().numpy()
-            prompt_df = tokenizer.decode(token_ids=prompt_token_ids)
+            prompt_df = datasets_setup.tokenizer.decode(token_ids=prompt_token_ids)
 
             # TODO: Implement of a better way of showing examples
             example_generations[split] = {
@@ -222,9 +218,6 @@ def run_eval(
                 generated_df=generated_df,
             )
 
-            # TODO I was not able to test it (this loops needs a redesign)
-            # so this may break something. I did try to recreate the same
-            # storage in "batch_metrics", but with new names coming from the PIANO package
             for metric_result in metric_results:
                 # Each PIANO metric calculates multiple numbers we can track
                 for sub_metric_name, metric_value in metric_result.metrics.items():
@@ -247,18 +240,22 @@ def run_eval(
                     dim=0,
                 )
                 training_mask = torch.unsqueeze(input=mask, dim=0)
-                logits, loss = model(training_input_ids, training_target_ids, training_mask)
+                logits, loss = model(
+                    idx=training_input_ids,
+                    targets=training_target_ids,
+                    target_mask=training_mask,
+                )
 
             metric_trackers["loss"][it] = loss.item()
             for metric_name, values in batch_metrics.items():
                 if metric_name not in metric_trackers:
-                    metric_trackers[metric_name] = torch.zeros(cfg.eval_iters)
+                    metric_trackers[metric_name] = torch.zeros(cfg.n_eval_samples)
                 metric_trackers[metric_name][it] = torch.tensor(values).mean()
 
             iteration_time = time.time() - t0
             if it % 5 == 0:
                 print(f"Iteration time: {iteration_time:.2f}s")
-                metrics_str = f"{split}, iter: {it}/{cfg.eval_iters}, loss: {loss.item():.4f}"
+                metrics_str = f"{split}, iter: {it}/{cfg.n_eval_samples}, loss: {loss.item():.4f}"
                 for metric_name, tracker in metric_trackers.items():
                     if metric_name != "loss":
                         metrics_str += f"\n- {metric_name}: {tracker[it]:.4f}"
