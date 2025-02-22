@@ -6,10 +6,10 @@ from omegaconf import OmegaConf, DictConfig
 from piano_dataset.piano_tasks import PianoTaskManager
 from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
 
-from data.dataset import MidiDataset
-from data.musicality import MusicManager
-from data.piano_dataset import PianoDataset
-from data.next_token_dataset import NextTokenDataset
+from gpt2.data.dataset import MidiDataset
+from gpt2.data.musicality import MusicManager
+from gpt2.data.piano_dataset import PianoDataset
+from gpt2.data.next_token_dataset import NextTokenDataset
 
 
 def load_cfg(checkpoint: dict) -> DictConfig:
@@ -36,10 +36,11 @@ def load_raw_dataset(cfg: DictConfig, tokenizer: MidiTokenizer) -> Dataset:
     dataset_config = OmegaConf.to_container(cfg.dataset)
 
     if cfg.stage == "next_token_pretraining":
-        dataset_path = to_absolute_path("./midi_datasets/MidiTokenizedDataset")
+        dataset_path = to_absolute_path("./gpt2/midi_datasets/MidiTokenizedDataset")
         dataset_config["tokenizer_dict"] = tokenizer.to_dict()
-    else:  # piano_task
-        dataset_path = to_absolute_path("./midi_datasets/AugmentedDataset")
+    else:
+        # for piano_tasks
+        dataset_path = to_absolute_path("./gpt2/midi_datasets/AugmentedDataset")
 
     return load_dataset(
         dataset_path,
@@ -65,8 +66,9 @@ def create_tokenized_dataset(cfg: DictConfig, tokenizer: MidiTokenizer) -> Datas
     dataset_config = OmegaConf.to_container(cfg.dataset)
     dataset_config["tokenizer_dict"] = tokenizer.to_dict()
 
+    dataset_path = to_absolute_path("./gpt2/midi_datasets/MidiTokenizedDataset")
     return load_dataset(
-        path=to_absolute_path("./midi_datasets/MidiTokenizedDataset"),
+        path=dataset_path,
         trust_remote_code=True,
         num_proc=cfg.system.data_workers,
         **dataset_config,
@@ -76,7 +78,7 @@ def create_tokenized_dataset(cfg: DictConfig, tokenizer: MidiTokenizer) -> Datas
 def create_augmented_dataset(cfg: DictConfig) -> Dataset:
     """Load raw hf dataset for piano tasks."""
     return load_dataset(
-        path=to_absolute_path("./midi_datasets/AugmentedDataset"),
+        path=to_absolute_path("./gpt2/midi_datasets/AugmentedDataset"),
         trust_remote_code=True,
         num_proc=cfg.system.data_workers,
         **OmegaConf.to_container(cfg.dataset),

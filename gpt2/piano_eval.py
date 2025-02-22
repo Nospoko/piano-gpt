@@ -4,9 +4,6 @@ import time
 import hydra
 import torch
 import wandb
-import fortepyan as ff
-import streamlit as st
-import streamlit_pianoroll
 from dotenv import load_dotenv
 from omegaconf import OmegaConf, DictConfig
 from midi_tokenizers import ExponentialTimeTokenizer
@@ -31,7 +28,7 @@ def main(eval_cfg: DictConfig):
         weights_only=False,
     )
     run_cfg = OmegaConf.create(checkpoint["run_config"])
-    if "wandb_run_name" not in checkpoint:
+    if "wandb_id" not in checkpoint:
         print("This script is dedicated to uploading eval results to wandb")
         print("Refusing to run on a checkpoint that wasn't tracked in wandb!")
         return
@@ -80,7 +77,7 @@ def main(eval_cfg: DictConfig):
     if eval_cfg.logging.wandb_log:
         setup_wandb(
             eval_cfg=eval_cfg,
-            wandb_group=checkpoint["wandb_run_name"],
+            wandb_group=checkpoint["run_name"],
         )
 
         metrics_flat = {}
@@ -90,8 +87,8 @@ def main(eval_cfg: DictConfig):
             }
 
         wandb_logs = {
-            "iter": checkpoint["iter_num"],
-            "total_tokens": checkpoint["total_tokens"],
+            "iter": checkpoint["run_stats"]["iter"],
+            "total_tokens": checkpoint["run_stats"]["total_tokens"],
             **metrics_flat,
         }
         wandb.log(wandb_logs)
@@ -102,31 +99,6 @@ def main(eval_cfg: DictConfig):
         print(f"\n{split}:")
         for metric, value in split_metrics.items():
             print(f"{metric}: {value:.4f}")
-
-    st.title("Generation Examples")
-
-    for split, data in example_generations.items():
-        st.write(f"\n### {split} Split Example")
-
-        # Create fortepyan pieces
-        prompt_piece = ff.MidiPiece(data["prompt"])
-        generated_piece = ff.MidiPiece(data["generated"])
-
-        original_piece = ff.MidiPiece(data["original"])
-        if "next_token_pretraining" in run_cfg.stage:
-            generated_piece.time_shift(prompt_piece.end)
-            original_piece.time_shift(prompt_piece.end)
-
-        st.write("#### Prompt + Generated")
-        streamlit_pianoroll.from_fortepyan(
-            piece=ff.MidiPiece(data["prompt"]),
-            secondary_piece=ff.MidiPiece(data["generated"]),
-        )
-        st.write("#### Original")
-        streamlit_pianoroll.from_fortepyan(
-            piece=prompt_piece,
-            secondary_piece=original_piece,
-        )
 
 
 @torch.no_grad()

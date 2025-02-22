@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import Sampler, DataLoader
 
-from data.dataset import MidiDataset
+from gpt2.data.dataset import MidiDataset
 
 
 class CyclicalDataLoader:

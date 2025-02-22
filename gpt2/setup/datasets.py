@@ -5,12 +5,12 @@ from omegaconf import OmegaConf, DictConfig
 from midi_tokenizers import ExponentialTimeTokenizer
 from piano_dataset.piano_tasks import PianoTaskManager
 
-from data.dataset import MidiDataset
-from data.musicality import MusicManager
-from data.piano_dataset import PianoDataset
+from gpt2.data.dataset import MidiDataset
 from gpt2.setup.hardware import DeviceSetup
+from gpt2.data.musicality import MusicManager
 from gpt2.dataloader import CyclicalDataLoader
-from data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
+from gpt2.data.piano_dataset import PianoDataset
+from gpt2.data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
 from gpt2.utils import (
     load_tokenizer,
     create_piano_datasets,

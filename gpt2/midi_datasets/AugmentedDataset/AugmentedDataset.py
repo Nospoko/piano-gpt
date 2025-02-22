@@ -4,13 +4,9 @@ import datasets
 import numpy as np
 import fortepyan as ff
 from datasets import Split, Dataset, DatasetInfo, GeneratorBasedBuilder
-from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
-from data.augmentation import augment_dataset
-from data.tokenizer_utils import load_tokenizer_if_exists
-from midi_datasets.MidiTokenizedDataset.MidiTokenizedDatasetConfig import BUILDER_CONFIGS, MidiTokenizedDatasetConfig
-
-# FIXME no camel case in python file names
+from gpt2.data.augmentation import augment_dataset
+from gpt2.midi_datasets.AugmentedDataset.AugmentedDatasetConfig import BUILDER_CONFIGS, AugmentedDatasetConfig
 
 # NOTE: If you make some changes here, you might want to delete your huggingface cache
 # at ~/.cache/huggingface/ to rebuild the datasets
@@ -20,7 +16,7 @@ Dataset with MIDI files, divided into source_notes and target_notes with equal s
 """
 
 
-class MidiTokenizedDataset(GeneratorBasedBuilder):
+class AugmentedDataset(GeneratorBasedBuilder):
     """
     Dataset builder for sub-sequence-prediction MIDI datasets.
 
@@ -38,26 +34,17 @@ class MidiTokenizedDataset(GeneratorBasedBuilder):
         return DatasetInfo(description=_DESC)
 
     # Define the configuration class and available configurations
-    BUILDER_CONFIG_CLASS = MidiTokenizedDatasetConfig
+    BUILDER_CONFIG_CLASS = AugmentedDatasetConfig
     BUILDER_CONFIGS = BUILDER_CONFIGS
-    DEFAULT_CONFIG_NAME = "basic-no-overlap"
+    DEFAULT_CONFIG_NAME = "basic"
 
     def _split_generators(self, dl_manager: datasets.DownloadManager) -> list[datasets.SplitGenerator]:
         # Load the base dataset and additional datasets
         base = datasets.load_dataset(self.config.base_dataset_name)
-
-        other_datasets = []
-        for dataset_path in self.config.extra_datasets:
-            print("Downloading:", dataset_path)
-            other_dataset = datasets.load_dataset(dataset_path, split="train", num_proc=16)
-            other_datasets.append(other_dataset)
+        other_datasets = [datasets.load_dataset(path, split="train") for path in self.config.extra_datasets]
 
         # Concatenate all datasets and apply augmentation
         dataset = datasets.concatenate_datasets(other_datasets)
-
-        # TODO Augmentation doesn't make sense here if we're using cached
-        # augmented datasets. We should remove it and have a separate script
-        # to cache a dataset with augmentation applied
         dataset = augment_dataset(
             dataset=dataset,
             max_pitch_shift=self.config.augmentation["max_pitch_shift"],
@@ -68,11 +55,10 @@ class MidiTokenizedDataset(GeneratorBasedBuilder):
         n_train_shards = 128
         train_shards = [dataset.shard(n_train_shards, it) for it in range(n_train_shards)]
 
-        n_shards = 32
+        n_shards = 64
         validation_shards = [base["validation"].shard(n_shards, it) for it in range(n_shards)]
         test_shards = [base["test"].shard(n_shards, it) for it in range(n_shards)]
 
-        self.tokenizer = self.get_tokenzier()
         return [
             datasets.SplitGenerator(name=Split.TRAIN, gen_kwargs={"dataset_shards": train_shards}),
             datasets.SplitGenerator(name=Split.TEST, gen_kwargs={"dataset_shards": test_shards}),
@@ -121,35 +107,26 @@ class MidiTokenizedDataset(GeneratorBasedBuilder):
                 piece = ff.MidiPiece.from_huggingface(dict(record))
                 pieces = self.filter_pauses(piece)
                 all_records = [self.create_record(piece) for piece in pieces]
-                all_records = [record for record in all_records if record["note_token_ids"] is not None]
+                all_records = [record for record in all_records if self.validate_record(record=record)]
                 for jt, sequence in enumerate(all_records):
                     key = f"{it}_{jt}_{shard_id}"
                     yield key, sequence
+
+    def validate_record(self, record: dict):
+        if len(record["notes"]["pitch"]) < 2:
+            return False
+        if min(record["notes"]["pitch"]) < 21 or max(record["notes"]["pitch"]) >= 109:
+            return False
+        return True
 
     def create_record(self, piece: ff.MidiPiece) -> tuple[dict, bool]:
         """
         Method that defines a record in the dataset.
         """
-        try:
-            encoding = self.tokenizer.encode_notes_df(notes_df=piece.df)
-            n_tokens = len(encoding)
-        except KeyError:
-            # TODO Why would that happen?
-            encoding = None
-            n_tokens = 0
-
         record = {
-            "n_tokens": n_tokens,
-            "note_token_ids": encoding,
+            "notes": piece.df,
+            "n_notes": len(piece.df),
             "source": json.dumps(piece.source),
         }
 
         return record
-
-    def get_tokenzier(self) -> ExponentialTimeTokenizer | AwesomeMidiTokenizer:
-        tokenizer_dict = self.config.tokenizer_dict
-        if tokenizer_dict["name"] == "ExponentialTimeTokenizer":
-            return ExponentialTimeTokenizer.from_dict(tokenizer_dict)
-        else:
-            # TODO I hope this is not used (if it is, let's get rid of it and in the future be explicit)
-            return load_tokenizer_if_exists(tokenizer_cfg=self.config.tokenizer_dict)

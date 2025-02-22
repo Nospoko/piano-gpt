@@ -5,8 +5,8 @@ import numpy as np
 from datasets import Dataset as HuggingFaceDataset
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
-from data.dataset import MidiDataset
-from data.musicality import MusicManager
+from gpt2.data.dataset import MidiDataset
+from gpt2.data.musicality import MusicManager
 
 
 class NextTokenDataset(MidiDataset):

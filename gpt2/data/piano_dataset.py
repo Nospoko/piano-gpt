@@ -8,8 +8,8 @@ from datasets import Dataset as HuggingFaceDataset
 from piano_dataset.piano_tasks import PianoTaskManager
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
-from data.dataset import MidiDataset
-from data.musicality import MusicManager
+from gpt2.data.dataset import MidiDataset
+from gpt2.data.musicality import MusicManager
 
 
 class PianoDataset(MidiDataset):

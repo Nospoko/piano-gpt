@@ -4,9 +4,8 @@ import hashlib
 
 from datasets import load_dataset
 from hydra.utils import to_absolute_path
-from midi_tokenizers import AwesomeMidiTokenizer
-
 from data.augmentation import augment_dataset
+from midi_tokenizers import AwesomeMidiTokenizer
 
 
 def train_awesome_tokenizer(tokenizer: AwesomeMidiTokenizer, dataset_dict) -> AwesomeMidiTokenizer:
