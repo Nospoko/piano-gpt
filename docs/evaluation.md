@@ -24,7 +24,7 @@ Key configuration options:
 ```yaml
 eval_iters: 50               # Number of evaluation iterations per split
 temperature: 1               # Generation temperature
-loss_masking: pretraining    # Loss mask type
+prompt_masking: false        # Loss mask type
 eval_splits: ["full_val"]    # Splits to use in evaluation, multiple choice from bach, mozart, chopin, full_val
 ```
 

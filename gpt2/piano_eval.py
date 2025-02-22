@@ -52,12 +52,12 @@ def main(eval_cfg: DictConfig):
             device_setup=device_setup,
         )
 
-    model_cfg = checkpoint["model_cfg"]
     model = GPT(
-        config=model_cfg,
+        config=checkpoint["model_cfg"],
         vocab_size=datasets_setup.tokenizer.vocab_size,
         pad_token_id=datasets_setup.tokenizer.pad_token_id,
     )
+
     state_dict = checkpoint["model"]
     model.load_state(state_dict=state_dict)
     model.to(device_setup.device)

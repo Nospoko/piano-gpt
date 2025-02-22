@@ -7,13 +7,13 @@ Controls training stage and model initialization:
 ```yaml
 stage: "piano_task"
 init_from: "scratch_next_token"
-loss_masking: "pretraining"
+prompt_masking: false
 ```
 
 Important parameters:
 - `stage`: Training stage ("piano_task" or "next_token_pretraining")
 - `init_from`: Initialization mode ("scratch_next_token" or path to checkpoint for finetuning)
-- `loss_masking`: Loss calculation mode ("pretraining" or "finetuning"). Finetuning makes the loss be calculated only on target tokens (those after the `<GENAI>` token in the sequence).
+- `prompt_masking`: Loss calculation mode - true masks the prompt and the loss is calculated only on target tokens (those after the `<GENAI>` token in the sequence).
 
 Implementation:
 

@@ -32,18 +32,23 @@ class CausalSelfAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
         assert config.n_embd % config.n_head == 0
+
         # key, query, value projections for all heads, but in a batch
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=config.bias)
+
         # output projection
         self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
+
         # regularization
         self.attn_dropout = nn.Dropout(config.dropout)
         self.resid_dropout = nn.Dropout(config.dropout)
         self.n_head = config.n_head
         self.n_embd = config.n_embd
         self.dropout = config.dropout
+
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
         self.flash = hasattr(torch.nn.functional, "scaled_dot_product_attention")
+
         if not self.flash:
             print("WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0")
             # causal mask to ensure that attention is only applied to the left in the input sequence
@@ -65,8 +70,13 @@ class CausalSelfAttention(nn.Module):
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         if self.flash:
             # efficient attention using Flash Attention CUDA kernels
-            y = torch.nn.functional.scaled_dot_product_attention(
-                q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True
+            y = F.scaled_dot_product_attention(
+                query=q,
+                key=k,
+                value=v,
+                attn_mask=None,
+                dropout_p=self.dropout if self.training else 0,
+                is_causal=True,
             )
         else:
             # manual implementation of attention
@@ -128,7 +138,7 @@ class GPT(nn.Module):
             dict(
                 wte=nn.Embedding(vocab_size, config.n_embd, padding_idx=self.pad_token_id),
                 wpe=nn.Embedding(config.context_size, config.n_embd, padding_idx=self.pad_token_id),
-                drop=nn.Dropout(config.dropout),
+                dropout=nn.Dropout(config.dropout),
                 h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
                 ln_f=LayerNorm(config.n_embd, bias=config.bias),
             )
@@ -179,23 +189,34 @@ class GPT(nn.Module):
         pos = torch.arange(0, t, dtype=torch.long, device=device)  # shape (t)
 
         # forward the GPT model itself
-        tok_emb = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
-        pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
-        x = self.transformer.drop(tok_emb + pos_emb)
+        # token embeddings of shape (b, t, n_embd)
+        tok_emb = self.transformer.wte(idx)
+        # position embeddings of shape (t, n_embd)
+        pos_emb = self.transformer.wpe(pos)
+
+        x = self.transformer.dropout(tok_emb + pos_emb)
+
         for block in self.transformer.h:
             x = block(x)
+
         x = self.transformer.ln_f(x)
 
         if targets is not None:
             if target_mask is not None:
                 # Insert ignored id everywhere the  target mask is False
                 targets[~target_mask] = -100
+
             # if we are given some desired targets also calculate the loss
             logits = self.lm_head(x)
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-100)
+            loss = F.cross_entropy(
+                input=logits.view(-1, logits.size(-1)),
+                target=targets.view(-1),
+                ignore_index=-100,
+            )
         else:
             # inference-time mini-optimization: only forward the lm_head on the very last position
-            logits = self.lm_head(x[:, [-1], :])  # note: using list [-1] to preserve the time dim
+            # note: using list [-1] to preserve the time dim
+            logits = self.lm_head(x[:, [-1], :])
             loss = None
 
         return logits, loss

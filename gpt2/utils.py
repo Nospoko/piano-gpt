@@ -126,7 +126,7 @@ def create_piano_datasets(
         tokenizer=tokenizer,
         music_manager=music_manager,
         context_size=cfg.training.context_size,
-        loss_masking=cfg.training.loss_masking,
+        prompt_masking=cfg.training.prompt_masking,
         notes_per_record=cfg.training.notes_per_record,
         piano_task_manager=piano_task_manager,
     )
@@ -138,7 +138,7 @@ def create_piano_datasets(
             tokenizer=tokenizer,
             music_manager=music_manager,
             context_size=cfg.training.context_size,
-            loss_masking=cfg.training.loss_masking,
+            prompt_masking=cfg.training.prompt_masking,
             notes_per_record=cfg.training.notes_per_record,
             piano_task_manager=piano_task_manager,
         )

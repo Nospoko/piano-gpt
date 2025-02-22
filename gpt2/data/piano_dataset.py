@@ -1,5 +1,4 @@
 import json
-from typing import Literal
 
 import torch
 import numpy as np
@@ -24,13 +23,13 @@ class PianoDataset(MidiDataset):
         notes_per_record: int,
         music_manager: MusicManager,
         piano_task_manager: PianoTaskManager,
-        loss_masking: Literal["finetuning", "pretraining"] = "pretraining",
+        prompt_masking: bool = False,
     ):
         # Initialize the parent class and set instance variables
         super().__init__(dataset=dataset, tokenizer=tokenizer)
 
         self.length = 0
-        self.loss_masking = loss_masking
+        self.prompt_masking = prompt_masking
         self.context_size = context_size
         self.music_manager = music_manager
         self.notes_per_record = notes_per_record
@@ -47,7 +46,8 @@ class PianoDataset(MidiDataset):
         yield "n_midi_records", len(self.record_lengths)
         yield "notes_per_record", self.notes_per_record
         yield "context_size", self.context_size
-        yield "piano_tasks", self.piano_task_names
+        yield "n_piano_tasks", len(self.piano_task_names)
+        yield "prompt_masking", self.prompt_masking
 
     def _build_records(self):
         """
@@ -79,6 +79,7 @@ class PianoDataset(MidiDataset):
             if start_point < record_length:
                 return record_id, start_point, task_name
             start_point -= record_length
+
         raise IndexError("Index out of range")
 
     def __getitem__(self, idx: int) -> dict:
@@ -147,10 +148,12 @@ class PianoDataset(MidiDataset):
         source_token_ids = torch.tensor(source_encoding, dtype=torch.int64)
         target_token_ids = torch.tensor(target_encoding, dtype=torch.int64)
 
-        # Create target mask
+        # Create target mask, False means ignore
         target_mask = target_token_ids != self.tokenizer.pad_token_id
 
-        if self.loss_masking == "finetuning":
+        # Ignore the prompt for loss calculation
+        # only worry about the response
+        if self.prompt_masking:
             target_mask[: len(prompt_token_ids)] = False
 
         # Prepare the output dictionary

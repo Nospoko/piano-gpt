@@ -23,7 +23,7 @@ eval_interval: 500
 eval_iters: 100
 
 training:
-  loss_masking: pretraining
+  prompt_masking: false
   context_size: 2048
   notes_per_record: 128
   # What you want the model to see
