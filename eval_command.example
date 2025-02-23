@@ -1,8 +1,0 @@
-PYTHONPATH=. streamlit  run --server.port 8080 \
-gpt2/high_level_piano_eval.py \
-system.device=cuda:0 \
-data.batch_size=4 \
-eval_iters=50 \
-data.context_size=4096 \
-data.notes_per_record=512 \
-init_from=midi-gpt2-302M-subsequence-2024-11-11-18-03last.pt \
