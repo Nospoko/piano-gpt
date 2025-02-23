@@ -343,6 +343,8 @@ def training_loop(
                     {
                         "iter": run_stats.iter,
                         "total_tokens": run_stats.total_tokens,
+                        "data_epoch": datasets_setup.train_loader.epoch,
+                        "data_batch": datasets_setup.train_loader.batch_counter,
                         "loss/train_loss_batch": losses["train"].item(),
                         "loss/best_val_loss": run_stats.best_val_loss,
                         "loss/val_loss_batch": losses["full_val"].item(),
