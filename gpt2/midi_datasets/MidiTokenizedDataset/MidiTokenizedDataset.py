@@ -47,7 +47,7 @@ class MidiTokenizedDataset(GeneratorBasedBuilder):
 
     def _split_generators(self, dl_manager: datasets.DownloadManager) -> list[datasets.SplitGenerator]:
         # Load the base dataset and additional datasets
-        base = datasets.load_dataset(self.config.base_dataset_name)
+        base = datasets.load_dataset(self.config.base_dataset_name, num_proc=16)
 
         other_datasets = []
         for dataset_path in self.config.extra_datasets:

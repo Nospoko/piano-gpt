@@ -40,8 +40,13 @@ class AugmentedDataset(GeneratorBasedBuilder):
 
     def _split_generators(self, dl_manager: datasets.DownloadManager) -> list[datasets.SplitGenerator]:
         # Load the base dataset and additional datasets
-        base = datasets.load_dataset(self.config.base_dataset_name)
-        other_datasets = [datasets.load_dataset(path, split="train") for path in self.config.extra_datasets]
+        base = datasets.load_dataset(self.config.base_dataset_name, num_proc=16)
+
+        other_datasets = []
+        for dataset_path in self.config.extra_datasets:
+            print("Downloading:", dataset_path)
+            other_dataset = datasets.load_dataset(dataset_path, split="train", num_proc=16)
+            other_datasets.append(other_dataset)
 
         # Concatenate all datasets and apply augmentation
         dataset = datasets.concatenate_datasets(other_datasets)
