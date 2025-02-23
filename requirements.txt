@@ -8,5 +8,5 @@ python-dotenv==1.0.0
 streamlit==1.37.0
 streamlit-pianoroll==0.7.1
 torch==2.5.1
-transformers==4.47.1
+transformers==4.48.0
 wandb==0.19.1
