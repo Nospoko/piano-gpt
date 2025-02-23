@@ -1,0 +1,43 @@
+defaults:
+  - model: gpt2_medium
+  - data: default
+  - dataset: augmented
+  - logging: subsequence
+  - lr: cosine_decay
+  - optimizer: default
+  - tokenizer: exponential
+  - tasks: denoising
+  - _self_
+
+out_dir: 'tmp/checkpoints'
+eval_interval: 64
+eval_iters: 32
+always_save_checkpoint: false  # if True, always save a checkpoint after each eval
+init_from: 'scratch_next_token'  # 'scratch_next_token' or 'midi-gpt2*'
+stage: next_token_pretraining
+
+loss_masking: pretraining
+
+ddp:
+  backend: 'nccl'  # 'nccl', 'gloo', etc.
+
+system:
+  device: 'cuda'  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
+  dtype: 'float16'  # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
+  compile: false  # use PyTorch 2.0 to compile the model to be faster
+  data_workers: 8
+
+data:
+  batch_size: 4
+model:
+  n_layer: 1
+  n_embd: 16
+  n_head: 1
+
+dataset:
+  extra_datasets: ["roszcz/maestro-sustain-v2"]
+  augmentation:
+    max_pitch_shift: 0
+    speed_change_factors: []
+logging:
+  log_interval: 2

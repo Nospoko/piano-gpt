@@ -1,0 +1,47 @@
+- class: TopLineMasking
+  params:
+    n_repetitions: 1
+
+- class: TopLineMasking
+  params:
+    n_repetitions: 2
+
+- class: TopLineMasking
+  params:
+    n_repetitions: 3
+
+- class: HighNotesMasking
+  params:
+    n_notes: 5
+
+- class: HighNotesMasking
+  params:
+    n_notes: 10
+
+- class: HighNotesMasking
+  params:
+    n_notes: 20
+
+- class: HighNotesMasking
+  params:
+    n_notes: 30
+
+- class: ShortNotesMasking
+  params:
+    n_notes: 10
+
+- class: ShortNotesMasking
+  params:
+    n_notes: 20
+
+- class: StrideMasking
+  params:
+    stride: 2
+
+- class: StrideMasking
+  params:
+    stride: 5
+
+- class: StrideMasking
+  params:
+    stride: 20

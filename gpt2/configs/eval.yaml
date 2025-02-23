@@ -1,27 +1,18 @@
 defaults:
   - data: default
-  - tokenizer: exponential
-  - dataset: augmented
-  - tasks: subsequence
+  - dataset: validation
   - metrics: default
-  - logging: eval
   - _self_
 
-eval_iters: 50
+n_eval_samples: 30
 
-dataset:
-  extra_datasets: ["epr-labs/maestro-sustain-v2"]
-  augmentation:
-    max_pitch_shift: 0
-    speed_change_factors: []
+# Available splits: "full_val", "bach", "chopin", "mozart"
+eval_splits:
+  - full_val
 
-# should be 'midi-gpt2*'
-# init_from: midi-gpt2-0M-subsequence-2024-11-20-16-41last.pt
-init_from: midi-gpt2-302M-subsequence-4096-ctx-2024-09-08-19-42.pt
+# Relative path to the model
+checkpoint_path:
 
-stage: piano_task
-
-loss_masking: pretraining
 temperature: 1
 
 system:
@@ -29,3 +20,9 @@ system:
   dtype: 'float16'  # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
   compile: true  # use PyTorch 2.0 to compile the model to be faster
   data_workers: 8
+
+logging:
+  wandb_log: True
+  wandb_entity: 'epr-labs'
+  wandb_project: 'piano-gpt'
+  log_interval: 20

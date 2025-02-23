@@ -1,0 +1,8 @@
+base_dataset_name: "epr-labs/maestro-sustain-v2"
+extra_datasets:
+  - "epr-labs/maestro-sustain-v2"
+  - "epr-labs/piano-midi-de"
+pause_detection_threshold: 4
+augmentation:
+  speed_change_factors: []
+  max_pitch_shift: 0

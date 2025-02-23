@@ -1,5 +1,29 @@
 # Piano-GPT: MIDI Piano Music Generation
 
+## Quickstart
+
+Train a 10M model:
+
+```sh
+# This will create checkpoints in ./tmp/checkpoints and logs in wandb
+python -m gpt2.train dataset=small model=gpt2_10M
+
+# No wandb, small memory footprint
+python -m gpt2.train dataset=small model=gpt2_10M training.microbatch_size=2 logging.wandb_log=false
+```
+
+Resume training:
+
+```sh
+python -m gpt2.main --config-name=resume_training checkpoint_path=</path/to/checkpoint.pt>
+```
+
+Calculate PIANO metrics:
+
+```sh
+python -m gpt2.piano_eval init_from=<checkpoint path>
+```
+
 ## Overview
 
 Piano-GPT is a project leveraging the GPT-2 architecture for generating and processing MIDI piano music. It introduces the PIANO (Performance Inference And Note Orchestration) dataset, a multi-task benchmark for voice and dynamic reconstruction in MIDI piano rolls.
@@ -28,8 +52,7 @@ The PIANO dataset is designed to standardize approaches and provide a benchmark 
 
 ## Project Structure
 
-- `artifacts.py`: Utility functions and constants
-- `checkpoints/`: Saved model checkpoints
+- `tmp/checkpoints/`: Saved model checkpoints
 - `dashboards/`: Streamlit dashboards for data visualization
 - `data/`: Dataset handling and preprocessing modules
 - `database/`: Database connection and management utilities
@@ -62,42 +85,41 @@ You can run the script in DDP mode and with custom configuration. You can change
 `gpt2/configs/*.yaml`, or specify the training hyperparameters from command line, for example
 ```sh
 PYTHONPATH=. torchrun --nproc-per-node=8 \
-gpt2/train.py --config-name=gpt2_pretraining \
-data.batch_size=32 \
-optimizer.gradient_accumulation_steps=8 \
-optimizer.max_iters=30000 \
-data.sequence_length=4096 \
-dataset.extra_datasets="['roszcz/maestro-sustain-v2', 'roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2']" \
-dataset.augmentation.max_pitch_shift=5 \
-"dataset.augmentation.speed_change_factors=[0.975, 0.95, 1.025, 1.05]" \
-lr.warmup_iters=1000 \
-lr.learning_rate=1e-5 \
-lr.min_lr=1e-6 \
-model=gpt2_large \
-system.data_workers=64 \
-system.compile=true \
-loss_masking=pretrianing \
-init_from=scratch
+    gpt2/train.py --config-name=gpt2_pretraining \
+    data.batch_size=32 \
+    optimizer.gradient_accumulation_steps=8 \
+    optimizer.max_iters=30000 \
+    data.context_size=4096 \
+    dataset.extra_datasets="['epr-labs/maestro-sustain-v2', 'epr-labs/giant-midi-sustain-v2', 'epr-labs/pianofor-ai-sustain-v2']" \
+    dataset.augmentation.max_pitch_shift=5 \
+    "dataset.augmentation.speed_change_factors=[0.975, 0.95, 1.025, 1.05]" \
+    lr.warmup_iters=1000 \
+    lr.learning_rate=1e-5 \
+    lr.min_lr=1e-6 \
+    model=gpt2_large \
+    system.data_workers=64 \
+    system.compile=true \
+    init_from=scratch
 ```
 
 or, for downstream tasks:
 ```sh
 PYTHONPATH=. torchrun --nproc-per-node=4 \
-gpt2/train.py --config-name=gpt2_piano \
-tasks = subsequence \
-data.batch_size=64 \
-optimizer.gradient_accumulation_steps=4 \
-optimizer.max_iters=30000 \
-data.sequence_length=1024 \
-data.notes_per_record=128 \
-dataset.extra_datasets="['roszcz/maestro-sustain-v2', 'roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2']" \
-dataset.augmentation.max_pitch_shift=5 \
-dataset.augmentation.speed_change_factors="[0.95, 1.05]" \
-lr.learning_rate=8e-5 \
-system.data_workers=128 \
-system.compile=true \
-loss_masking=finetuning \
-init_from=midi-gpt2-my-awesome-model.pt  # has to be located in checkpoints and the name needs to start with midi-gpt2
+    gpt2/train.py --config-name=gpt2_piano \
+    tasks = subsequence \
+    data.batch_size=64 \
+    optimizer.gradient_accumulation_steps=4 \
+    optimizer.max_iters=30000 \
+    data.context_size=1024 \
+    data.notes_per_record=128 \
+    dataset.extra_datasets="['epr-labs/maestro-sustain-v2', 'epr-labs/giant-midi-sustain-v2', 'epr-labs/pianofor-ai-sustain-v2']" \
+    dataset.augmentation.max_pitch_shift=5 \
+    dataset.augmentation.speed_change_factors="[0.95, 1.05]" \
+    lr.learning_rate=8e-5 \
+    system.data_workers=128 \
+    system.compile=true \
+    prompt_masking=true \
+    checkpoint_path=midi-gpt2-my-awesome-model.pt
 
 ```
 
@@ -115,9 +137,9 @@ system.data_workers=124 \
 optimizer.gradient_accumulation_steps=4 \
 task=next_token_prediction_with_composer \
 eval_iters=200 eval_interval=1000 \
-"dataset.extra_datasets=['roszcz/maestro-sustain-v2', 'roszcz/giant-midi-sustain-v2', 'roszcz/pianofor-ai-sustain-v2']" \
+"dataset.extra_datasets=['epr-labs/maestro-sustain-v2', 'epr-labs/giant-midi-sustain-v2', 'epr-labs/pianofor-ai-sustain-v2']" \
 data.batch_size=20 \
-data.sequence_length=4096 \
+data.context_size=4096 \
 logging.wandb_run_name_suffix=huge-pretraining-4096-ctx \
 tokenizer=awesome \
 logging.wandb_project=piano-awesome-gpt

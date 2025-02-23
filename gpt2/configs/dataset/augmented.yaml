@@ -1,5 +1,20 @@
-base_dataset_name: "roszcz/maestro-sustain-v2"
-extra_datasets: ["roszcz/maestro-sustain-v2", "roszcz/giant-midi-sustain-v2", "roszcz/pianofor-ai-sustain-v2"]
+# What to expect:
+# Downloads: ~20m (at 17MB/s)
+# Generating train split: 2001498 examples [1:15:27, 442.10 examples/s]
+base_dataset_name: "epr-labs/maestro-sustain-v2"
+extra_datasets:
+  - 'epr-labs/maestro-augmented'
+  - 'epr-labs/giant-midi-augmented'
+  - 'epr-labs/pianofor-ai-augmented'
+  - 'epr-labs/imslp-augmented'
+  - 'epr-labs/pijamia-midi-v1'
+  - 'epr-labs/vgmidi'
+  - 'epr-labs/jsb-chorales'
+  - 'epr-labs/piano-midi-de'
+  - 'epr-labs/atepp-1.1-sustain-v2'
+  - 'epr-labs/music-net'
+  - 'epr-labs/piast-midi'
+
 pause_detection_threshold: 4
 augmentation:
   speed_change_factors: []
