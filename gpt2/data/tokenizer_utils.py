@@ -4,7 +4,7 @@ import hashlib
 
 from datasets import load_dataset
 from hydra.utils import to_absolute_path
-from data.augmentation import augment_dataset
+from gpt2.data.augmentation import augment_dataset
 from midi_tokenizers import AwesomeMidiTokenizer
 
 
