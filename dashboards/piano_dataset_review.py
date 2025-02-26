@@ -10,86 +10,8 @@ from datasets import Dataset, load_dataset
 from midi_tokenizers import ExponentialTimeTokenizer
 from piano_dataset.piano_tasks import PianoTaskManager
 
-from data.piano_dataset import PianoDataset
-from artifacts import dataset_tokens, composer_tokens
-
-
-@st.cache_data()
-def load_hf_dataset(
-    config: dict,
-    dataset_name: str,
-    dataset_split: str,
-):
-    dataset = load_dataset(
-        f"midi_datasets/{dataset_name}",
-        split=dataset_split,
-        trust_remote_code=True,
-        num_proc=8,
-        **config,
-    )
-    return dataset
-
-
-def plot_target_mask(target_mask: torch.Tensor) -> plt.Figure:
-    fig, ax = plt.subplots(figsize=(12, 2))
-    cmap = plt.get_cmap("viridis")
-    from matplotlib.colors import Normalize
-
-    norm = Normalize(vmin=0, vmax=1)
-    ax.imshow(target_mask.unsqueeze(0), cmap=cmap, aspect="auto")
-    legend_elements = [
-        plt.Line2D([0], [0], color=cmap(norm(0)), lw=4, label="False"),
-        plt.Line2D([0], [0], color=cmap(norm(1)), lw=4, label="True"),
-    ]
-    ax.legend(
-        handles=legend_elements,
-        loc="upper right",
-        bbox_to_anchor=(1.1, 1.0),
-    )
-    ax.set_yticks([])
-    ax.set_xlabel("Token Position")
-    ax.set_title("Target Mask")
-    return fig
-
-
-@st.cache_data()
-def load_piano_dataset(
-    tokenizer_parameters: dict,
-    config: dict,
-    dataset_name: str,
-    dataset_split: str,
-    context_size: int,
-    notes_per_record: int,
-    loss_masking: str,
-    selected_composers: list[str],
-    selected_title: str,
-) -> tuple[PianoDataset, Dataset]:
-    dataset = load_hf_dataset(
-        config=config,
-        dataset_name=dataset_name,
-        dataset_split=dataset_split,
-    )
-
-    # Filter dataset
-    def filter_dataset(record):
-        source_data = json.loads(record["source"])
-        composer_match = source_data.get("composer") in selected_composers
-        title_match = selected_title == "All" or source_data.get("title") == selected_title
-        return composer_match and title_match
-
-    filtered_dataset = dataset.filter(filter_dataset)
-    parametric_task_manager = PianoTaskManager.load_default()
-
-    tokenizer = ExponentialTimeTokenizer(**tokenizer_parameters)
-    piano_dataset = PianoDataset(
-        dataset=filtered_dataset,
-        tokenizer=tokenizer,
-        context_size=context_size,
-        notes_per_record=notes_per_record,
-        piano_task_manager=parametric_task_manager,
-        loss_masking=loss_masking,
-    )
-    return piano_dataset, filtered_dataset
+from gpt2.data.musicality import MusicManager
+from gpt2.data.piano_dataset import PianoDataset
 
 
 def main():
@@ -116,9 +38,9 @@ def main():
                 value=2048,
                 step=1024,
             )
-            loss_masking = st.selectbox(
+            prompt_masking = st.selectbox(
                 label="Loss Calculation Style",
-                options=["pretraining", "finetuning"],
+                options=[True, False],
             )
 
         # tasks = st.multiselect(
@@ -132,8 +54,8 @@ def main():
     with st.form(key="tokenizer_form"):
         col1, col2 = st.columns(2)
         with col1:
-            min_time_unit = st.number_input(
-                label="Min Time Unit",
+            time_unit = st.number_input(
+                label="Time Unit",
                 value=0.01,
                 step=0.01,
                 format="%.3f",
@@ -154,11 +76,15 @@ def main():
         "base_dataset_name": base_dataset_name,
         "extra_datasets": [base_dataset_name],
     }
-    all_special_tokens = parametric_task_manager.get_special_tokens() + dataset_tokens + composer_tokens
+    music_manager = MusicManager()
+    special_tokens = parametric_task_manager.get_special_tokens()
+    special_tokens += music_manager.tokens
+    special_tokens += [PianoDataset.generation_token]
     tokenizer_parameters = {
-        "min_time_unit": min_time_unit,
+        "max_time_step": 1.0,
+        "time_unit": time_unit,
         "n_velocity_bins": n_velocity_bins,
-        "special_tokens": all_special_tokens,
+        "n_special_ids": 128,
     }
 
     dataset_name = "AugmentedDataset"
@@ -183,12 +109,14 @@ def main():
     selected_title = st.selectbox("Filter by Title", options=["All"] + titles, index=0)
     piano_dataset, filtered_dataset = load_piano_dataset(
         tokenizer_parameters=tokenizer_parameters,
+        special_tokens=special_tokens,
+        _music_manager=music_manager,
         config=config,
         dataset_name=dataset_name,
         dataset_split=dataset_split,
         context_size=context_size,
         notes_per_record=notes_per_record,
-        loss_masking=loss_masking,
+        prompt_masking=prompt_masking,
         selected_composers=selected_composers,
         selected_title=selected_title,
     )
@@ -307,6 +235,90 @@ def main():
     with col2:
         st.write("#### Target:")
         st.write(target_tokens)
+
+
+@st.cache_data()
+def load_hf_dataset(
+    config: dict,
+    dataset_name: str,
+    dataset_split: str,
+):
+    dataset = load_dataset(
+        f"gpt2/midi_datasets/{dataset_name}",
+        split=dataset_split,
+        trust_remote_code=True,
+        num_proc=8,
+        **config,
+    )
+    return dataset
+
+
+def plot_target_mask(target_mask: torch.Tensor) -> plt.Figure:
+    fig, ax = plt.subplots(figsize=(12, 2))
+    cmap = plt.get_cmap("viridis")
+    from matplotlib.colors import Normalize
+
+    norm = Normalize(vmin=0, vmax=1)
+    ax.imshow(target_mask.unsqueeze(0), cmap=cmap, aspect="auto")
+    legend_elements = [
+        plt.Line2D([0], [0], color=cmap(norm(0)), lw=4, label="False"),
+        plt.Line2D([0], [0], color=cmap(norm(1)), lw=4, label="True"),
+    ]
+    ax.legend(
+        handles=legend_elements,
+        loc="upper right",
+        bbox_to_anchor=(1.1, 1.0),
+    )
+    ax.set_yticks([])
+    ax.set_xlabel("Token Position")
+    ax.set_title("Target Mask")
+    return fig
+
+
+@st.cache_data()
+def load_piano_dataset(
+    tokenizer_parameters: dict,
+    special_tokens: list[str],
+    _music_manager: MusicManager,
+    config: dict,
+    dataset_name: str,
+    dataset_split: str,
+    context_size: int,
+    notes_per_record: int,
+    prompt_masking: str,
+    selected_composers: list[str],
+    selected_title: str,
+) -> tuple[PianoDataset, Dataset]:
+    dataset = load_hf_dataset(
+        config=config,
+        dataset_name=dataset_name,
+        dataset_split=dataset_split,
+    )
+
+    # Filter dataset
+    def filter_dataset(record):
+        source_data = json.loads(record["source"])
+        composer_match = source_data.get("composer") in selected_composers
+        title_match = selected_title == "All" or source_data.get("title") == selected_title
+        return composer_match and title_match
+
+    filtered_dataset = dataset.filter(filter_dataset)
+    parametric_task_manager = PianoTaskManager.load_default()
+
+    tokenizer = ExponentialTimeTokenizer.build_tokenizer(
+        tokenizer_config=tokenizer_parameters,
+    )
+    tokenizer.add_special_tokens(special_tokens)
+    piano_dataset = PianoDataset(
+        dataset=filtered_dataset,
+        tokenizer=tokenizer,
+        music_manager=_music_manager,
+        context_size=context_size,
+        notes_per_record=notes_per_record,
+        piano_task_manager=parametric_task_manager,
+        prompt_masking=prompt_masking,
+    )
+    return piano_dataset, filtered_dataset
 
 
 if __name__ == "__main__":
