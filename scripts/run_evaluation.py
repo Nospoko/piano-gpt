@@ -6,7 +6,7 @@ from typing import Dict, List
 
 import pandas as pd
 
-from data.tasks import task_map
+from gpt2.data.tasks import task_map
 
 
 def run_validation_for_task(model_path: str, device: str, task: str) -> Dict[str, float]:
