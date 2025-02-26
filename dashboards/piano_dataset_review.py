@@ -10,9 +10,8 @@ from datasets import Dataset, load_dataset
 from midi_tokenizers import ExponentialTimeTokenizer
 from piano_dataset.piano_tasks import PianoTaskManager
 
-from data.piano_dataset import PianoDataset
-from artifacts import dataset_tokens, composer_tokens
-
+from gpt2.data.musicality import MusicManager
+from gpt2.data.piano_dataset import PianoDataset
 
 @st.cache_data()
 def load_hf_dataset(
@@ -154,7 +153,9 @@ def main():
         "base_dataset_name": base_dataset_name,
         "extra_datasets": [base_dataset_name],
     }
-    all_special_tokens = parametric_task_manager.get_special_tokens() + dataset_tokens + composer_tokens
+    music_manager = MusicManager()
+
+    all_special_tokens = parametric_task_manager.get_special_tokens() + music_manager.dataset_tokens + music_manager.composer_tokens
     tokenizer_parameters = {
         "min_time_unit": min_time_unit,
         "n_velocity_bins": n_velocity_bins,
