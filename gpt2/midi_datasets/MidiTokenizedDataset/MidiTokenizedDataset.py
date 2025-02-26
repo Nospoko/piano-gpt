@@ -7,7 +7,6 @@ from datasets import Split, Dataset, DatasetInfo, GeneratorBasedBuilder
 from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from gpt2.data.augmentation import augment_dataset
-from gpt2.data.tokenizer_utils import load_tokenizer_if_exists
 from gpt2.midi_datasets.MidiTokenizedDataset.MidiTokenizedDatasetConfig import (
     BUILDER_CONFIGS,
     MidiTokenizedDatasetConfig,
@@ -154,5 +153,4 @@ class MidiTokenizedDataset(GeneratorBasedBuilder):
         if tokenizer_dict["name"] == "ExponentialTimeTokenizer":
             return ExponentialTimeTokenizer.from_dict(tokenizer_dict)
         else:
-            # TODO I hope this is not used (if it is, let's get rid of it and in the future be explicit)
-            return load_tokenizer_if_exists(tokenizer_cfg=self.config.tokenizer_dict)
+            raise ValueError("Tokenizer not supported!")

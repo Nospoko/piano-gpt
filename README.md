@@ -6,10 +6,10 @@ Train a 10M model:
 
 ```sh
 # This will create checkpoints in ./tmp/checkpoints and logs in wandb
-python -m gpt2.train dataset=small model=gpt2_10M
+python -m gpt2.main dataset=small model=gpt2_10M
 
 # No wandb, small memory footprint
-python -m gpt2.train dataset=small model=gpt2_10M training.microbatch_size=2 logging.wandb_log=false
+python -m gpt2.main dataset=small model=gpt2_10M training.microbatch_size=2 logging.wandb_log=false
 ```
 
 Resume training:
