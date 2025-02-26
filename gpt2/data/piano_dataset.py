@@ -58,7 +58,7 @@ class PianoDataset(MidiDataset):
         # of possible starting points to get a note subsequence with *notes_per_record*
         record_lengths = np.array(self.dataset["n_notes"]) - self.notes_per_record + 1
 
-        # Records shorted than context are effectively discarded
+        # Records shorter than context are effectively discarded
         self.record_lengths = record_lengths.clip(min=0)
 
         # Calculate total dataset length
