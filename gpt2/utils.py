@@ -77,12 +77,13 @@ def create_tokenized_dataset(cfg: DictConfig, tokenizer: MidiTokenizer) -> Datas
 
 def create_augmented_dataset(cfg: DictConfig) -> Dataset:
     """Load raw hf dataset for piano tasks."""
-    return load_dataset(
+    dataset = load_dataset(
         path=to_absolute_path("./gpt2/midi_datasets/AugmentedDataset"),
         trust_remote_code=True,
         num_proc=cfg.system.data_workers,
         **OmegaConf.to_container(cfg.dataset),
     )
+    return dataset
 
 
 def create_next_token_datasets(
@@ -127,7 +128,8 @@ def create_piano_datasets(
         music_manager=music_manager,
         context_size=cfg.training.context_size,
         prompt_masking=cfg.training.prompt_masking,
-        notes_per_record=cfg.training.notes_per_record,
+        max_notes_per_record=cfg.training.max_notes_per_record,
+        min_notes_per_record=cfg.training.min_notes_per_record,
         piano_task_manager=piano_task_manager,
     )
 
@@ -137,10 +139,11 @@ def create_piano_datasets(
             dataset=split,
             tokenizer=tokenizer,
             music_manager=music_manager,
+            piano_task_manager=piano_task_manager,
             context_size=cfg.training.context_size,
             prompt_masking=cfg.training.prompt_masking,
-            notes_per_record=cfg.training.notes_per_record,
-            piano_task_manager=piano_task_manager,
+            max_notes_per_record=cfg.training.max_notes_per_record,
+            min_notes_per_record=cfg.training.min_notes_per_record,
         )
         for name, split in validation_splits.items()
     }
