@@ -79,7 +79,6 @@ def main():
         # optional_special_tokens = list(dataset_tokens)
 
         piano_task_manager: PianoTaskManager = model_setup["piano_task_manager"]
-        generation_token = "<GENAI>"
 
         dataset_tokens = MusicManager().dataset_tokens
         dataset_token = st.selectbox(
@@ -88,11 +87,12 @@ def main():
             help="Choose from available special tokens to add to your prompt",
         )
 
-        piano_task_tokens = st.multiselect(
-            label="Select tokens defining a PIANO task:",
-            options=piano_task_manager.get_special_tokens(),
-            help="Choose from available special tokens to add to your prompt",
+        piano_task_name = st.selectbox(
+            label="Select PIANO task:",
+            options=piano_task_manager.list_task_names(),
+            help="Choose from tasks used during training",
         )
+        piano_task = piano_task_manager.get_task(piano_task_name)
 
         prompt_path = st.selectbox(
             label="select prompt file",
@@ -124,9 +124,12 @@ def main():
     model = model_setup["model"]
     tokenizer = model_setup["tokenizer"]
 
+    # TODO this dashboards tries hard to work both for next token prediction
+    # and for the piano task generations – we should probably have separate dashboards
+    generation_token = "<GENAI>" if run_config.model_task == "piano_task" else None
     composer_tokens = ["<BACH>", "<MOZART>", "<CHOPIN>", "<UNKNOWN_COMPOSER>"]
     for composer_token in composer_tokens:
-        pre_input_tokens = [dataset_token, composer_token] + piano_task_tokens
+        pre_input_tokens = [dataset_token, composer_token] + piano_task.prefix_tokens
 
         st.write("Pre-input tokens:", pre_input_tokens)
 
