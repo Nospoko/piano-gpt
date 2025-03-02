@@ -135,7 +135,7 @@ def piano_task_setup(
     piano_task_manager = PianoTaskManager(tasks_config=tasks_config)
 
     special_tokens = piano_task_manager.get_special_tokens()
-    special_tokens += [PianoDataset.generation_token]
+    special_tokens += [PianoDataset.generation_token, PianoDataset.generation_end_token]
     tokenizer.add_special_tokens(special_tokens)
 
     datasets = create_piano_datasets(

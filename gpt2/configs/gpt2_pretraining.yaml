@@ -1,6 +1,5 @@
 defaults:
   - model: gpt2
-  - data: default
   - tokenizer: exponential
   - dataset: tokenized
   - lr: cosine_decay
@@ -26,7 +25,8 @@ eval_iters: 50
 training:
   prompt_masking: false
   context_size: 2048
-  notes_per_record: 128
+  min_notes_per_record: 32
+  max_notes_per_record: 128
   # What you want the model to see
   batch_size: 64
   # What can fit in a single GPU
@@ -48,5 +48,5 @@ system:
 logging:
   wandb_log: True
   wandb_entity: 'epr-labs'
-  wandb_project: 'piano-gpt'
+  wandb_project: 'piano-gpt-vlt'
   log_interval: 20
