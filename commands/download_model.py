@@ -30,7 +30,7 @@ def download_model(
 
 
 if __name__ == "__main__":
-    # python -m scripts.download_model -r epr-labs/piano-gpt -l tmp/ -c 303M-pretraining-2025...pt
+    # python -m commands.download_model -r epr-labs/piano-gpt -l tmp/ -c 303M-pretraining-2025...pt
     parser = argparse.ArgumentParser(description="Download a model checkpoint from HF repository")
     parser.add_argument("-c", "--checkpoint_filename", type=str, help="Path to the file")
     parser.add_argument("-r", "--repo_id", type=str, help="Huggingface repo id")

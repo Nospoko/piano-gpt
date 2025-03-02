@@ -33,5 +33,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # python -m scripts.upload_model_file -p tmp/checkpoints/10M-pretraining-2025-02-09-07-21.pt -r epr-labs/piano-gpt
+    # python -m commands.upload_model_file -p tmp/checkpoints/10M-pretraining-2025-02-09-07-21.pt -r epr-labs/piano-gpt
     main()

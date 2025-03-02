@@ -5,7 +5,6 @@ import subprocess
 from typing import Dict, List
 
 import pandas as pd
-
 from data.tasks import task_map
 
 
