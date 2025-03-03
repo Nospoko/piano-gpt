@@ -24,6 +24,12 @@ Calculate PIANO metrics:
 python -m gpt2.piano_eval init_from=<checkpoint path>
 ```
 
+Launch the generation dashboard:
+
+```sh
+PYTHONPATH=. streamlit run dashboards/prompt_practice.py
+```
+
 ## Overview
 
 Piano-GPT is a project leveraging the GPT-2 architecture for generating and processing MIDI piano music. It introduces the PIANO (Performance Inference And Note Orchestration) dataset, a multi-task benchmark for voice and dynamic reconstruction in MIDI piano rolls.
