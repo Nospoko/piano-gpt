@@ -1,7 +1,8 @@
 base_dataset_name: "epr-labs/maestro-sustain-v2"
 extra_datasets:
   - 'epr-labs/maestro-augmented'
-  - "epr-labs/piano-midi-de"
+  - 'epr-labs/giant-midi-augmented'
+  - 'epr-labs/piano-midi-de-augmented'
   - 'epr-labs/pianofor-ai-augmented'
   - 'epr-labs/imslp-augmented'
 pause_detection_threshold: 4

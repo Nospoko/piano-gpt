@@ -21,9 +21,12 @@ from gpt2.setup.backprop import BackpropSetup, setup_backprop
 
 
 def model_tuning(tune_cfg: DictConfig):
+    # Loading to CPU to avoid CUDA memory management and known torch issues:
+    # https://discuss.pytorch.org/t/gpu-memory-usage-increases-by-90-after-torch-load/9213/16
     checkpoint = torch.load(
         tune_cfg.checkpoint_path,
         weights_only=False,
+        map_location=torch.device("cpu"),
     )
 
     run_cfg: DictConfig = checkpoint["run_config"]

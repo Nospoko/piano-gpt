@@ -9,10 +9,12 @@ checkpoint_path:
 #   overrides.run_name_suffix=myrun overrides.model.dropout=0.5
 # etc.
 defaults:
-  - dataset: small
+  - dataset: medium
   - tasks: top_line
   - _self_
 
+# TODO Might be better to get rid of the overrides field and treat
+# this whole config as such
 overrides:
   run_name_suffix: tuning-${now:%Y-%m-%d-%H-%M}
   dataset: ${dataset}
