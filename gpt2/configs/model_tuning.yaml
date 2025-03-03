@@ -18,5 +18,8 @@ overrides:
   dataset: ${dataset}
   tasks: ${tasks}
 
+  training:
+    prompt_masking: true
+
   model:
     dropout: 0.1
