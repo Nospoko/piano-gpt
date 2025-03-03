@@ -1,0 +1,22 @@
+command: tune
+
+checkpoint_path:
+
+# Using defaults so it's possible to get datasets by config name
+# It's awkward because to control the overrid of datasets from CLI you have to:
+#   dataset=my_dataset_config
+# But to control other parameters, you have to use overrides prefix:
+#   overrides.run_name_suffix=myrun overrides.model.dropout=0.5
+# etc.
+defaults:
+  - dataset: small
+  - tasks: top_line
+  - _self_
+
+overrides:
+  run_name_suffix: tuning-${now:%Y-%m-%d-%H-%M}
+  dataset: ${dataset}
+  tasks: ${tasks}
+
+  model:
+    dropout: 0.1

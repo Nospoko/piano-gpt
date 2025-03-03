@@ -1,7 +1,7 @@
 defaults:
   - model: gpt2
   - tokenizer: exponential
-  - dataset: tokenized
+  - dataset: small
   - lr: cosine_decay
   - optimizer: default
   - tasks: piano_default

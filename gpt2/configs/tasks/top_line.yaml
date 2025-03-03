@@ -1,0 +1,3 @@
+- class: TopLineMasking
+  param_range:
+    - n_repetitions: 1
