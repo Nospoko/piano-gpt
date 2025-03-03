@@ -40,6 +40,28 @@ def main():
     st.write("Training stats:")
     st.write(model_setup["run_stats"])
 
+    with st.form("prompt selection"):
+        # TODO: What would be a convenient way to manage prompts
+        # for a user? Definitely needs an upload
+        prompt_options = glob("tmp/prompts/*.mid") + [None]
+        prompt_path = st.selectbox(
+            label="select prompt file",
+            options=prompt_options,
+            index=None,
+        )
+        st.form_submit_button()
+
+    if not prompt_path:
+        return
+
+    prompt_piece = ff.MidiPiece.from_file(prompt_path)
+
+    # TODO Remove inplace operations from fortepyan
+    prompt_piece.time_shift(-prompt_piece.df.start.min())
+
+    streamlit_pianoroll.from_fortepyan(prompt_piece)
+    st.write("Prompt notes:", prompt_piece.size)
+
     with st.form("generation setup"):
         random_seed = st.number_input(
             label="random seed",
@@ -68,18 +90,6 @@ def main():
             max_value=2.5,
         )
 
-        # TODO: What would be a convenient way to manage prompts
-        # for a user? Definitely needs an upload
-        prompt_options = glob("tmp/prompts/*.mid") + [None]
-
-        # Composer tokens are iterated over later, so we don't want
-        # the user to add them here
-        # special_tokens = composer_tokens + dataset_tokens
-        # We have to make a copy or streamlit loops over with every change
-        # optional_special_tokens = list(dataset_tokens)
-
-        piano_task_manager: PianoTaskManager = model_setup["piano_task_manager"]
-
         dataset_tokens = MusicManager().dataset_tokens
         dataset_token = st.selectbox(
             label="Select a dataset token:",
@@ -87,46 +97,36 @@ def main():
             help="Choose from available special tokens to add to your prompt",
         )
 
+        piano_task_manager: PianoTaskManager = model_setup["piano_task_manager"]
+
         piano_task_name = st.selectbox(
             label="Select PIANO task:",
             options=piano_task_manager.list_task_names(),
             help="Choose from tasks used during training",
-        )
-        piano_task = piano_task_manager.get_task(piano_task_name)
-
-        prompt_path = st.selectbox(
-            label="select prompt file",
-            options=prompt_options,
             index=None,
         )
+
         pianoroll_apikey = st.text_input(
             label="pianoroll apikey",
             type="password",
         )
         _ = st.form_submit_button()
 
-    st.write(pianoroll_apikey)
-
-    if not prompt_path:
+    if not piano_task_name:
+        st.write("Select a PIANO task and submit generation arguments")
         return
 
-    prompt_piece = ff.MidiPiece.from_file(prompt_path)
-
-    # TODO Remove inplace operations from fortepyan
-    prompt_piece.time_shift(-prompt_piece.df.start.min())
+    piano_task = piano_task_manager.get_task(piano_task_name)
 
     prompt_notes_df: pd.DataFrame = prompt_piece.df
     prompt_notes_df.start /= speedup_factor
     prompt_notes_df.end /= speedup_factor
-
-    streamlit_pianoroll.from_fortepyan(prompt_piece)
 
     model = model_setup["model"]
     tokenizer = model_setup["tokenizer"]
 
     # TODO this dashboards tries hard to work both for next token prediction
     # and for the piano task generations – we should probably have separate dashboards
-    generation_token = "<GENAI>" if run_config.model_task == "piano_task" else None
     composer_tokens = ["<BACH>", "<MOZART>", "<CHOPIN>", "<UNKNOWN_COMPOSER>"]
     for composer_token in composer_tokens:
         pre_input_tokens = [dataset_token, composer_token] + piano_task.prefix_tokens
@@ -137,7 +137,14 @@ def main():
         # fully deterministic by setting global torch random seed
         for it in range(2):
             local_seed = random_seed + it * 1000
-            st.write("Seed:", local_seed)
+            generation_setup = {
+                "seed": local_seed,
+                "temperature": temperature,
+                "dataset_token": dataset_token,
+                "composer_token": composer_token,
+                "piano_task": piano_task.name,
+            }
+            st.write(generation_setup)
             st.write("".join(pre_input_tokens))
 
             # This acts as a caching key
@@ -154,7 +161,6 @@ def main():
                 _tokenizer=tokenizer,
                 device=device,
                 pre_input_tokens=pre_input_tokens,
-                generation_token=generation_token,
                 temperature=temperature,
                 max_new_tokens=max_new_tokens,
                 **generation_properties,
@@ -202,11 +208,11 @@ def post_to_pianoroll(
     pianoroll_apikey: str,
 ):
     model_notes = model_piece.df.to_dict(orient="records")
-    prompt_notes_df = prompt_piece.df.to_dict(orient="records")
+    prompt_notes = prompt_piece.df.to_dict(orient="records")
 
     payload = {
         "model_notes": model_notes,
-        "prompt_notes_df": prompt_notes_df,
+        "prompt_notes": prompt_notes,
         "post_title": "GENAI",
         "post_description": "My model did this!",
     }
@@ -214,7 +220,7 @@ def post_to_pianoroll(
     headers = {
         "UserApiToken": pianoroll_apikey,
     }
-    api_endpoint = "https://pianoroll.io/api/v1/generation_pianorolls"
+    api_endpoint = "https://pianoroll.io/api/v1/genai_posts"
     r = requests.post(api_endpoint, headers=headers, json=payload)
 
     st.write(r)
@@ -227,7 +233,6 @@ def cache_generation(
     _model,
     _tokenizer,
     pre_input_tokens: list[str],
-    generation_token: str = None,
     device: str = "cuda",
     max_new_tokens: int = 2048,
     temperature: int = 1,
@@ -236,10 +241,7 @@ def cache_generation(
     torch.random.manual_seed(seed)
     with st.spinner("gpu goes brrrrrrrrrr"):
         input_tokens = pre_input_tokens + _tokenizer.tokenize(prompt_notes_df)
-
-        # This goes after the prompt
-        if generation_token is not None:
-            input_tokens.append(generation_token)
+        input_tokens.append("<GENAI>")
 
         input_token_ids = _tokenizer.encode_tokens(input_tokens)
         input_token_ids = torch.tensor(input_token_ids).unsqueeze(0).to(device)
