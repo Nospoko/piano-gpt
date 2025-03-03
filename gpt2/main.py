@@ -12,8 +12,7 @@ def main(cfg: DictConfig):
     if cfg.command == "init":
         gpt2_train.training_from_scratch(cfg=cfg)
     elif cfg.command == "tune":
-        # train.tune(tune_cfg=cfg)
-        ...
+        gpt2_train.model_tuning(tune_cfg=cfg)
     elif cfg.command == "resume":
         gpt2_train.resume_training(resume_cfg=cfg)
     else:

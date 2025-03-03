@@ -18,6 +18,12 @@ Resume training:
 python -m gpt2.main --config-name=resume_training checkpoint_path=</path/to/checkpoint.pt>
 ```
 
+Tune model:
+
+```sh
+python -m gpt2.main --config-name=model_tuning checkpoint_path=</path/to/checkpoint.pt>
+```
+
 Calculate PIANO metrics:
 
 ```sh

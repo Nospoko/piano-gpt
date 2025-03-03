@@ -4,8 +4,8 @@ import datetime
 
 import torch
 import wandb
-from omegaconf import DictConfig
 from hydra.utils import to_absolute_path
+from omegaconf import OmegaConf, DictConfig
 from torch.distributed import destroy_process_group
 from midi_tokenizers import ExponentialTimeTokenizer
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -18,6 +18,94 @@ from gpt2.setup.datasets import DatasetsSetup
 from gpt2.setup import logging as logging_setup
 from gpt2.setup import hardware as hardware_setup
 from gpt2.setup.backprop import BackpropSetup, setup_backprop
+
+
+def model_tuning(tune_cfg: DictConfig):
+    # Loading to CPU to avoid CUDA memory management and known torch issues:
+    # https://discuss.pytorch.org/t/gpu-memory-usage-increases-by-90-after-torch-load/9213/16
+    checkpoint = torch.load(
+        tune_cfg.checkpoint_path,
+        weights_only=False,
+        map_location=torch.device("cpu"),
+    )
+
+    run_cfg: DictConfig = checkpoint["run_config"]
+
+    overrides_cfg = tune_cfg["overrides"]
+    print("Config overrides:")
+    print(OmegaConf.to_container(overrides_cfg, resolve=True))
+
+    # - omegaconf documentation is not very clear
+    # about what exactly is the behavior of .merge(*configs)
+    # but seems like it replaces the initial config fields
+    # with whatever is provided in the other config
+    # - we also have to resolve overrides before merging
+    # or else there can be recursive references
+    OmegaConf.resolve(overrides_cfg)
+    run_cfg = OmegaConf.merge(run_cfg, overrides_cfg)
+
+    device_setup = hardware_setup.setup_device(run_cfg)
+    print("Device setup:", device_setup)
+
+    # Load tokenizer
+    tokenizer_desc = checkpoint["tokenizer_desc"]
+    tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc)
+
+    # TODO vocab and padding info should be checkpointed
+    model_cfg = run_cfg.model
+    model = GPT(
+        config=model_cfg,
+        vocab_size=tokenizer.vocab_size,
+        pad_token_id=tokenizer.pad_token_id,
+    )
+    state_dict = checkpoint["model"]
+    model.load_state(state_dict=state_dict)
+    model.to(device_setup.device)
+
+    if run_cfg.system.compile:
+        print("compiling the model... (takes a ~minute)")
+        model = torch.compile(model)
+
+    backprop_setup = setup_backprop(
+        cfg=run_cfg,
+        model=model,
+        device_setup=device_setup,
+    )
+
+    if run_cfg.model_task == "next_token_prediction":
+        datasets_setup = data_setup.next_token_prediction_setup(
+            cfg=run_cfg,
+            tokenizer=tokenizer,
+            device_setup=device_setup,
+        )
+    elif run_cfg.model_task == "piano_task":
+        datasets_setup = data_setup.piano_task_setup(
+            cfg=run_cfg,
+            tokenizer=tokenizer,
+            device_setup=device_setup,
+        )
+
+    milion_params = model.get_num_params() / 1e6
+    run_name = f"{milion_params:.0f}M-" f"{run_cfg.run_name_suffix}"
+
+    # wrap model into DDP container
+    if device_setup.is_ddp:
+        model = DDP(model, device_ids=[device_setup.local_rank])
+
+    if device_setup.is_master_process:
+        logging_setup.wandb_init(
+            run_name=run_name,
+            cfg=run_cfg,
+        )
+
+    training_loop(
+        cfg=run_cfg,
+        model=model,
+        run_name=run_name,
+        device_setup=device_setup,
+        backprop_setup=backprop_setup,
+        datasets_setup=datasets_setup,
+    )
 
 
 def resume_training(resume_cfg: DictConfig):
@@ -35,7 +123,7 @@ def resume_training(resume_cfg: DictConfig):
     tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc)
 
     # TODO vocab and padding info should be checkpointed
-    model_cfg = checkpoint["model_cfg"]
+    model_cfg = run_cfg.model
     model = GPT(
         config=model_cfg,
         vocab_size=tokenizer.vocab_size,
@@ -83,6 +171,10 @@ def resume_training(resume_cfg: DictConfig):
 
     print("Resuming from:", run_stats)
 
+    # wrap model into DDP container
+    if device_setup.is_ddp:
+        model = DDP(model, device_ids=[device_setup.local_rank])
+
     training_loop(
         cfg=run_cfg,
         model=model,
@@ -112,7 +204,7 @@ def training_from_scratch(cfg: DictConfig):
 
     cfg.training.gradient_accumulation_steps = gradient_accumulation_steps
 
-    # TODO This manager should probably go to the dataset setup
+    # TODO This if could probably go to the dataset setup
     if cfg.model_task == "next_token_prediction":
         datasets_setup = data_setup.next_token_prediction_setup(
             cfg=cfg,
