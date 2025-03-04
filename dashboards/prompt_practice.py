@@ -255,6 +255,10 @@ def cache_generation(
         generated_token_ids = generated_token_ids.squeeze(0).cpu().numpy()
         generated_notes = _tokenizer.decode(generated_token_ids)
 
+        with st.expander("tokens"):
+            generated_tokens = [_tokenizer.vocab[token_id] for token_id in generated_token_ids]
+            st.write(generated_tokens)
+
     return prompt_notes_df, generated_notes
 
 
