@@ -285,7 +285,10 @@ def training_loop(
         for split in splits:
             losses = torch.zeros(cfg.eval_iters)
             for k in range(cfg.eval_iters):
-                X, Y, mask = get_batch(split)
+                piano_batch = get_batch(split)
+                X = piano_batch.x
+                Y = piano_batch.y
+                mask = piano_batch.mask
                 with device_setup.autocast_ctx:
                     logits, loss = model(X, Y, mask)
                 losses[k] = loss.item()
@@ -294,7 +297,10 @@ def training_loop(
         return out
 
     # Fetch the very first batch before the loop starts
-    X, Y, mask = get_batch("train")
+    piano_batch = get_batch("train")
+    X = piano_batch.x
+    Y = piano_batch.y
+    mask = piano_batch.mask
 
     while True:
         t0 = time.time()
@@ -324,7 +330,10 @@ def training_loop(
                 loss = loss / cfg.training.gradient_accumulation_steps
 
             # immediately async prefetch next batch while model is doing the forward pass on the GPU
-            X, Y, mask = get_batch("train")
+            piano_batch = get_batch("train")
+            X = piano_batch.x
+            Y = piano_batch.y
+            mask = piano_batch.mask
 
             # backward pass, with gradient scaling if training in fp16
             backprop_setup.grad_scaler.scale(loss).backward()

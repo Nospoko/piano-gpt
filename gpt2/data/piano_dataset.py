@@ -133,9 +133,12 @@ class PianoDataset(MidiDataset):
         piece_split = piano_task.prompt_target_split(notes_df=notes_df)
 
         # Encode prompt part ...
-        source_token_ids = self.tokenizer.encode_notes_df(
+        source_note_encoding = self.tokenizer.encode_notes_df(
             notes_df=piece_split.source_df,
         )
+        source_token_ids = source_note_encoding.token_ids
+        source_time_steps = source_note_encoding.time_steps
+
         # ... add special tokens ...
         composer_token = self.music_manager.get_composer_token(
             composer=piece_source.get("composer", ""),
@@ -148,11 +151,14 @@ class PianoDataset(MidiDataset):
 
         # ... and join into a single promp sequence of token ids
         prompt_token_ids = prefix_token_ids + source_token_ids
+        prompt_time_steps = len(prefix_token_ids) * [0] + source_time_steps
 
         # Same for the target sequence
-        target_token_ids = self.tokenizer.encode_notes_df(
+        target_note_encoding = self.tokenizer.encode_notes_df(
             notes_df=piece_split.target_df,
         )
+        target_token_ids = target_note_encoding.token_ids
+        target_time_steps = target_note_encoding.time_steps
 
         # This is to indicate the beginning of generation ...
         target_prefix_tokens = [self.generation_token]
@@ -163,12 +169,15 @@ class PianoDataset(MidiDataset):
         target_finish_token_ids = self.tokenizer.encode_tokens(target_finish_token)
 
         answer_token_ids = target_prefix_token_ids + target_token_ids + target_finish_token_ids
+        answer_time_steps = len(target_prefix_token_ids) * [0] + target_time_steps + len(target_finish_token_ids) * [0]
 
         # Join both input and output into a single sequence
         encoding = prompt_token_ids + answer_token_ids
+        time_steps = prompt_time_steps + answer_time_steps
 
         # Add safeguard ensuring the encoding is at most context_size + 1
         encoding = encoding[: self.context_size + 1]
+        time_steps = time_steps[: self.context_size + 1]
 
         # encoding should be context_size + 1,
         # because we are using [:-1] and [1:] when defining source and target
@@ -176,14 +185,24 @@ class PianoDataset(MidiDataset):
             token_ids=encoding,
             target_size=self.context_size + 1,
         )
+        time_steps_padded = self.tokenizer.pad_to_size(
+            token_ids=time_steps,
+            target_size=self.context_size + 1,
+        )
 
         # Convert into next-token-prediction task
         source_encoding = encoding_padded[:-1]
+        source_time_steps = time_steps_padded[:-1]
+
         target_encoding = encoding_padded[1:]
+        target_time_steps = time_steps_padded[1:]
 
         # Convert encodings to tensors
         source_token_ids = torch.tensor(source_encoding, dtype=torch.int64)
+        source_time_steps = torch.tensor(source_time_steps, dtype=torch.int64)
+
         target_token_ids = torch.tensor(target_encoding, dtype=torch.int64)
+        target_time_steps = torch.tensor(target_time_steps, dtype=torch.int64)
 
         # Create target mask, False means ignore
         target_mask = target_token_ids != self.tokenizer.pad_token_id
@@ -202,6 +221,8 @@ class PianoDataset(MidiDataset):
             "piece_source": json.dumps(piece_source),
             "source_token_ids": source_token_ids,
             "target_token_ids": target_token_ids,
+            "source_time_steps": source_time_steps,
+            "target_time_steps": target_time_steps,
             "prompt_length": len(prompt_token_ids),
             "source_prefix_tokens": source_prefix_tokens,
         }
