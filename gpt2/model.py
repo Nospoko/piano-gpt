@@ -134,6 +134,7 @@ class GPT(nn.Module):
         self.vocab_size = vocab_size
         self.config = config
         self.pad_token_id = pad_token_id
+        self.n_time_steps = 10_000
         self.transformer = nn.ModuleDict(
             dict(
                 # Token Embeddings
@@ -142,7 +143,7 @@ class GPT(nn.Module):
                 wpe=nn.Embedding(config.context_size, config.n_embd),
                 # Music Time Embedding
                 # NOTE: 10k is a dataset/min_time_unit constant that I guesstimated
-                wmte=nn.Embedding(10000, config.n_embd),
+                wmte=nn.Embedding(self.n_time_steps, config.n_embd),
                 dropout=nn.Dropout(config.dropout),
                 # "Hidden" transformer/decoder blocks
                 h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
@@ -209,6 +210,7 @@ class GPT(nn.Module):
         # position embeddings of shape (t, n_embd)
         pos_emb = self.transformer.wpe(pos)
 
+        x_time_steps = x_time_steps.clip(0, self.n_time_steps - 1)
         time_emb = self.transformer.wmte(x_time_steps)
 
         x = tok_emb + pos_emb + time_emb
