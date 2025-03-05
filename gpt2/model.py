@@ -136,9 +136,12 @@ class GPT(nn.Module):
         self.pad_token_id = pad_token_id
         self.transformer = nn.ModuleDict(
             dict(
+                # Token Embeddings
                 wte=nn.Embedding(vocab_size, config.n_embd, padding_idx=self.pad_token_id),
-                wpe=nn.Embedding(config.context_size, config.n_embd, padding_idx=self.pad_token_id),
+                # Position Embeddings
+                wpe=nn.Embedding(config.context_size, config.n_embd),
                 dropout=nn.Dropout(config.dropout),
+                # "Hidden" transformer/decoder blocks
                 h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
                 ln_f=LayerNorm(config.n_embd, bias=config.bias),
             )
@@ -148,7 +151,8 @@ class GPT(nn.Module):
         # "UserWarning: functional_call was passed multiple values for tied weights.
         # This behavior is deprecated and will be an error in future versions"
         # not 100% sure what this is, so far seems to be harmless. TODO investigate
-        self.transformer.wte.weight = self.lm_head.weight  # https://paperswithcode.com/method/weight-tying
+        # https://paperswithcode.com/method/weight-tying
+        self.transformer.wte.weight = self.lm_head.weight
 
         # init all weights
         self.apply(self._init_weights)
@@ -191,6 +195,7 @@ class GPT(nn.Module):
         # forward the GPT model itself
         # token embeddings of shape (b, t, n_embd)
         tok_emb = self.transformer.wte(idx)
+
         # position embeddings of shape (t, n_embd)
         pos_emb = self.transformer.wpe(pos)
 
