@@ -140,6 +140,9 @@ class GPT(nn.Module):
                 wte=nn.Embedding(vocab_size, config.n_embd, padding_idx=self.pad_token_id),
                 # Position Embeddings
                 wpe=nn.Embedding(config.context_size, config.n_embd),
+                # Music Time Embedding
+                # NOTE: 10k is a dataset/min_time_unit constant that I guesstimated
+                wmte=nn.Embedding(10000, config.n_embd),
                 dropout=nn.Dropout(config.dropout),
                 # "Hidden" transformer/decoder blocks
                 h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
@@ -184,9 +187,16 @@ class GPT(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, targets=None, target_mask=None):
+    def forward(
+        self,
+        idx: torch.tensor,
+        targets: torch.tensor = None,
+        target_mask: torch.tensor = None,
+        x_time_steps: torch.tensor = None,
+    ):
         device = idx.device
         b, t = idx.size()
+
         msg = f"Cannot forward sequence of length {t}, block size is only {self.config.context_size}"
         assert t <= self.config.context_size, msg
 
@@ -199,7 +209,10 @@ class GPT(nn.Module):
         # position embeddings of shape (t, n_embd)
         pos_emb = self.transformer.wpe(pos)
 
-        x = self.transformer.dropout(tok_emb + pos_emb)
+        time_emb = self.transformer.wmte(x_time_steps)
+
+        x = tok_emb + pos_emb + time_emb
+        x = self.transformer.dropout(x)
 
         for block in self.transformer.h:
             x = block(x)
@@ -208,7 +221,7 @@ class GPT(nn.Module):
 
         if targets is not None:
             if target_mask is not None:
-                # Insert ignored id everywhere the  target mask is False
+                # Insert ignored id everywhere the target mask is False
                 targets[~target_mask] = -100
 
             # if we are given some desired targets also calculate the loss

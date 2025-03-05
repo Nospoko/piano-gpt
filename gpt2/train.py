@@ -286,11 +286,13 @@ def training_loop(
             losses = torch.zeros(cfg.eval_iters)
             for k in range(cfg.eval_iters):
                 piano_batch = get_batch(split)
-                X = piano_batch.x
-                Y = piano_batch.y
-                mask = piano_batch.mask
                 with device_setup.autocast_ctx:
-                    logits, loss = model(X, Y, mask)
+                    logits, loss = model(
+                        idx=piano_batch.x,
+                        targets=piano_batch.y,
+                        target_mask=piano_batch.mask,
+                        x_time_steps=piano_batch.x_time_steps,
+                    )
                 losses[k] = loss.item()
             out[split] = losses.mean()
         model.train()
@@ -298,9 +300,6 @@ def training_loop(
 
     # Fetch the very first batch before the loop starts
     piano_batch = get_batch("train")
-    X = piano_batch.x
-    Y = piano_batch.y
-    mask = piano_batch.mask
 
     while True:
         t0 = time.time()
@@ -323,17 +322,19 @@ def training_loop(
                 model.require_backward_grad_sync = sync_gradients
 
             with device_setup.autocast_ctx:
-                n_iter_tokens += X.numel()
-                logits, loss = model(X, Y, mask)
+                n_iter_tokens += piano_batch.x.numel()
+                logits, loss = model(
+                    idx=piano_batch.x,
+                    targets=piano_batch.y,
+                    target_mask=piano_batch.mask,
+                    x_time_steps=piano_batch.x_time_steps,
+                )
 
                 # scale the loss to account for gradient accumulation
                 loss = loss / cfg.training.gradient_accumulation_steps
 
             # immediately async prefetch next batch while model is doing the forward pass on the GPU
             piano_batch = get_batch("train")
-            X = piano_batch.x
-            Y = piano_batch.y
-            mask = piano_batch.mask
 
             # backward pass, with gradient scaling if training in fp16
             backprop_setup.grad_scaler.scale(loss).backward()
