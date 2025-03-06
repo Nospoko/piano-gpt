@@ -11,7 +11,6 @@ class PianoBatch(NamedTuple):
     y: torch.tensor
     mask: torch.tensor
     x_time_steps: torch.tensor
-    y_time_steps: torch.tensor
 
 
 class CyclicalDataLoader:
@@ -57,7 +56,6 @@ class CyclicalDataLoader:
         y = batch["target_token_ids"].to(self.device, non_blocking=True)
 
         x_time_steps = batch["source_time_steps"].to(self.device, non_blocking=True)
-        y_time_steps = batch["target_time_steps"].to(self.device, non_blocking=True)
 
         mask = batch["target_mask"].to(self.device, non_blocking=True)
 
@@ -66,6 +64,5 @@ class CyclicalDataLoader:
             y=y,
             mask=mask,
             x_time_steps=x_time_steps,
-            y_time_steps=y_time_steps,
         )
         return piano_batch

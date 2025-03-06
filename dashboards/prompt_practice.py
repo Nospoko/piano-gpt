@@ -283,12 +283,10 @@ def load_cache_checkpoint(checkpoint_path: str, device) -> dict:
     state_dict = checkpoint["model"]
     model.load_state(state_dict=state_dict)
     model.to(device)
+    model.eval()
 
-    if run_config.model_task == "piano_task":
-        tasks_config = run_config.tasks
-        piano_task_manager = PianoTaskManager(tasks_config=tasks_config)
-    else:
-        piano_task_manager = None
+    tasks_config = run_config.tasks
+    piano_task_manager = PianoTaskManager(tasks_config=tasks_config)
 
     # TODO Function is missnamed, this is not a checkpoint
     return {

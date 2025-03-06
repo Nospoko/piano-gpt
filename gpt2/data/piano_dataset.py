@@ -133,11 +133,9 @@ class PianoDataset(MidiDataset):
         piece_split = piano_task.prompt_target_split(notes_df=notes_df)
 
         # Encode prompt part ...
-        source_note_encoding = self.tokenizer.encode_notes_df(
+        source_token_ids = self.tokenizer.encode_notes_df(
             notes_df=piece_split.source_df,
         )
-        source_token_ids = source_note_encoding.token_ids
-        source_time_steps = source_note_encoding.time_steps
 
         # ... add special tokens ...
         composer_token = self.music_manager.get_composer_token(
@@ -151,14 +149,12 @@ class PianoDataset(MidiDataset):
 
         # ... and join into a single promp sequence of token ids
         prompt_token_ids = prefix_token_ids + source_token_ids
-        prompt_time_steps = len(prefix_token_ids) * [0] + source_time_steps
+        prompt_time_steps = self.tokenizer.token_ids_to_time_steps(prompt_token_ids)
 
         # Same for the target sequence
-        target_note_encoding = self.tokenizer.encode_notes_df(
+        target_token_ids = self.tokenizer.encode_notes_df(
             notes_df=piece_split.target_df,
         )
-        target_token_ids = target_note_encoding.token_ids
-        target_time_steps = target_note_encoding.time_steps
 
         # This is to indicate the beginning of generation ...
         target_prefix_tokens = [self.generation_token]
@@ -169,7 +165,7 @@ class PianoDataset(MidiDataset):
         target_finish_token_ids = self.tokenizer.encode_tokens(target_finish_token)
 
         answer_token_ids = target_prefix_token_ids + target_token_ids + target_finish_token_ids
-        answer_time_steps = len(target_prefix_token_ids) * [0] + target_time_steps + len(target_finish_token_ids) * [0]
+        answer_time_steps = self.tokenizer.token_ids_to_time_steps(answer_token_ids)
 
         # Join both input and output into a single sequence
         encoding = prompt_token_ids + answer_token_ids
@@ -185,6 +181,10 @@ class PianoDataset(MidiDataset):
             token_ids=encoding,
             target_size=self.context_size + 1,
         )
+        # TODO I have mixed feeling about reusing the pad_to_size()
+        # for time steps, not sure if it's safe to rely on the pad token id
+        # to be the same as the pad time step position. Naming is also not great
+        # - we can rename "time_steps" to "time_token_ids", or rename the arg name
         time_steps_padded = self.tokenizer.pad_to_size(
             token_ids=time_steps,
             target_size=self.context_size + 1,
@@ -195,14 +195,12 @@ class PianoDataset(MidiDataset):
         source_time_steps = time_steps_padded[:-1]
 
         target_encoding = encoding_padded[1:]
-        target_time_steps = time_steps_padded[1:]
 
         # Convert encodings to tensors
         source_token_ids = torch.tensor(source_encoding, dtype=torch.int64)
         source_time_steps = torch.tensor(source_time_steps, dtype=torch.int64)
 
         target_token_ids = torch.tensor(target_encoding, dtype=torch.int64)
-        target_time_steps = torch.tensor(target_time_steps, dtype=torch.int64)
 
         # Create target mask, False means ignore
         target_mask = target_token_ids != self.tokenizer.pad_token_id
@@ -222,7 +220,6 @@ class PianoDataset(MidiDataset):
             "source_token_ids": source_token_ids,
             "target_token_ids": target_token_ids,
             "source_time_steps": source_time_steps,
-            "target_time_steps": target_time_steps,
             "prompt_length": len(prompt_token_ids),
             "source_prefix_tokens": source_prefix_tokens,
         }
