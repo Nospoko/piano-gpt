@@ -1,4 +1,6 @@
 import os
+import json
+import secrets
 from glob import glob
 
 import torch
@@ -182,6 +184,7 @@ def main():
                         model_piece=generated_piece,
                         prompt_piece=prompt_piece,
                         pianoroll_apikey=pianoroll_apikey,
+                        generation_setup=generation_setup,
                     )
                     st.write("POSTED!")
 
@@ -206,15 +209,18 @@ def post_to_pianoroll(
     model_piece: ff.MidiPiece,
     prompt_piece: ff.MidiPiece,
     pianoroll_apikey: str,
+    generation_setup: dict,
 ):
     model_notes = model_piece.df.to_dict(orient="records")
     prompt_notes = prompt_piece.df.to_dict(orient="records")
 
+    description = json.dumps(generation_setup, indent=4)
+    post_title = "ai riff " + secrets.token_hex(10)
     payload = {
         "model_notes": model_notes,
         "prompt_notes": prompt_notes,
-        "post_title": "GENAI",
-        "post_description": "My model did this!",
+        "post_title": post_title,
+        "post_description": description,
     }
 
     headers = {
@@ -246,28 +252,12 @@ def cache_generation(
         input_tokens.append(generation_token)
 
         input_token_ids = _tokenizer.encode_tokens(input_tokens)
-        time_steps = _tokenizer.token_ids_to_time_steps(
-            token_ids=input_token_ids,
-            restart_tokens=[generation_token],
-        )
 
         # Add a batch size 1 dim, and move to target device
         input_token_ids = torch.tensor(input_token_ids).unsqueeze(0).to(device)
-        time_steps = torch.tensor(time_steps).unsqueeze(0).to(device)
 
         generated_token_ids = []
         for it in range(max_new_tokens):
-            next_token_id = _model.generate_new_token(
-                input_token_ids=input_token_ids,
-                time_steps=time_steps,
-                temperature=temperature,
-            )
-            input_token_ids = torch.cat(
-                tensors=[input_token_ids, next_token_id],
-                dim=1,
-            )
-            generated_token_ids.append(next_token_id.item())
-
             # Check if the input sequence is within context size
             too_long = input_token_ids.size(1) > _model.config.context_size
             if too_long:
@@ -278,6 +268,22 @@ def cache_generation(
                 restart_tokens=[generation_token],
             )
             time_steps = torch.tensor(time_steps).unsqueeze(0).to(device)
+
+            next_token_id = _model.generate_new_token(
+                input_token_ids=input_token_ids,
+                time_steps=time_steps,
+                temperature=temperature,
+            )
+
+            if next_token_id.item() == _tokenizer.token_to_id["<EOGENAI>"]:
+                st.write("FINISH")
+                break
+
+            input_token_ids = torch.cat(
+                tensors=[input_token_ids, next_token_id],
+                dim=1,
+            )
+            generated_token_ids.append(next_token_id.item())
 
         generated_notes = _tokenizer.decode(generated_token_ids)
 
