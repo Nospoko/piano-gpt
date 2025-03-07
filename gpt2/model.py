@@ -304,10 +304,15 @@ class GPT(nn.Module):
         """
         for _ in range(max_new_tokens):
             # if the sequence context is growing too long we must crop it at context_size
-            idx_cond = idx if idx.size(1) <= self.config.context_size else idx[:, -self.config.context_size :]
+            too_long = idx.size(1) > self.config.context_size
+            local_idx = idx if not too_long else idx[:, -self.config.context_size :]
+
+            # idx_cond = idx if idx.size(1) <= self.config.context_size else idx[:, -self.config.context_size :]
 
             # forward the model to get the logits for the index in the sequence
-            logits, _ = self(idx_cond)
+            logits, _ = self.forward(
+                idx=local_idx,
+            )
 
             # pluck the logits at the final step and scale by desired temperature
             logits = logits[:, -1, :] / temperature
@@ -327,6 +332,36 @@ class GPT(nn.Module):
             idx = torch.cat((idx, idx_next), dim=1)
 
         return idx
+
+    @torch.no_grad()
+    def generate_new_token(
+        self,
+        input_token_ids: torch.tensor,
+        time_steps: torch.tensor,
+        temperature: float = 1.0,
+        top_k: int = None,
+    ) -> int:
+        # forward the model to get the logits for the index in the sequence
+        logits, _ = self.forward(
+            idx=input_token_ids,
+            x_time_steps=time_steps,
+        )
+
+        # pluck the logits at the final step and scale by desired temperature
+        logits = logits[:, -1, :] / temperature
+
+        # optionally crop the logits to only the top k options
+        if top_k is not None:
+            v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+            logits[logits < v[:, [-1]]] = -float("Inf")
+
+        # apply softmax to convert logits to (normalized) probabilities
+        probs = F.softmax(logits, dim=-1)
+
+        # sample from the distribution
+        idx_next = torch.multinomial(probs, num_samples=1)
+
+        return idx_next
 
     def generate_new_tokens(
         self,

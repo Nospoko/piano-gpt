@@ -239,20 +239,46 @@ def cache_generation(
     **kwargs,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     torch.random.manual_seed(seed)
+    generation_token = "<GENAI>"
+
     with st.spinner("gpu goes brrrrrrrrrr"):
         input_tokens = pre_input_tokens + _tokenizer.tokenize(prompt_notes_df)
-        input_tokens.append("<GENAI>")
+        input_tokens.append(generation_token)
 
         input_token_ids = _tokenizer.encode_tokens(input_tokens)
-        input_token_ids = torch.tensor(input_token_ids).unsqueeze(0).to(device)
-
-        generated_token_ids = _model.generate_new_tokens(
-            idx=input_token_ids,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            top_k=None,
+        time_steps = _tokenizer.token_ids_to_time_steps(
+            token_ids=input_token_ids,
+            restart_tokens=[generation_token],
         )
-        generated_token_ids = generated_token_ids.squeeze(0).cpu().numpy()
+
+        # Add a batch size 1 dim, and move to target device
+        input_token_ids = torch.tensor(input_token_ids).unsqueeze(0).to(device)
+        time_steps = torch.tensor(time_steps).unsqueeze(0).to(device)
+
+        generated_token_ids = []
+        for it in range(max_new_tokens):
+            next_token_id = _model.generate_new_token(
+                input_token_ids=input_token_ids,
+                time_steps=time_steps,
+                temperature=temperature,
+            )
+            input_token_ids = torch.cat(
+                tensors=[input_token_ids, next_token_id],
+                dim=1,
+            )
+            generated_token_ids.append(next_token_id.item())
+
+            # Check if the input sequence is within context size
+            too_long = input_token_ids.size(1) > _model.config.context_size
+            if too_long:
+                input_token_ids = input_token_ids[:, -_model.config.context_size :]
+
+            time_steps = _tokenizer.token_ids_to_time_steps(
+                token_ids=input_token_ids[0],
+                restart_tokens=[generation_token],
+            )
+            time_steps = torch.tensor(time_steps).unsqueeze(0).to(device)
+
         generated_notes = _tokenizer.decode(generated_token_ids)
 
         with st.expander("tokens"):

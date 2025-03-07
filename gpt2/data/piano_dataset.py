@@ -149,7 +149,6 @@ class PianoDataset(MidiDataset):
 
         # ... and join into a single promp sequence of token ids
         prompt_token_ids = prefix_token_ids + source_token_ids
-        prompt_time_steps = self.tokenizer.token_ids_to_time_steps(prompt_token_ids)
 
         # Same for the target sequence
         target_token_ids = self.tokenizer.encode_notes_df(
@@ -165,15 +164,12 @@ class PianoDataset(MidiDataset):
         target_finish_token_ids = self.tokenizer.encode_tokens(target_finish_token)
 
         answer_token_ids = target_prefix_token_ids + target_token_ids + target_finish_token_ids
-        answer_time_steps = self.tokenizer.token_ids_to_time_steps(answer_token_ids)
 
         # Join both input and output into a single sequence
         encoding = prompt_token_ids + answer_token_ids
-        time_steps = prompt_time_steps + answer_time_steps
 
         # Add safeguard ensuring the encoding is at most context_size + 1
         encoding = encoding[: self.context_size + 1]
-        time_steps = time_steps[: self.context_size + 1]
 
         # encoding should be context_size + 1,
         # because we are using [:-1] and [1:] when defining source and target
@@ -181,13 +177,9 @@ class PianoDataset(MidiDataset):
             token_ids=encoding,
             target_size=self.context_size + 1,
         )
-        # TODO I have mixed feeling about reusing the pad_to_size()
-        # for time steps, not sure if it's safe to rely on the pad token id
-        # to be the same as the pad time step position. Naming is also not great
-        # - we can rename "time_steps" to "time_token_ids", or rename the arg name
-        time_steps_padded = self.tokenizer.pad_to_size(
-            token_ids=time_steps,
-            target_size=self.context_size + 1,
+        time_steps_padded = self.tokenizer.token_ids_to_time_steps(
+            token_ids=encoding_padded,
+            restart_tokens=[self.generation_token],
         )
 
         # Convert into next-token-prediction task
