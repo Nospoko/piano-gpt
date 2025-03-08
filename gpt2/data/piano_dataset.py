@@ -136,6 +136,7 @@ class PianoDataset(MidiDataset):
         source_token_ids = self.tokenizer.encode_notes_df(
             notes_df=piece_split.source_df,
         )
+
         # ... add special tokens ...
         composer_token = self.music_manager.get_composer_token(
             composer=piece_source.get("composer", ""),
@@ -176,13 +177,21 @@ class PianoDataset(MidiDataset):
             token_ids=encoding,
             target_size=self.context_size + 1,
         )
+        time_steps_padded = self.tokenizer.token_ids_to_time_steps(
+            token_ids=encoding_padded,
+            restart_tokens=[self.generation_token],
+        )
 
         # Convert into next-token-prediction task
         source_encoding = encoding_padded[:-1]
+        source_time_steps = time_steps_padded[:-1]
+
         target_encoding = encoding_padded[1:]
 
         # Convert encodings to tensors
         source_token_ids = torch.tensor(source_encoding, dtype=torch.int64)
+        source_time_steps = torch.tensor(source_time_steps, dtype=torch.int64)
+
         target_token_ids = torch.tensor(target_encoding, dtype=torch.int64)
 
         # Create target mask, False means ignore
@@ -202,6 +211,7 @@ class PianoDataset(MidiDataset):
             "piece_source": json.dumps(piece_source),
             "source_token_ids": source_token_ids,
             "target_token_ids": target_token_ids,
+            "source_time_steps": source_time_steps,
             "prompt_length": len(prompt_token_ids),
             "source_prefix_tokens": source_prefix_tokens,
         }

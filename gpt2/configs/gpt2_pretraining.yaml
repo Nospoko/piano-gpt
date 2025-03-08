@@ -48,5 +48,5 @@ system:
 logging:
   wandb_log: True
   wandb_entity: 'epr-labs'
-  wandb_project: 'piano-gpt-vlt'
+  wandb_project: 'piano-gpt-mte'
   log_interval: 20
