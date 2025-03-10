@@ -134,6 +134,8 @@ class GPT(nn.Module):
         self.vocab_size = vocab_size
         self.config = config
         self.pad_token_id = pad_token_id
+
+        # NOTE: for 10ms quantization, 10k steps is 100s
         self.n_time_steps = 10_000
         self.transformer = nn.ModuleDict(
             dict(
@@ -142,7 +144,6 @@ class GPT(nn.Module):
                 # Position Embeddings
                 wpe=nn.Embedding(config.context_size, config.n_embd),
                 # Music Time Embedding
-                # NOTE: 10k is a dataset/min_time_unit constant that I guesstimated
                 wmte=nn.Embedding(self.n_time_steps, config.n_embd),
                 dropout=nn.Dropout(config.dropout),
                 # "Hidden" transformer/decoder blocks
@@ -162,6 +163,7 @@ class GPT(nn.Module):
         self.apply(self._init_weights)
         # apply special scaled init to the residual projections, per GPT-2 paper
         for pn, p in self.named_parameters():
+            # *c_proj* is the layer name defined in the network modules (see MLP and CausalSelfAttention)
             if pn.endswith("c_proj.weight"):
                 torch.nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layer))
 
@@ -210,6 +212,9 @@ class GPT(nn.Module):
         # position embeddings of shape (t, n_embd)
         pos_emb = self.transformer.wpe(pos)
 
+        # Looks like there are pathological records in our datasets
+        # so we have to guarantee that model doesn't see anything that
+        # would be longer (in time) than what model accepts
         x_time_steps = x_time_steps.clip(0, self.n_time_steps - 1)
         time_emb = self.transformer.wmte(x_time_steps)
 
