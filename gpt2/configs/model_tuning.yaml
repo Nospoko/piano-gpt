@@ -25,3 +25,9 @@ overrides:
 
   model:
     dropout: 0.1
+
+  lr:
+    warmup_iters: 3000
+    lr_decay_iters: 80000
+    learning_rate: 6e-4
+    min_lr: 6e-5

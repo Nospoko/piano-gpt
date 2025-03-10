@@ -134,11 +134,19 @@ class GPT(nn.Module):
         self.vocab_size = vocab_size
         self.config = config
         self.pad_token_id = pad_token_id
+
+        # NOTE: for 10ms quantization, 10k steps is 100s
+        self.n_time_steps = 10_000
         self.transformer = nn.ModuleDict(
             dict(
+                # Token Embeddings
                 wte=nn.Embedding(vocab_size, config.n_embd, padding_idx=self.pad_token_id),
-                wpe=nn.Embedding(config.context_size, config.n_embd, padding_idx=self.pad_token_id),
+                # Position Embeddings
+                wpe=nn.Embedding(config.context_size, config.n_embd),
+                # Music Time Embedding
+                wmte=nn.Embedding(self.n_time_steps, config.n_embd),
                 dropout=nn.Dropout(config.dropout),
+                # "Hidden" transformer/decoder blocks
                 h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
                 ln_f=LayerNorm(config.n_embd, bias=config.bias),
             )
@@ -148,12 +156,14 @@ class GPT(nn.Module):
         # "UserWarning: functional_call was passed multiple values for tied weights.
         # This behavior is deprecated and will be an error in future versions"
         # not 100% sure what this is, so far seems to be harmless. TODO investigate
-        self.transformer.wte.weight = self.lm_head.weight  # https://paperswithcode.com/method/weight-tying
+        # https://paperswithcode.com/method/weight-tying
+        self.transformer.wte.weight = self.lm_head.weight
 
         # init all weights
         self.apply(self._init_weights)
         # apply special scaled init to the residual projections, per GPT-2 paper
         for pn, p in self.named_parameters():
+            # *c_proj* is the layer name defined in the network modules (see MLP and CausalSelfAttention)
             if pn.endswith("c_proj.weight"):
                 torch.nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layer))
 
@@ -180,9 +190,16 @@ class GPT(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, targets=None, target_mask=None):
+    def forward(
+        self,
+        idx: torch.tensor,
+        time_steps: torch.tensor,
+        targets: torch.tensor = None,
+        target_mask: torch.tensor = None,
+    ):
         device = idx.device
         b, t = idx.size()
+
         msg = f"Cannot forward sequence of length {t}, block size is only {self.config.context_size}"
         assert t <= self.config.context_size, msg
 
@@ -191,10 +208,18 @@ class GPT(nn.Module):
         # forward the GPT model itself
         # token embeddings of shape (b, t, n_embd)
         tok_emb = self.transformer.wte(idx)
+
         # position embeddings of shape (t, n_embd)
         pos_emb = self.transformer.wpe(pos)
 
-        x = self.transformer.dropout(tok_emb + pos_emb)
+        # Looks like there are pathological records in our datasets
+        # so we have to guarantee that model doesn't see anything that
+        # would be longer (in time) than what model accepts
+        time_steps = time_steps.clip(0, self.n_time_steps - 1)
+        time_emb = self.transformer.wmte(time_steps)
+
+        x = tok_emb + pos_emb + time_emb
+        x = self.transformer.dropout(x)
 
         for block in self.transformer.h:
             x = block(x)
@@ -203,7 +228,7 @@ class GPT(nn.Module):
 
         if targets is not None:
             if target_mask is not None:
-                # Insert ignored id everywhere the  target mask is False
+                # Insert ignored id everywhere the target mask is False
                 targets[~target_mask] = -100
 
             # if we are given some desired targets also calculate the loss
@@ -270,7 +295,13 @@ class GPT(nn.Module):
         return optimizer
 
     @torch.no_grad()
-    def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
+    def generate(
+        self,
+        idx: torch.tensor,
+        max_new_tokens: int,
+        temperature: float = 1.0,
+        top_k: int = None,
+    ):
         """
         Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
         the sequence max_new_tokens times, feeding the predictions back into the model each time.
@@ -278,25 +309,72 @@ class GPT(nn.Module):
         """
         for _ in range(max_new_tokens):
             # if the sequence context is growing too long we must crop it at context_size
-            idx_cond = idx if idx.size(1) <= self.config.context_size else idx[:, -self.config.context_size :]
+            too_long = idx.size(1) > self.config.context_size
+            local_idx = idx if not too_long else idx[:, -self.config.context_size :]
+
+            # idx_cond = idx if idx.size(1) <= self.config.context_size else idx[:, -self.config.context_size :]
+
             # forward the model to get the logits for the index in the sequence
-            logits, _ = self(idx_cond)
+            logits, _ = self.forward(
+                idx=local_idx,
+            )
+
             # pluck the logits at the final step and scale by desired temperature
             logits = logits[:, -1, :] / temperature
+
             # optionally crop the logits to only the top k options
             if top_k is not None:
                 v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
                 logits[logits < v[:, [-1]]] = -float("Inf")
+
             # apply softmax to convert logits to (normalized) probabilities
             probs = F.softmax(logits, dim=-1)
+
             # sample from the distribution
             idx_next = torch.multinomial(probs, num_samples=1)
+
             # append sampled index to the running sequence and continue
             idx = torch.cat((idx, idx_next), dim=1)
 
         return idx
 
-    def generate_new_tokens(self, idx, max_new_tokens, temperature=1.0, top_k=None) -> torch.Tensor:
+    @torch.no_grad()
+    def generate_new_token(
+        self,
+        input_token_ids: torch.tensor,
+        time_steps: torch.tensor,
+        temperature: float = 1.0,
+        top_k: int = None,
+    ) -> int:
+        # forward the model to get the logits for the index in the sequence
+        logits, _ = self.forward(
+            idx=input_token_ids,
+            x_time_steps=time_steps,
+        )
+
+        # pluck the logits at the final step and scale by desired temperature
+        logits = logits[:, -1, :] / temperature
+
+        # optionally crop the logits to only the top k options
+        if top_k is not None:
+            v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+            logits[logits < v[:, [-1]]] = -float("Inf")
+
+        # apply softmax to convert logits to (normalized) probabilities
+        probs = F.softmax(logits, dim=-1)
+
+        # sample from the distribution
+        idx_next = torch.multinomial(probs, num_samples=1)
+
+        return idx_next
+
+    def generate_new_tokens(
+        self,
+        idx: torch.tensor,
+        max_new_tokens: int,
+        temperature: float = 1.0,
+        top_k: int = None,
+    ) -> torch.Tensor:
         initial_length = idx.size(1)
         output = self.generate(
             idx=idx,

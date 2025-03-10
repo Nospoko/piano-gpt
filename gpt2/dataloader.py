@@ -1,7 +1,16 @@
+from typing import NamedTuple
+
 import torch
 from torch.utils.data import Sampler, DataLoader
 
 from gpt2.data.dataset import MidiDataset
+
+
+class PianoBatch(NamedTuple):
+    x: torch.tensor
+    y: torch.tensor
+    mask: torch.tensor
+    x_time_steps: torch.tensor
 
 
 class CyclicalDataLoader:
@@ -30,7 +39,7 @@ class CyclicalDataLoader:
         self.epoch = 0
         self.batch_counter = 0
 
-    def get_batch(self):
+    def get_batch(self) -> PianoBatch:
         try:
             batch = next(self.iterator)
         except StopIteration:
@@ -45,5 +54,15 @@ class CyclicalDataLoader:
 
         x = batch["source_token_ids"].to(self.device, non_blocking=True)
         y = batch["target_token_ids"].to(self.device, non_blocking=True)
+
+        x_time_steps = batch["source_time_steps"].to(self.device, non_blocking=True)
+
         mask = batch["target_mask"].to(self.device, non_blocking=True)
-        return x, y, mask
+
+        piano_batch = PianoBatch(
+            x=x,
+            y=y,
+            mask=mask,
+            x_time_steps=x_time_steps,
+        )
+        return piano_batch

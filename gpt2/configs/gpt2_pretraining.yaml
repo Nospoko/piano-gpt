@@ -11,9 +11,9 @@ command: init
 run_name_suffix: pretraining-${now:%Y-%m-%d-%H-%M}
 
 # This project currently supports tasks:
-# - next_token_prediction
 # - piano_task
-model_task: next_token_prediction
+# - next_token_prediction (depracated)
+model_task: piano_task
 
 out_dir_relative: 'tmp/checkpoints'
 # This is filled during runtime
@@ -48,5 +48,5 @@ system:
 logging:
   wandb_log: True
   wandb_entity: 'epr-labs'
-  wandb_project: 'piano-gpt-vlt'
+  wandb_project: 'piano-gpt-mte'
   log_interval: 20
