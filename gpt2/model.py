@@ -193,9 +193,9 @@ class GPT(nn.Module):
     def forward(
         self,
         idx: torch.tensor,
+        time_steps: torch.tensor,
         targets: torch.tensor = None,
         target_mask: torch.tensor = None,
-        x_time_steps: torch.tensor = None,
     ):
         device = idx.device
         b, t = idx.size()
@@ -215,8 +215,8 @@ class GPT(nn.Module):
         # Looks like there are pathological records in our datasets
         # so we have to guarantee that model doesn't see anything that
         # would be longer (in time) than what model accepts
-        x_time_steps = x_time_steps.clip(0, self.n_time_steps - 1)
-        time_emb = self.transformer.wmte(x_time_steps)
+        time_steps = time_steps.clip(0, self.n_time_steps - 1)
+        time_emb = self.transformer.wmte(time_steps)
 
         x = tok_emb + pos_emb + time_emb
         x = self.transformer.dropout(x)

@@ -291,7 +291,7 @@ def training_loop(
                         idx=piano_batch.x,
                         targets=piano_batch.y,
                         target_mask=piano_batch.mask,
-                        x_time_steps=piano_batch.x_time_steps,
+                        time_steps=piano_batch.x_time_steps,
                     )
                 losses[k] = loss.item()
             out[split] = losses.mean()
@@ -327,7 +327,7 @@ def training_loop(
                     idx=piano_batch.x,
                     targets=piano_batch.y,
                     target_mask=piano_batch.mask,
-                    x_time_steps=piano_batch.x_time_steps,
+                    time_steps=piano_batch.x_time_steps,
                 )
 
                 # scale the loss to account for gradient accumulation
