@@ -1,6 +1,6 @@
 datasets==2.17.1
 fortepyan==0.4.2
-git+https://github.com/Nospoko/midi-tokenizers@MIDI-158/time-steps-encoding
+git+https://github.com/Nospoko/midi-tokenizers
 git+https://github.com/Nospoko/piano-dataset
 hydra-core==1.3.2
 pandas==2.1.4

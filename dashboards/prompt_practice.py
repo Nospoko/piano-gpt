@@ -2,6 +2,7 @@ import os
 import json
 import secrets
 from glob import glob
+from pathlib import Path
 
 import torch
 import requests
@@ -19,23 +20,31 @@ from dashboards.utils.components import download_button
 
 
 def main():
-    devices = [f"cuda:{it}" for it in range(torch.cuda.device_count())] + ["cpu", "mps"]
+    devices = [f"cuda:{it}" for it in range(torch.cuda.device_count())]
+    devices += ["cpu", "mps"]
     device = st.selectbox(
         label="Select Device",
         options=devices,
         help="Choose the device to run the model on",
     )
-    # See the readme to figure out how you can get this checkpoint
-    # checkpoint_path = "checkpoints/midi-gpt2-302M-subsequence-4096-ctx-2024-09-08-19-42last.pt"
+
+    # Get checkpoints starting with the latest
+    checkpoint_paths = [f for f in Path("tmp/checkpoints/").iterdir() if f.is_file()]
+    checkpoint_paths = sorted(
+        checkpoint_paths,
+        key=lambda f: f.stat().st_ctime,
+        reverse=True,
+    )
 
     checkpoint_path = st.selectbox(
-        "Select Checkpoint",
-        options=glob("tmp/checkpoints/*.pt"),
+        label="Select Checkpoint",
+        options=checkpoint_paths,
         help="Choose the model checkpoint to use",
     )
     st.write("Checkpoint:", checkpoint_path)
     model_setup = load_cache_checkpoint(checkpoint_path, device=device)
     run_config = model_setup["run_config"]
+    st.json(OmegaConf.to_container(run_config), expanded=False)
 
     if run_config.model_task != "piano_task":
         st.write(
@@ -51,6 +60,21 @@ def main():
 
     st.write("Training stats:")
     st.write(model_setup["run_stats"])
+
+    uploaded_file = st.file_uploader("Choose a file")
+    if uploaded_file is not None:
+        file_name = st.text_input(
+            label="Name your new prompt file",
+            key=uploaded_file.name,
+        )
+        if not file_name:
+            st.write("Name your file!")
+            return
+        savepath = f"tmp/prompts/{file_name}.mid"
+        with open(savepath, "wb") as f:
+            f.write(uploaded_file.getvalue())
+
+        st.write("File saved", savepath)
 
     with st.form("prompt selection"):
         # TODO: What would be a convenient way to manage prompts
@@ -111,10 +135,13 @@ def main():
 
         piano_task_manager: PianoTaskManager = model_setup["piano_task_manager"]
 
+        # Using prompt path as a key to force st to restart this form whenever
+        # I change the checkpoint of the prompt
         piano_task_name = st.selectbox(
             label="Select PIANO task:",
             options=piano_task_manager.list_task_names(),
             help="Choose from tasks used during training",
+            key=prompt_path + str(checkpoint_path),
             index=None,
         )
 

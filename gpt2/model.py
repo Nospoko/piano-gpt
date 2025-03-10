@@ -349,7 +349,7 @@ class GPT(nn.Module):
         # forward the model to get the logits for the index in the sequence
         logits, _ = self.forward(
             idx=input_token_ids,
-            x_time_steps=time_steps,
+            time_steps=time_steps,
         )
 
         # pluck the logits at the final step and scale by desired temperature
