@@ -15,14 +15,24 @@ from piano_dataset.piano_tasks import PianoTaskManager
 
 from gpt2.model import GPT
 from gpt2.data.musicality import MusicManager
-from dashboards.utils import device_model_selection
 from dashboards.utils.components import download_button
 
 
 def main():
+    devices = [f"cuda:{it}" for it in range(torch.cuda.device_count())] + ["cpu", "mps"]
+    device = st.selectbox(
+        label="Select Device",
+        options=devices,
+        help="Choose the device to run the model on",
+    )
     # See the readme to figure out how you can get this checkpoint
     # checkpoint_path = "checkpoints/midi-gpt2-302M-subsequence-4096-ctx-2024-09-08-19-42last.pt"
-    device, checkpoint_path = device_model_selection()
+
+    checkpoint_path = st.selectbox(
+        "Select Checkpoint",
+        options=glob("tmp/checkpoints/*.pt"),
+        help="Choose the model checkpoint to use",
+    )
     st.write("Checkpoint:", checkpoint_path)
     model_setup = load_cache_checkpoint(checkpoint_path, device=device)
     run_config = model_setup["run_config"]
