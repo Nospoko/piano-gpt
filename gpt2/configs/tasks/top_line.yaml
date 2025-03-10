@@ -1,7 +1,5 @@
 - class: TopLineMasking
   param_range:
     - n_repetitions: 1
-
-- class: ShortNotesMasking
-  param_range:
-    - n_notes: 10
+    - n_repetitions: 2
+    - n_repetitions: 3
