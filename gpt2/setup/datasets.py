@@ -76,6 +76,14 @@ def next_token_prediction_setup(
     device_setup: DeviceSetup,
     tokenizer: ExponentialTimeTokenizer = None,
 ) -> DatasetsSetup:
+    raise NotImplementedError(
+        (
+            "Next Token Prediction is out of date,"
+            " if you want to use it, please implement time embeddings"
+            " in the NextTokenDataset, following what happens in PianoDataset"
+        )
+    )
+
     music_manager = MusicManager()
     if not tokenizer:
         tokenizer = load_tokenizer(
