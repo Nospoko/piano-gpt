@@ -182,6 +182,8 @@ def main():
                 "dataset_token": dataset_token,
                 "composer_token": composer_token,
                 "piano_task": piano_task.name,
+                "model_id": os.path.basename(checkpoint_path),
+                "prompt_name": os.path.basename(prompt_path),
             }
             st.write(generation_setup)
             st.write("".join(pre_input_tokens))
