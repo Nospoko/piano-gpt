@@ -38,7 +38,7 @@ PYTHONPATH=. streamlit run dashboards/prompt_practice.py
 
 ## Overview
 
-Piano-GPT is a project leveraging the GPT-2 architecture for generating and processing MIDI piano music. It introduces the PIANO (Performance Inference And Note Orchestration) dataset, a multi-task benchmark for voice and dynamic reconstruction in MIDI piano rolls.
+Piano-GPT is a project utilizing the GPT-2 architecture for generating and processing MIDI piano music. It introduces the PIANO (Performance Inference And Note Orchestration) dataset, a multi-task benchmark for voice and dynamic reconstruction in MIDI piano rolls.
 
 ### Tokenization
 
@@ -66,11 +66,8 @@ The PIANO dataset is designed to standardize approaches and provide a benchmark 
 
 - `tmp/checkpoints/`: Saved model checkpoints
 - `dashboards/`: Streamlit dashboards for data visualization
-- `data/`: Dataset handling and preprocessing modules
-- `database/`: Database connection and management utilities
 - `gpt2/`: Core GPT-2 model implementation and training scripts
-- `midi_datasets/`: Custom dataset classes for MIDI data
-- `scripts/`: Utility scripts for model management and evaluation
+- `commands/`: Utility scripts for model management and evaluation
 
 ## Installation
 
@@ -85,110 +82,12 @@ The PIANO dataset is designed to standardize approaches and provide a benchmark 
    pip install -r requirements.txt
    ```
 
-## Usage
-
-### Training
-
-```sh
-python -m gpt2.train.py
-```
-
-You can run the script in DDP mode and with custom configuration. You can change the configuration in
-`gpt2/configs/*.yaml`, or specify the training hyperparameters from command line, for example
-```sh
-PYTHONPATH=. torchrun --nproc-per-node=8 \
-    gpt2/train.py --config-name=gpt2_pretraining \
-    data.batch_size=32 \
-    optimizer.gradient_accumulation_steps=8 \
-    optimizer.max_iters=30000 \
-    data.context_size=4096 \
-    dataset.extra_datasets="['epr-labs/maestro-sustain-v2', 'epr-labs/giant-midi-sustain-v2', 'epr-labs/pianofor-ai-sustain-v2']" \
-    dataset.augmentation.max_pitch_shift=5 \
-    "dataset.augmentation.speed_change_factors=[0.975, 0.95, 1.025, 1.05]" \
-    lr.warmup_iters=1000 \
-    lr.learning_rate=1e-5 \
-    lr.min_lr=1e-6 \
-    model=gpt2_large \
-    system.data_workers=64 \
-    system.compile=true \
-    init_from=scratch
-```
-
-or, for downstream tasks:
-```sh
-PYTHONPATH=. torchrun --nproc-per-node=4 \
-    gpt2/train.py --config-name=gpt2_piano \
-    tasks = subsequence \
-    data.batch_size=64 \
-    optimizer.gradient_accumulation_steps=4 \
-    optimizer.max_iters=30000 \
-    data.context_size=1024 \
-    data.notes_per_record=128 \
-    dataset.extra_datasets="['epr-labs/maestro-sustain-v2', 'epr-labs/giant-midi-sustain-v2', 'epr-labs/pianofor-ai-sustain-v2']" \
-    dataset.augmentation.max_pitch_shift=5 \
-    dataset.augmentation.speed_change_factors="[0.95, 1.05]" \
-    lr.learning_rate=8e-5 \
-    system.data_workers=128 \
-    system.compile=true \
-    prompt_masking=true \
-    checkpoint_path=midi-gpt2-my-awesome-model.pt
-
-```
-
-### Awesome Tokenizer training
-```sh
-python3.10 -m gpt2.prepare_tokenizer_dataset; \
-python3.10 -m gpt2.train_tokenizer; \
-PYTHONPATH=. torchrun --nproc-per-node=4 \
-gpt2/train.py --config-name=gpt2_pretraining \
-model=gpt2 \
-lr.learning_rate=8e-5 \
-lr.min_lr=8e-6 \
-lr.warmup_iters=1000 \
-system.data_workers=124 \
-optimizer.gradient_accumulation_steps=4 \
-task=next_token_prediction_with_composer \
-eval_iters=200 eval_interval=1000 \
-"dataset.extra_datasets=['epr-labs/maestro-sustain-v2', 'epr-labs/giant-midi-sustain-v2', 'epr-labs/pianofor-ai-sustain-v2']" \
-data.batch_size=20 \
-data.context_size=4096 \
-logging.wandb_run_name_suffix=huge-pretraining-4096-ctx \
-tokenizer=awesome \
-logging.wandb_project=piano-awesome-gpt
-```
-
-`prepare_tokenizer_dataset` will create a text file in `tmp/tokenizer_datasets`, with a dump of tokenized and augmented MAESTRO dataset.
-
-The text will be in a format in which tokenizer will be able to train on.
-`train_tokenizer` script will then train an AwesomeMidiTokenizer on this data and dump json format of the tokenizer to `tmp/tokenizers`
-
-Both of these scripts use `gpt2/configs/tokenizer_training` as a default hydra config. It is equivalent to `dataset` + `tokenizer` training config.
-
-During model training initialization the program will look for a tokenizer saved with the same `dataset` and `tokenizer` configuration as training config.
-
-### Evaluation
-
-```
-python -m gpt2.eval.py init_from=path_to_checkpoint.pt
-```
-
-### Generation
-To generate with your model refer to:
-https://github.com/Nospoko/piano-generation
-a repository fully commited to generation methods.
-
 ### Data Visualization
 Browse through piano dataset by running:
 
 ```
 PYTHONPATH=. streamlit run dashboards/piano_dataset_review.py
 ```
-
-### Model Management
-
-- Download models: `python scripts/download_model.py <model_filename>`
-- Upload models: `python scripts/upload_models.py`
-- Run multi-task evaluation: `python scripts/run_evaluation.py <model_paths> <device> [--tasks task1 task2 ...]`
 
 ## Configuration
 
