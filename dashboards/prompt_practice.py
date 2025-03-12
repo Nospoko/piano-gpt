@@ -119,6 +119,19 @@ def main():
             step=0.05,
         )
 
+        cols = st.columns(2)
+        top_k = cols[0].number_input(
+            label="top k",
+            value=5,
+            min_value=1,
+        )
+        use_top_k = cols[1].checkbox(
+            label="use top k",
+            value=False,
+        )
+        if not use_top_k:
+            top_k = None
+
         speedup_factor = st.number_input(
             label="speedup factor",
             value=1.0,
@@ -182,6 +195,7 @@ def main():
                 "dataset_token": dataset_token,
                 "composer_token": composer_token,
                 "piano_task": piano_task.name,
+                "top_k": top_k,
                 "model_id": os.path.basename(checkpoint_path),
                 "prompt_name": os.path.basename(prompt_path),
             }
@@ -195,12 +209,13 @@ def main():
                 "local_seed": local_seed,
             }
 
-            prompt_notes_df, generated_notes = cache_generation(
+            generated_notes_df = cache_generation(
                 prompt_notes_df=prompt_notes_df,
                 seed=local_seed,
                 _model=model,
                 _tokenizer=tokenizer,
                 device=device,
+                top_k=top_k,
                 pre_input_tokens=pre_input_tokens,
                 temperature=temperature,
                 max_new_tokens=max_new_tokens,
@@ -208,7 +223,7 @@ def main():
             )
 
             prompt_piece = ff.MidiPiece(prompt_notes_df)
-            generated_piece = ff.MidiPiece(generated_notes)
+            generated_piece = ff.MidiPiece(generated_notes_df)
 
             streamlit_pianoroll.from_fortepyan(prompt_piece, generated_piece)
 
@@ -227,7 +242,8 @@ def main():
                     )
                     st.write("POSTED!")
 
-            out_piece = ff.MidiPiece(pd.concat([prompt_notes_df, generated_notes]))
+            out_piece = ff.MidiPiece(pd.concat([prompt_notes_df, generated_notes_df]))
+
             # Allow download of the full MIDI with context
             full_midi_path = f"tmp/tmp_{composer_token}_{local_seed}.mid"
             out_piece.to_midi().write(full_midi_path)
@@ -281,8 +297,9 @@ def cache_generation(
     device: str = "cuda",
     max_new_tokens: int = 2048,
     temperature: int = 1,
+    top_k: int = None,
     **kwargs,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> pd.DataFrame:
     torch.random.manual_seed(seed)
     generation_token = "<GENAI>"
 
@@ -312,6 +329,7 @@ def cache_generation(
                 input_token_ids=input_token_ids,
                 time_steps=time_steps,
                 temperature=temperature,
+                top_k=top_k,
             )
 
             if next_token_id.item() == _tokenizer.token_to_id["<EOGENAI>"]:
@@ -324,13 +342,13 @@ def cache_generation(
             )
             generated_token_ids.append(next_token_id.item())
 
-        generated_notes = _tokenizer.decode(generated_token_ids)
+        generated_notes_df = _tokenizer.decode(generated_token_ids)
 
         with st.expander("tokens"):
             generated_tokens = [_tokenizer.vocab[token_id] for token_id in generated_token_ids]
             st.write(generated_tokens)
 
-    return prompt_notes_df, generated_notes
+    return generated_notes_df
 
 
 @st.cache_data
