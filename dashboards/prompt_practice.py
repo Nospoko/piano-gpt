@@ -46,7 +46,6 @@ def main():
     st.write("Checkpoint:", checkpoint_path)
     model_setup = load_cache_checkpoint(checkpoint_path, device=device)
     run_config = model_setup["run_config"]
-    st.json(OmegaConf.to_container(run_config), expanded=False)
 
     if run_config.model_task != "piano_task":
         st.write(
@@ -57,22 +56,26 @@ def main():
         )
         return
 
-    st.write("Training settings:")
-    st.write(OmegaConf.to_container(run_config.training))
+    with st.expander("model info"):
+        st.json(OmegaConf.to_container(run_config), expanded=False)
 
-    st.write("Training stats:")
-    st.write(model_setup["run_stats"])
+        st.write("Training settings:")
+        st.write(OmegaConf.to_container(run_config.training))
 
-    uploaded_file = st.file_uploader("Choose a file")
+        st.write("Training stats:")
+        st.write(model_setup["run_stats"])
+
+    st.write("# Prompt")
+    st.write(
+        ("Upload a new prompt midi file, or select one from the list.\n" "Uploading will add a file to that list.")
+    )
+
+    uploaded_file = st.file_uploader(
+        label="Choose a file",
+        type=["mid", "midi"],
+    )
     if uploaded_file is not None:
-        file_name = st.text_input(
-            label="Name your new prompt file",
-            key=uploaded_file.name,
-        )
-        if not file_name:
-            st.write("Name your file!")
-            return
-        savepath = f"tmp/prompts/{file_name}.mid"
+        savepath = f"tmp/prompts/{uploaded_file.name}"
         with open(savepath, "wb") as f:
             f.write(uploaded_file.getvalue())
 
@@ -80,16 +83,21 @@ def main():
 
     with st.form("prompt selection"):
         # TODO: What would be a convenient way to manage prompts
-        # for a user? Definitely needs an upload
+        # for a user?
         prompt_options = glob("tmp/prompts/*.mid") + [None]
+        if uploaded_file is not None:
+            idx = prompt_options.index(savepath)
+        else:
+            idx = None
         prompt_path = st.selectbox(
             label="select prompt file",
             options=prompt_options,
-            index=None,
+            index=idx,
         )
         st.form_submit_button()
 
     if not prompt_path:
+        st.write("Submit your prompt selection pls")
         return
 
     prompt_piece = ff.MidiPiece.from_file(prompt_path)
@@ -97,6 +105,7 @@ def main():
     # TODO Remove inplace operations from fortepyan
     prompt_piece.time_shift(-prompt_piece.df.start.min())
 
+    st.write("### Prompt modification setup")
     with st.form("prompt setup"):
         speedup_factor = st.number_input(
             label="speedup factor",
@@ -141,6 +150,7 @@ def main():
     streamlit_pianoroll.from_fortepyan(prompt_piece)
     st.write("Prompt notes:", prompt_piece.size)
 
+    st.write("### Generation settings")
     with st.form("generation setup"):
         random_seed = st.number_input(
             label="random seed",
@@ -213,8 +223,8 @@ def main():
     model = model_setup["model"]
     tokenizer = model_setup["tokenizer"]
 
-    # TODO this dashboards tries hard to work both for next token prediction
-    # and for the piano task generations – we should probably have separate dashboards
+    st.write("# Generations")
+
     composer_tokens = ["<BACH>", "<MOZART>", "<CHOPIN>", "<UNKNOWN_COMPOSER>"]
     for composer_token in composer_tokens:
         pre_input_tokens = [dataset_token, composer_token] + piano_task.prefix_tokens
