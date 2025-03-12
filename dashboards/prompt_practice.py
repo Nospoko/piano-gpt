@@ -97,6 +97,47 @@ def main():
     # TODO Remove inplace operations from fortepyan
     prompt_piece.time_shift(-prompt_piece.df.start.min())
 
+    with st.form("prompt setup"):
+        speedup_factor = st.number_input(
+            label="speedup factor",
+            value=1.0,
+            min_value=0.3,
+            max_value=2.5,
+        )
+
+        start_note_idx = st.number_input(
+            label="start note idx",
+            value=0,
+            min_value=0,
+            max_value=prompt_piece.size - 5,
+        )
+        finish_note_idx = st.number_input(
+            label="finish note idx",
+            value=prompt_piece.size,
+            min_value=2,
+            max_value=prompt_piece.size,
+        )
+        pitch_shift = st.number_input(
+            label="pitch shift",
+            value=0,
+            min_value=-12,
+            max_value=12,
+        )
+        _ = st.form_submit_button()
+
+    # Get just the file name, without extension
+    prompt_name = os.path.splitext(os.path.basename(prompt_path))[0]
+    prompt_setup = {
+        "prompt_name": prompt_name,
+        "pitch_shift": pitch_shift,
+        "speedup_factor": speedup_factor,
+        "start_note_idx": start_note_idx,
+        "finish_note_idx": finish_note_idx,
+    }
+
+    prompt_piece = prompt_piece[start_note_idx:finish_note_idx]
+    prompt_piece.df.pitch += pitch_shift
+
     streamlit_pianoroll.from_fortepyan(prompt_piece)
     st.write("Prompt notes:", prompt_piece.size)
 
@@ -133,13 +174,6 @@ def main():
         )
         if not use_top_k:
             top_k = None
-
-        speedup_factor = st.number_input(
-            label="speedup factor",
-            value=1.0,
-            min_value=0.3,
-            max_value=2.5,
-        )
 
         dataset_tokens = MusicManager().dataset_tokens
         dataset_token = st.selectbox(
@@ -179,9 +213,6 @@ def main():
     model = model_setup["model"]
     tokenizer = model_setup["tokenizer"]
 
-    # Get just the file name, without extension
-    prompt_name = os.path.splitext(os.path.basename(prompt_path))[0]
-
     # TODO this dashboards tries hard to work both for next token prediction
     # and for the piano task generations – we should probably have separate dashboards
     composer_tokens = ["<BACH>", "<MOZART>", "<CHOPIN>", "<UNKNOWN_COMPOSER>"]
@@ -203,16 +234,14 @@ def main():
                 "piano_task": piano_task.name,
                 "top_k": top_k,
                 "model_id": os.path.basename(checkpoint_path),
-                "prompt_name": prompt_name,
             }
             st.write(generation_setup)
             st.write("".join(pre_input_tokens))
 
             # This acts as a caching key
-            generation_properties = {
-                "speedup_factor": speedup_factor,
-                "prompt_path": prompt_path,
-                "local_seed": local_seed,
+            generation_info = {
+                "generation_setup": generation_setup,
+                "prompt_setup": prompt_setup,
             }
 
             generated_notes_df = cache_generation(
@@ -225,7 +254,7 @@ def main():
                 pre_input_tokens=pre_input_tokens,
                 temperature=temperature,
                 max_new_tokens=max_new_tokens,
-                **generation_properties,
+                generation_info=generation_info,
             )
 
             prompt_piece = ff.MidiPiece(prompt_notes_df)
@@ -245,7 +274,7 @@ def main():
                         model_piece=generated_piece,
                         prompt_piece=prompt_piece,
                         pianoroll_apikey=pianoroll_apikey,
-                        generation_setup=generation_setup,
+                        generation_info=generation_info,
                         unique_id=unique_id,
                     )
                     st.write("POSTED!")
@@ -292,13 +321,13 @@ def post_to_pianoroll(
     model_piece: ff.MidiPiece,
     prompt_piece: ff.MidiPiece,
     pianoroll_apikey: str,
-    generation_setup: dict,
+    generation_info: dict,
     unique_id: str,
 ):
     model_notes = model_piece.df.to_dict(orient="records")
     prompt_notes = prompt_piece.df.to_dict(orient="records")
 
-    description = json.dumps(generation_setup, indent=4)
+    description = json.dumps(generation_info, indent=4)
     post_title = "ai riff " + unique_id
     payload = {
         "model_notes": model_notes,
@@ -314,6 +343,7 @@ def post_to_pianoroll(
     r = requests.post(api_endpoint, headers=headers, json=payload)
 
     st.write(r)
+    st.write(r.json())
 
 
 @st.cache_data
@@ -323,11 +353,11 @@ def cache_generation(
     _model,
     _tokenizer,
     pre_input_tokens: list[str],
+    generation_info: dict,
     device: str = "cuda",
     max_new_tokens: int = 2048,
     temperature: int = 1,
     top_k: int = None,
-    **kwargs,
 ) -> pd.DataFrame:
     torch.random.manual_seed(seed)
     generation_token = "<GENAI>"
