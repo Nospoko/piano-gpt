@@ -1,6 +1,8 @@
+import io
 import os
 import json
 import secrets
+import zipfile
 from glob import glob
 from pathlib import Path
 
@@ -177,6 +179,9 @@ def main():
     model = model_setup["model"]
     tokenizer = model_setup["tokenizer"]
 
+    # Get just the file name, without extension
+    prompt_name = os.path.splitext(os.path.basename(prompt_path))[0]
+
     # TODO this dashboards tries hard to work both for next token prediction
     # and for the piano task generations – we should probably have separate dashboards
     composer_tokens = ["<BACH>", "<MOZART>", "<CHOPIN>", "<UNKNOWN_COMPOSER>"]
@@ -188,6 +193,7 @@ def main():
         # Generator randomness comes from torch.multinomial, so we can make it
         # fully deterministic by setting global torch random seed
         for it in range(2):
+            # TODO Try to de-indent this loop
             local_seed = random_seed + it * 1000
             generation_setup = {
                 "seed": local_seed,
@@ -197,7 +203,7 @@ def main():
                 "piano_task": piano_task.name,
                 "top_k": top_k,
                 "model_id": os.path.basename(checkpoint_path),
-                "prompt_name": os.path.basename(prompt_path),
+                "prompt_name": prompt_name,
             }
             st.write(generation_setup)
             st.write("".join(pre_input_tokens))
@@ -227,6 +233,7 @@ def main():
 
             streamlit_pianoroll.from_fortepyan(prompt_piece, generated_piece)
 
+            unique_id = secrets.token_hex(10)
             if pianoroll_apikey:
                 # TODO: Add title and description control
                 make_proll_post = st.button(
@@ -239,25 +246,46 @@ def main():
                         prompt_piece=prompt_piece,
                         pianoroll_apikey=pianoroll_apikey,
                         generation_setup=generation_setup,
+                        unique_id=unique_id,
                     )
                     st.write("POSTED!")
 
-            out_piece = ff.MidiPiece(pd.concat([prompt_notes_df, generated_notes_df]))
-
-            # Allow download of the full MIDI with context
-            full_midi_path = f"tmp/tmp_{composer_token}_{local_seed}.mid"
-            out_piece.to_midi().write(full_midi_path)
-            with open(full_midi_path, "rb") as file:
-                st.markdown(
-                    download_button(
-                        object_to_download=file.read(),
-                        download_filename=full_midi_path.split("/")[-1],
-                        button_text="Download midi with context",
-                    ),
-                    unsafe_allow_html=True,
-                )
+            midi_package_buffer = make_midi_package(
+                prompt_piece=prompt_piece,
+                generated_piece=generated_piece,
+            )
+            download_filename = f"{prompt_name}-{unique_id}.zip"
+            st.markdown(
+                download_button(
+                    object_to_download=midi_package_buffer.getvalue(),
+                    download_filename=download_filename,
+                    button_text="Download midi with context",
+                ),
+                unsafe_allow_html=True,
+            )
             st.write("---")
-    os.unlink(full_midi_path)
+
+
+def make_midi_package(
+    prompt_piece: ff.MidiPiece,
+    generated_piece: ff.MidiPiece,
+) -> io.BytesIO:
+    prompt_bytes = io.BytesIO()
+    prompt_piece.to_midi().write(prompt_bytes)
+    prompt_bytes.seek(0)
+
+    generated_bytes = io.BytesIO()
+    generated_piece.to_midi().write(generated_bytes)
+    generated_bytes.seek(0)
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        zip_file.writestr("prompt.mid", prompt_bytes.getvalue())
+        zip_file.writestr("generation.mid", generated_bytes.getvalue())
+
+        zip_buffer.seek(0)
+
+    return zip_buffer
 
 
 def post_to_pianoroll(
@@ -265,12 +293,13 @@ def post_to_pianoroll(
     prompt_piece: ff.MidiPiece,
     pianoroll_apikey: str,
     generation_setup: dict,
+    unique_id: str,
 ):
     model_notes = model_piece.df.to_dict(orient="records")
     prompt_notes = prompt_piece.df.to_dict(orient="records")
 
     description = json.dumps(generation_setup, indent=4)
-    post_title = "ai riff " + secrets.token_hex(10)
+    post_title = "ai riff " + unique_id
     payload = {
         "model_notes": model_notes,
         "prompt_notes": prompt_notes,
