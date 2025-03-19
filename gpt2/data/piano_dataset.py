@@ -144,7 +144,11 @@ class PianoDataset(MidiDataset):
         dataset_token = self.music_manager.get_dataset_token(
             piece_source=piece_source,
         )
-        source_prefix_tokens = [dataset_token, composer_token] + piano_task.prefix_tokens
+        n_notes_token = self.music_manager.get_n_notes_token(
+            n_notes=piece_split.n_target_notes,
+        )
+        source_prefix_tokens = [dataset_token, composer_token, n_notes_token]
+        source_prefix_tokens += piano_task.prefix_tokens
         prefix_token_ids = self.tokenizer.encode_tokens(source_prefix_tokens)
 
         # ... and join into a single promp sequence of token ids
@@ -207,6 +211,8 @@ class PianoDataset(MidiDataset):
             "task": piano_index.task_name,
             "target_mask": target_mask,
             "n_notes": piano_index.n_notes,
+            "n_source_notes": piece_split.n_source_notes,
+            "n_target_notes": piece_split.n_target_notes,
             "start_point": piano_index.start_point,
             "piece_source": json.dumps(piece_source),
             "source_token_ids": source_token_ids,

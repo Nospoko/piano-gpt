@@ -84,7 +84,9 @@ def next_token_prediction_setup(
         )
     )
 
-    music_manager = MusicManager()
+    music_manager = MusicManager(
+        max_n_notes=cfg.training.max_notes_per_record,
+    )
     if not tokenizer:
         tokenizer = load_tokenizer(
             cfg=cfg,
@@ -132,7 +134,9 @@ def piano_task_setup(
 ) -> DatasetsSetup:
     hf_dataset = create_augmented_dataset(cfg)
 
-    music_manager = MusicManager()
+    music_manager = MusicManager(
+        max_n_notes=cfg.training.max_notes_per_record,
+    )
     if not tokenizer:
         tokenizer = load_tokenizer(
             cfg=cfg,
