@@ -49,12 +49,19 @@ class MusicManager:
         "Johann Sebastian Bach": "<BACH>",
     }
 
-    def __init__(self):
+    def __init__(self, max_n_notes: int):
+        self.max_n_notes = max_n_notes
         self.composer_regex_map = self.create_composer_regex_map()
 
     @property
+    def n_note_tokens(self) -> list[str]:
+        # NOTE: 0 is a valid number of notes
+        tokens = [self.get_n_notes_token(n_notes) for n_notes in range(self.max_n_notes + 1)]
+        return tokens
+
+    @property
     def tokens(self) -> list[str]:
-        return self.dataset_tokens + self.composer_tokens
+        return self.dataset_tokens + self.composer_tokens + self.n_note_tokens
 
     def create_composer_regex_map(self) -> dict[re.Pattern, str]:
         regex_map: dict[re.Pattern, str] = {}
@@ -91,3 +98,6 @@ class MusicManager:
             return matches[0][1]
 
         return "<UNKNOWN_COMPOSER>"
+
+    def get_n_notes_token(self, n_notes: int) -> str:
+        return f"<N_NOTES_{n_notes}>"

@@ -63,7 +63,6 @@ def model_tuning(tune_cfg: DictConfig):
     model.to(device_setup.device)
 
     if run_cfg.system.compile:
-        print("compiling the model... (takes a ~minute)")
         model = torch.compile(model)
 
     backprop_setup = setup_backprop(
@@ -135,7 +134,6 @@ def resume_training(resume_cfg: DictConfig):
 
     # TODO Not sure if this is a "system" setting
     if run_cfg.system.compile:
-        print("compiling the model... (takes a ~minute)")
         model = torch.compile(model)
 
     backprop_setup = setup_backprop(
@@ -235,7 +233,6 @@ def training_from_scratch(cfg: DictConfig):
     )
 
     if cfg.system.compile:
-        print("compiling the model... (takes a ~minute)")
         model = torch.compile(model)
 
     milion_params = model.get_num_params() / 1e6
