@@ -1,0 +1,3 @@
+- class: ChordMasking
+  params:
+    n_notes_threshold: 3

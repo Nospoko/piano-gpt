@@ -10,7 +10,7 @@ checkpoint_path:
 # etc.
 defaults:
   - dataset: medium
-  - tasks: top_line
+  - tasks: chords
   - _self_
 
 # TODO Might be better to get rid of the overrides field and treat
