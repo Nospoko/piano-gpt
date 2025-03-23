@@ -94,7 +94,7 @@ def get_nested_subsequence_index(
         # Accumulate the total number of valid subsequences
         total_sequences += task_subsequences
 
-    if idx < 1 or idx > total_sequences:
+    if idx > total_sequences:
         raise ValueError("Index out of range")
 
     # Find the corresponding `n_notes`
@@ -110,7 +110,7 @@ def get_nested_subsequence_index(
         num_task_subsequences = n_notes - n_task_notes + 1
         if current_index <= num_task_subsequences:
             # Zero-based index
-            start = current_index - 1
+            start = current_index
             subsequence_index = SubsequenceIndex(
                 n_notes=n_notes,
                 n_task_notes=n_task_notes,
