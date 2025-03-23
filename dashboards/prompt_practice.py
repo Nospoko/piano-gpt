@@ -185,12 +185,23 @@ def main():
         if not use_top_k:
             top_k = None
 
-        dataset_tokens = MusicManager().dataset_tokens
+        music_manager = MusicManager(
+            max_n_notes=run_config.training.max_notes_per_record,
+        )
+        dataset_tokens = music_manager.dataset_tokens
         dataset_token = st.selectbox(
             label="Select a dataset token:",
             options=dataset_tokens,
             help="Choose from available special tokens to add to your prompt",
         )
+
+        n_target_notes = st.number_input(
+            label="N target notes",
+            min_value=0,
+            max_value=music_manager.max_n_notes,
+            value=music_manager.max_n_notes // 3,
+        )
+        n_notes_token = music_manager.get_n_notes_token(n_target_notes)
 
         piano_task_manager: PianoTaskManager = model_setup["piano_task_manager"]
 
@@ -227,7 +238,7 @@ def main():
 
     composer_tokens = ["<BACH>", "<MOZART>", "<CHOPIN>", "<UNKNOWN_COMPOSER>"]
     for composer_token in composer_tokens:
-        pre_input_tokens = [dataset_token, composer_token] + piano_task.prefix_tokens
+        pre_input_tokens = [dataset_token, composer_token, n_notes_token] + piano_task.prefix_tokens
 
         st.write("Pre-input tokens:", pre_input_tokens)
 
@@ -239,8 +250,7 @@ def main():
             generation_setup = {
                 "seed": local_seed,
                 "temperature": temperature,
-                "dataset_token": dataset_token,
-                "composer_token": composer_token,
+                "pre_input_tokens": pre_input_tokens,
                 "piano_task": piano_task.name,
                 "top_k": top_k,
                 "model_id": os.path.basename(checkpoint_path),
@@ -271,6 +281,7 @@ def main():
             generated_piece = ff.MidiPiece(generated_notes_df)
 
             streamlit_pianoroll.from_fortepyan(prompt_piece, generated_piece)
+            st.write("Generated notes:", generated_piece.size)
 
             unique_id = secrets.token_hex(10)
             if pianoroll_apikey:

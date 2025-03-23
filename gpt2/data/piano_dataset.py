@@ -71,13 +71,13 @@ class PianoDataset(MidiDataset):
         record_lengths = np.array(self.dataset["n_notes"]) - self.max_notes_per_record + 1
 
         # For every record we can have that many different subsequences with different lengths
-        self.n_duration_options = self.max_notes_per_record - self.min_notes_per_record
+        self.n_record_durations = self.max_notes_per_record - self.min_notes_per_record
 
         # Records shorter than context are effectively discarded
         self.record_lengths = record_lengths.clip(min=0)
 
         # Calculate total dataset length
-        self.length = self.record_lengths.sum() * self.num_tasks * self.n_duration_options
+        self.length = self.record_lengths.sum() * self.num_tasks * self.n_record_durations
 
     def __len__(self):
         # Return the total length of the dataset
@@ -93,10 +93,10 @@ class PianoDataset(MidiDataset):
         idx_bis = idx // self.num_tasks
 
         # ... and decode the number of notes for this record
-        n_notes = self.min_notes_per_record + (idx_bis % self.n_duration_options)
+        n_notes = self.min_notes_per_record + (idx_bis % self.n_record_durations)
 
         # ... and then decode the starting note idx
-        start_point = idx_bis // self.n_duration_options
+        start_point = idx_bis // self.n_record_durations
 
         for record_idx, record_length in enumerate(self.record_lengths):
             if start_point < record_length:

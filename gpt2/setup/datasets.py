@@ -104,7 +104,7 @@ def next_token_prediction_setup(
     )
 
     train_dataset = datasets["train_split"]
-    print("Train dataset samples [M]:", len(train_dataset) / 1e6)
+    print("Train dataset samples [G]:", len(train_dataset) / 1e9)
     val_datasets = datasets["validation_splits"]
 
     train_loader, val_loaders = loaders_setup(
@@ -159,7 +159,7 @@ def piano_task_setup(
     )
 
     train_dataset = datasets["train_split"]
-    print("Train dataset samples [M]:", len(train_dataset) / 1e6)
+    print("Train dataset samples [G]:", len(train_dataset) / 1e9)
     val_datasets = datasets["validation_splits"]
 
     train_loader, val_loaders = loaders_setup(
