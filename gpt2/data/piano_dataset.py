@@ -71,13 +71,13 @@ class PianoDataset(MidiDataset):
         record_lengths = np.array(self.dataset["n_notes"]) - self.max_notes_per_record + 1
 
         # For every record we can have that many different subsequences with different lengths
-        self.n_duration_options = self.max_notes_per_record - self.min_notes_per_record
+        self.n_record_durations = self.max_notes_per_record - self.min_notes_per_record
 
         # Records shorter than context are effectively discarded
         self.record_lengths = record_lengths.clip(min=0)
 
         # Calculate total dataset length
-        self.length = self.record_lengths.sum() * self.num_tasks * self.n_duration_options
+        self.length = self.record_lengths.sum() * self.num_tasks * self.n_record_durations
 
     def __len__(self):
         # Return the total length of the dataset
@@ -93,10 +93,10 @@ class PianoDataset(MidiDataset):
         idx_bis = idx // self.num_tasks
 
         # ... and decode the number of notes for this record
-        n_notes = self.min_notes_per_record + (idx_bis % self.n_duration_options)
+        n_notes = self.min_notes_per_record + (idx_bis % self.n_record_durations)
 
         # ... and then decode the starting note idx
-        start_point = idx_bis // self.n_duration_options
+        start_point = idx_bis // self.n_record_durations
 
         for record_idx, record_length in enumerate(self.record_lengths):
             if start_point < record_length:
@@ -144,7 +144,11 @@ class PianoDataset(MidiDataset):
         dataset_token = self.music_manager.get_dataset_token(
             piece_source=piece_source,
         )
-        source_prefix_tokens = [dataset_token, composer_token] + piano_task.prefix_tokens
+        n_notes_token = self.music_manager.get_n_notes_token(
+            n_notes=piece_split.n_target_notes,
+        )
+        source_prefix_tokens = [dataset_token, composer_token, n_notes_token]
+        source_prefix_tokens += piano_task.prefix_tokens
         prefix_token_ids = self.tokenizer.encode_tokens(source_prefix_tokens)
 
         # ... and join into a single promp sequence of token ids
@@ -207,6 +211,8 @@ class PianoDataset(MidiDataset):
             "task": piano_index.task_name,
             "target_mask": target_mask,
             "n_notes": piano_index.n_notes,
+            "n_source_notes": piece_split.n_source_notes,
+            "n_target_notes": piece_split.n_target_notes,
             "start_point": piano_index.start_point,
             "piece_source": json.dumps(piece_source),
             "source_token_ids": source_token_ids,
