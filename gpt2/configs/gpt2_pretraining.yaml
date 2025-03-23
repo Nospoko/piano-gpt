@@ -27,6 +27,7 @@ training:
   context_size: 2048
   min_notes_per_record: 32
   max_notes_per_record: 128
+  min_n_task_notes: 16
   # What you want the model to see
   batch_size: 64
   # What can fit in a single GPU

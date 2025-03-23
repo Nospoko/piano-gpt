@@ -18,6 +18,111 @@ class PianoIndex(NamedTuple):
     record_idx: int
     n_notes: int
 
+    task_start: int
+    task_finish: int
+
+
+class SubsequenceIndex(NamedTuple):
+    n_notes: int
+    n_task_notes: int
+    start: int
+    finish: int
+
+
+def max_valid_subrecord_index(
+    max_notes_per_record: int,
+    min_notes_per_record: int,
+    min_n_task_notes: int,
+) -> int:
+    """
+    Compute the maximum valid index for selecting a nested subsequence.
+
+    This function calculates the total number of possible (n_notes, n_task_notes, start)
+    combinations given the constraints.
+
+    Parameters:
+        max_notes_per_record (int): The maximum allowed sequence length.
+        min_notes_per_record (int): The minimum allowed sequence length.
+        min_n_task_notes (int): The minimum length of the inner subsequence.
+
+    Returns:
+        int: The total number of valid indexed subsequences.
+    """
+    return sum(
+        sum(n - k + 1 for k in range(min_n_task_notes + 1, n))
+        for n in range(min_notes_per_record, max_notes_per_record + 1)
+    )
+
+
+def get_nested_subsequence_index(
+    idx: int,
+    max_notes_per_record: int,
+    min_notes_per_record: int,
+    min_n_task_notes: int,
+) -> SubsequenceIndex:
+    """
+    Given an index, determine a two-level subsequence:
+      1. A primary subsequence of length `n_notes` within `max_notes_per_record`.
+      2. A nested subsequence within `n_notes` of length at least `min_n_task_notes`.
+
+    Parameters:
+        idx (int): The global index determining both subsequences.
+        max_notes_per_record (int): The maximum sequence length allowed.
+        min_notes_per_record (int): The minimum sequence length allowed.
+        min_n_task_notes (int): The minimum length of the second-level subsequence.
+
+    Returns:
+        tuple: (n_notes, n_task_notes, start, finish), where
+          - `n_notes` is the primary subsequence length.
+          - `n_task_notes` is the nested subsequence length.
+          - `start` and `finish` define the nested subsequence within `n_notes`.
+    """
+    # Compute total first-level subsequences (all n_notes choices)
+    # total_sequences = sum(sum(n - k + 1 for k in range(min_n_task_notes + 1, n))
+    #                       for n in range(min_notes_per_record, max_notes_per_record + 1))
+    total_sequences = 0
+
+    # Iterate over all possible primary subsequence lengths (n_notes)
+    for n_notes in range(min_notes_per_record, max_notes_per_record + 1):
+        task_subsequences = 0
+
+        # Iterate over all valid nested subsequence lengths (n_task_notes)
+        for n_task_notes in range(min_n_task_notes + 1, n_notes):
+            # Count the possible starting positions for the nested subsequence
+            task_subsequences += n_notes - n_task_notes + 1
+
+        # Accumulate the total number of valid subsequences
+        total_sequences += task_subsequences
+
+    if idx < 1 or idx > total_sequences:
+        raise ValueError("Index out of range")
+
+    # Find the corresponding `n_notes`
+    current_index = idx
+    for n_notes in range(min_notes_per_record, max_notes_per_record + 1):
+        num_task_length_options = sum(n_notes - k + 1 for k in range(min_n_task_notes + 1, n_notes))
+        if current_index <= num_task_length_options:
+            break
+        current_index -= num_task_length_options
+
+    # Find the corresponding `n_task_notes`
+    for n_task_notes in range(min_n_task_notes + 1, n_notes):
+        num_task_subsequences = n_notes - n_task_notes + 1
+        if current_index <= num_task_subsequences:
+            # Zero-based index
+            start = current_index - 1
+            subsequence_index = SubsequenceIndex(
+                n_notes=n_notes,
+                n_task_notes=n_task_notes,
+                start=start,
+                finish=start + n_task_notes,
+            )
+            return subsequence_index
+
+        current_index -= num_task_subsequences
+
+    raise ValueError("Task index computation failed")
+
 
 class PianoDataset(MidiDataset):
     generation_token = "<GENAI>"
@@ -29,6 +134,7 @@ class PianoDataset(MidiDataset):
         tokenizer: AwesomeMidiTokenizer | ExponentialTimeTokenizer,
         # TODO How can I find out what's the relation between *context_size* and *notes_per_record*?
         context_size: int,
+        min_n_task_notes: int,
         max_notes_per_record: int,
         min_notes_per_record: int,
         music_manager: MusicManager,
@@ -42,6 +148,7 @@ class PianoDataset(MidiDataset):
         self.prompt_masking = prompt_masking
         self.context_size = context_size
         self.music_manager = music_manager
+        self.min_n_task_notes = min_n_task_notes
         self.max_notes_per_record = max_notes_per_record
         self.min_notes_per_record = min_notes_per_record
 
@@ -76,8 +183,19 @@ class PianoDataset(MidiDataset):
         # Records shorter than context are effectively discarded
         self.record_lengths = record_lengths.clip(min=0)
 
-        # Calculate total dataset length
-        self.length = self.record_lengths.sum() * self.num_tasks * self.n_record_durations
+        self.n_subrecord_sequences = max_valid_subrecord_index(
+            max_notes_per_record=self.max_notes_per_record,
+            min_notes_per_record=self.min_notes_per_record,
+            min_n_task_notes=self.min_n_task_notes,
+        )
+
+        # Calculate total dataset length:
+        # all records
+        self.length = self.record_lengths.sum()
+        # can be processed with every piano task
+        self.length *= self.num_tasks
+        # and this many sub-sequences can be formed
+        self.length *= self.n_subrecord_sequences
 
     def __len__(self):
         # Return the total length of the dataset
@@ -93,10 +211,16 @@ class PianoDataset(MidiDataset):
         idx_bis = idx // self.num_tasks
 
         # ... and decode the number of notes for this record
-        n_notes = self.min_notes_per_record + (idx_bis % self.n_record_durations)
+        # subsequence_index = self.min_notes_per_record + (idx_bis % self.n_subrecord_sequences)
+        subsequence_index = get_nested_subsequence_index(
+            idx=idx_bis % self.n_subrecord_sequences,
+            min_n_task_notes=self.min_n_task_notes,
+            max_notes_per_record=self.max_notes_per_record,
+            min_notes_per_record=self.min_notes_per_record,
+        )
 
         # ... and then decode the starting note idx
-        start_point = idx_bis // self.n_record_durations
+        start_point = idx_bis // self.n_subrecord_sequences
 
         for record_idx, record_length in enumerate(self.record_lengths):
             if start_point < record_length:
@@ -104,7 +228,9 @@ class PianoDataset(MidiDataset):
                     task_name=task_name,
                     start_point=start_point,
                     record_idx=record_idx,
-                    n_notes=n_notes,
+                    n_notes=subsequence_index.n_notes,
+                    task_start=subsequence_index.start,
+                    task_finish=subsequence_index.finish,
                 )
                 return piano_index
 
@@ -119,22 +245,30 @@ class PianoDataset(MidiDataset):
         record = self.dataset[piano_index.record_idx]
         piece_source = json.loads(record["source"])
 
+        # TODO Can we speed up by converting everything to dfs once on startup?
         # Convert notes to a DataFrame and select the desired range
         notes_df = pd.DataFrame(record["notes"])
-        notes_df = notes_df.iloc[piano_index.start_point : piano_index.start_point + piano_index.n_notes]
+        notes_df = notes_df[piano_index.start_point : piano_index.start_point + piano_index.n_notes]
 
         # Normalize start and end times
         offset = notes_df.start.min()
         notes_df.start = notes_df.start - offset
         notes_df.end = notes_df.end - offset
 
+        prefix_notes_df = notes_df[: piano_index.task_start]
+        suffix_notes_df = notes_df[piano_index.task_finish :]
+
         # Break the music into prompt and target parts
         piano_task = self.piano_task_manager.get_task(task_name=piano_index.task_name)
-        piece_split = piano_task.prompt_target_split(notes_df=notes_df)
+        piece_split = piano_task.prompt_target_split(
+            notes_df=notes_df[piano_index.task_start : piano_index.task_finish],
+        )
 
+        # Source is the context (all notes) and the part affected by the piano task
+        source_df = pd.concat([prefix_notes_df, piece_split.source_df, suffix_notes_df])
         # Encode prompt part ...
         source_token_ids = self.tokenizer.encode_notes_df(
-            notes_df=piece_split.source_df,
+            notes_df=source_df,
         )
 
         # ... add special tokens ...
@@ -147,6 +281,7 @@ class PianoDataset(MidiDataset):
         n_notes_token = self.music_manager.get_n_notes_token(
             n_notes=piece_split.n_target_notes,
         )
+        # TODO Add target timing tokes here!
         source_prefix_tokens = [dataset_token, composer_token, n_notes_token]
         source_prefix_tokens += piano_task.prefix_tokens
         prefix_token_ids = self.tokenizer.encode_tokens(source_prefix_tokens)

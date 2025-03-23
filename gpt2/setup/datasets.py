@@ -1,9 +1,10 @@
+import json
 from typing import NamedTuple
 
 from datasets import Dataset as HFDataset
 from omegaconf import OmegaConf, DictConfig
-from midi_tokenizers import ExponentialTimeTokenizer
 from piano_dataset.piano_tasks import PianoTaskManager
+from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
 
 from gpt2.data.dataset import MidiDataset
 from gpt2.setup.hardware import DeviceSetup
@@ -11,13 +12,7 @@ from gpt2.data.musicality import MusicManager
 from gpt2.dataloader import CyclicalDataLoader
 from gpt2.data.piano_dataset import PianoDataset
 from gpt2.data.random_sampler import ValidationRandomSampler, MemoryEfficientRandomSampler
-from gpt2.utils import (
-    load_tokenizer,
-    create_piano_datasets,
-    create_augmented_dataset,
-    create_tokenized_dataset,
-    create_next_token_datasets,
-)
+from gpt2.utils import load_tokenizer, create_augmented_dataset, create_tokenized_dataset, create_next_token_datasets
 
 
 class DatasetsSetup(NamedTuple):
@@ -180,3 +175,53 @@ def piano_task_setup(
     )
 
     return datasets_setup
+
+
+def create_piano_datasets(
+    hf_dataset: HFDataset,
+    cfg: DictConfig,
+    tokenizer: MidiTokenizer,
+    music_manager: MusicManager,
+    piano_task_manager: PianoTaskManager,
+) -> dict[str, MidiDataset | dict[str, MidiDataset]]:
+    """Create piano task datasets."""
+    train_dataset = PianoDataset(
+        dataset=hf_dataset["train"],
+        tokenizer=tokenizer,
+        music_manager=music_manager,
+        context_size=cfg.training.context_size,
+        prompt_masking=cfg.training.prompt_masking,
+        min_n_task_notes=cfg.training.min_n_task_notes,
+        max_notes_per_record=cfg.training.max_notes_per_record,
+        min_notes_per_record=cfg.training.min_notes_per_record,
+        piano_task_manager=piano_task_manager,
+    )
+
+    validation_splits = create_validation_splits(hf_dataset["validation"])
+    validation_datasets = {
+        name: PianoDataset(
+            dataset=split,
+            tokenizer=tokenizer,
+            music_manager=music_manager,
+            piano_task_manager=piano_task_manager,
+            context_size=cfg.training.context_size,
+            prompt_masking=cfg.training.prompt_masking,
+            min_n_task_notes=cfg.training.min_n_task_notes,
+            max_notes_per_record=cfg.training.max_notes_per_record,
+            min_notes_per_record=cfg.training.min_notes_per_record,
+        )
+        for name, split in validation_splits.items()
+    }
+
+    return {"train_split": train_dataset, "validation_splits": validation_datasets}
+
+
+def create_validation_splits(validation_set: HFDataset) -> dict[str, HFDataset]:
+    """Create composer-specific validation splits."""
+    validation_set = validation_set.shuffle(seed=1337)
+    return {
+        "full_val": validation_set,
+        "bach": validation_set.filter(lambda x: json.loads(x["source"])["composer"] == "Johann Sebastian Bach"),
+        "chopin": validation_set.filter(lambda x: json.loads(x["source"])["composer"] == "Frédéric Chopin"),
+        "mozart": validation_set.filter(lambda x: json.loads(x["source"])["composer"] == "Wolfgang Amadeus Mozart"),
+    }
