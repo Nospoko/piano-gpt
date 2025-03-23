@@ -124,6 +124,13 @@ class MusicManager:
         # Clip time to the maximum value
         # TODO spend some time trying to understand the duration
         # distribution of records in the Piano dataset
+
+        # oh god why https://stackoverflow.com/a/944712
+        is_nan = music_time != music_time
+        if is_nan:
+            # NaN can happen if we get an empty target (possible in Chords task)
+            music_time = 0
+
         music_time = min(music_time, self.max_absolute_time)
 
         # Arbitrary resolution choice: 100ms
