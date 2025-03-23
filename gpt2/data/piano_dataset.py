@@ -266,6 +266,7 @@ class PianoDataset(MidiDataset):
 
         # Source is the context (all notes) and the part affected by the piano task
         source_df = pd.concat([prefix_notes_df, piece_split.source_df, suffix_notes_df])
+
         # Encode prompt part ...
         source_token_ids = self.tokenizer.encode_notes_df(
             notes_df=source_df,
@@ -281,9 +282,14 @@ class PianoDataset(MidiDataset):
         n_notes_token = self.music_manager.get_n_notes_token(
             n_notes=piece_split.n_target_notes,
         )
+        target_time_tokens = [
+            self.music_manager.get_absolute_time_token(piece_split.target_df.start.min()),
+            self.music_manager.get_absolute_time_token(piece_split.target_df.start.max()),
+        ]
         # TODO Add target timing tokes here!
         source_prefix_tokens = [dataset_token, composer_token, n_notes_token]
         source_prefix_tokens += piano_task.prefix_tokens
+        source_prefix_tokens += target_time_tokens
         prefix_token_ids = self.tokenizer.encode_tokens(source_prefix_tokens)
 
         # ... and join into a single promp sequence of token ids

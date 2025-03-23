@@ -12,32 +12,56 @@
 
 - class: LowNotesMasking
   param_range:
+    - n_notes: 1
+    - n_notes: 2
     - n_notes: 3
+    - n_notes: 4
     - n_notes: 5
+    - n_notes: 6
+    - n_notes: 7
+    - n_notes: 8
     - n_notes: 10
     - n_notes: 15
     - n_notes: 20
 
 - class: HighNotesMasking
   param_range:
+    - n_notes: 1
+    - n_notes: 2
     - n_notes: 3
+    - n_notes: 4
     - n_notes: 5
+    - n_notes: 6
+    - n_notes: 7
+    - n_notes: 8
     - n_notes: 10
     - n_notes: 15
     - n_notes: 20
 
 - class: ShortNotesMasking
   param_range:
+    - n_notes: 1
+    - n_notes: 2
     - n_notes: 3
+    - n_notes: 4
     - n_notes: 5
+    - n_notes: 6
+    - n_notes: 7
+    - n_notes: 8
     - n_notes: 10
     - n_notes: 15
     - n_notes: 20
 
 - class: LongNotesMasking
   param_range:
+    - n_notes: 1
+    - n_notes: 2
     - n_notes: 3
+    - n_notes: 4
     - n_notes: 5
+    - n_notes: 6
+    - n_notes: 7
+    - n_notes: 8
     - n_notes: 10
     - n_notes: 15
     - n_notes: 20
@@ -47,6 +71,7 @@
     - stride: 1
     - stride: 2
     - stride: 3
+    - stride: 4
     - stride: 5
     - stride: 6
     - stride: 8

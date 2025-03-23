@@ -14,6 +14,7 @@ class MusicManager:
         "<ATEPP-1.1>",
         "<PIANO_FOR_AI>",
     ]
+
     composer_tokens = [
         "<SCRIABIN>",
         "<FRANCK>",
@@ -49,9 +50,26 @@ class MusicManager:
         "Johann Sebastian Bach": "<BACH>",
     }
 
-    def __init__(self, max_n_notes: int):
+    def __init__(
+        self,
+        max_n_notes: int,
+        max_absolute_time: float = 120.0,
+    ):
         self.max_n_notes = max_n_notes
+        self.max_absolute_time = max_absolute_time
         self.composer_regex_map = self.create_composer_regex_map()
+
+    @property
+    def absolute_time_tokens(self) -> list[str]:
+        tokens = []
+        # From seconds to 100ms steps
+        max_time_steps = int(10 * self.max_absolute_time)
+        for it in range(max_time_steps + 1):
+            time_step = it / 10
+            token = self.get_absolute_time_token(time_step)
+            tokens.append(token)
+
+        return tokens
 
     @property
     def n_note_tokens(self) -> list[str]:
@@ -61,7 +79,7 @@ class MusicManager:
 
     @property
     def tokens(self) -> list[str]:
-        return self.dataset_tokens + self.composer_tokens + self.n_note_tokens
+        return self.dataset_tokens + self.composer_tokens + self.n_note_tokens + self.absolute_time_tokens
 
     def create_composer_regex_map(self) -> dict[re.Pattern, str]:
         regex_map: dict[re.Pattern, str] = {}
@@ -101,3 +119,14 @@ class MusicManager:
 
     def get_n_notes_token(self, n_notes: int) -> str:
         return f"<N_NOTES_{n_notes}>"
+
+    def get_absolute_time_token(self, music_time: float) -> list[str]:
+        # Clip time to the maximum value
+        # TODO spend some time trying to understand the duration
+        # distribution of records in the Piano dataset
+        music_time = min(music_time, self.max_absolute_time)
+
+        # Arbitrary resolution choice: 100ms
+        music_time = int(10 * round(music_time, 1))
+        token = f"<MUSIC_TIME_{music_time}>"
+        return token

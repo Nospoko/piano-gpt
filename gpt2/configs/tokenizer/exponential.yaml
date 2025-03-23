@@ -3,4 +3,4 @@ config:
   time_unit: 0.01
   max_time_step: 1.0
   n_velocity_bins: 32
-  n_special_ids: 1024
+  n_special_ids: 2048

@@ -154,7 +154,8 @@ def piano_task_setup(
     )
 
     train_dataset = datasets["train_split"]
-    print("Train dataset samples [G]:", len(train_dataset) / 1e9)
+    n_records = len(train_dataset)
+    print("Train dataset samples [G]:", n_records / 1e9, f"{n_records:.0e}")
     val_datasets = datasets["validation_splits"]
 
     train_loader, val_loaders = loaders_setup(
