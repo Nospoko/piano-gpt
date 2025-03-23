@@ -2,7 +2,7 @@
   param_range:
     - n_repetitions: 1
     - n_repetitions: 2
-    - n_repetitions: 5
+    - n_repetitions: 3
 
 - class: TopLineMasking
   param_range:
@@ -78,3 +78,7 @@
     - stride: 10
     - stride: 15
     - stride: 20
+
+- class: ChordMasking
+  params:
+    n_notes_threshold: 3
