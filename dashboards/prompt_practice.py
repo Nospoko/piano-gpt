@@ -195,6 +195,27 @@ def main():
             help="Choose from available special tokens to add to your prompt",
         )
 
+        cols = st.columns(2)
+        gen_time_start = cols[0].number_input(
+            label="generation start [s]",
+            min_value=0.0,
+            max_value=prompt_piece.duration,
+            step=0.1,
+            value=1.0,
+        )
+
+        gen_time_finish = cols[1].number_input(
+            label="generation finish [s]",
+            min_value=1.0,
+            max_value=prompt_piece.duration,
+            step=0.1,
+            value=2.0,
+        )
+        target_time_tokens = [
+            music_manager.get_absolute_time_token(gen_time_start),
+            music_manager.get_absolute_time_token(gen_time_finish),
+        ]
+
         n_target_notes = st.number_input(
             label="N target notes",
             min_value=0,
@@ -238,7 +259,9 @@ def main():
 
     composer_tokens = ["<BACH>", "<MOZART>", "<CHOPIN>", "<UNKNOWN_COMPOSER>"]
     for composer_token in composer_tokens:
-        pre_input_tokens = [dataset_token, composer_token, n_notes_token] + piano_task.prefix_tokens
+        pre_input_tokens = [dataset_token, composer_token, n_notes_token]
+        pre_input_tokens += piano_task.prefix_tokens
+        pre_input_tokens += target_time_tokens
 
         st.write("Pre-input tokens:", pre_input_tokens)
 

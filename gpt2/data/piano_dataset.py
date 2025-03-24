@@ -212,8 +212,9 @@ class PianoDataset(MidiDataset):
 
         # ... and decode the number of notes for this record
         # subsequence_index = self.min_notes_per_record + (idx_bis % self.n_subrecord_sequences)
+        subsequence_idx = idx_bis % self.n_subrecord_sequences
         subsequence_index = get_nested_subsequence_index(
-            idx=idx_bis % self.n_subrecord_sequences,
+            idx=subsequence_idx,
             min_n_task_notes=self.min_n_task_notes,
             max_notes_per_record=self.max_notes_per_record,
             min_notes_per_record=self.min_notes_per_record,
@@ -286,7 +287,6 @@ class PianoDataset(MidiDataset):
             self.music_manager.get_absolute_time_token(piece_split.target_df.start.min()),
             self.music_manager.get_absolute_time_token(piece_split.target_df.start.max()),
         ]
-        # TODO Add target timing tokes here!
         source_prefix_tokens = [dataset_token, composer_token, n_notes_token]
         source_prefix_tokens += piano_task.prefix_tokens
         source_prefix_tokens += target_time_tokens
@@ -360,5 +360,6 @@ class PianoDataset(MidiDataset):
             "target_token_ids": target_token_ids,
             "source_time_steps": source_time_steps,
             "prompt_length": len(prompt_token_ids),
+            "source_prefix_tokens": source_prefix_tokens,
         }
         return out
