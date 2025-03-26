@@ -22,11 +22,13 @@ out_dir:
 eval_interval: 500
 eval_iters: 50
 
+# TODO Split this into training stuff, and music stuff
 training:
   prompt_masking: false
-  context_size: 2048
-  min_notes_per_record: 32
-  max_notes_per_record: 128
+  context_size: 1024
+  min_n_task_notes: 24
+  min_notes_per_record: 64
+  max_notes_per_record: 168
   # What you want the model to see
   batch_size: 64
   # What can fit in a single GPU

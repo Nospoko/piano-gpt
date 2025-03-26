@@ -3,12 +3,10 @@ import json
 from hydra.utils import to_absolute_path
 from datasets import Dataset, load_dataset
 from omegaconf import OmegaConf, DictConfig
-from piano_dataset.piano_tasks import PianoTaskManager
 from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
 
 from gpt2.data.dataset import MidiDataset
 from gpt2.data.musicality import MusicManager
-from gpt2.data.piano_dataset import PianoDataset
 from gpt2.data.next_token_dataset import NextTokenDataset
 
 
@@ -109,43 +107,6 @@ def create_next_token_datasets(
             context_size=cfg.training.context_size,
         )
         for split_name, split_dataset in validation_splits.items()
-    }
-
-    return {"train_split": train_dataset, "validation_splits": validation_datasets}
-
-
-def create_piano_datasets(
-    hf_dataset: Dataset,
-    cfg: DictConfig,
-    tokenizer: MidiTokenizer,
-    music_manager: MusicManager,
-    piano_task_manager: PianoTaskManager,
-) -> dict[str, MidiDataset | dict[str, MidiDataset]]:
-    """Create piano task datasets."""
-    train_dataset = PianoDataset(
-        dataset=hf_dataset["train"],
-        tokenizer=tokenizer,
-        music_manager=music_manager,
-        context_size=cfg.training.context_size,
-        prompt_masking=cfg.training.prompt_masking,
-        max_notes_per_record=cfg.training.max_notes_per_record,
-        min_notes_per_record=cfg.training.min_notes_per_record,
-        piano_task_manager=piano_task_manager,
-    )
-
-    validation_splits = create_validation_splits(hf_dataset["validation"])
-    validation_datasets = {
-        name: PianoDataset(
-            dataset=split,
-            tokenizer=tokenizer,
-            music_manager=music_manager,
-            piano_task_manager=piano_task_manager,
-            context_size=cfg.training.context_size,
-            prompt_masking=cfg.training.prompt_masking,
-            max_notes_per_record=cfg.training.max_notes_per_record,
-            min_notes_per_record=cfg.training.min_notes_per_record,
-        )
-        for name, split in validation_splits.items()
     }
 
     return {"train_split": train_dataset, "validation_splits": validation_datasets}
