@@ -149,8 +149,9 @@ def main():
 
     streamlit_pianoroll.from_fortepyan(prompt_piece)
     st.write("Prompt notes:", prompt_piece.size)
+    st.write("Prompt duration:", prompt_piece.duration)
 
-    st.write("### Generation settings")
+    st.write("# Generation settings")
     with st.form("generation setup"):
         random_seed = st.number_input(
             label="random seed",
