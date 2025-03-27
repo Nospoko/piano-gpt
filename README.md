@@ -16,6 +16,9 @@ Resume training:
 
 ```sh
 python -m gpt2.main --config-name=resume_training checkpoint_path=</path/to/checkpoint.pt>
+
+# torchrun version
+PYTHONPATH=. torchrun --nproc-per-node=4 -m gpt2.main --config-name=resume_training checkpoint_path=</path/to/checkpoint.pt>
 ```
 
 Tune model:

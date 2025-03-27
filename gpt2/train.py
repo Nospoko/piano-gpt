@@ -111,6 +111,7 @@ def resume_training(resume_cfg: DictConfig):
     checkpoint = torch.load(
         resume_cfg.checkpoint_path,
         weights_only=False,
+        map_location=torch.device("cpu"),
     )
 
     run_cfg: DictConfig = checkpoint["run_config"]
@@ -157,10 +158,11 @@ def resume_training(resume_cfg: DictConfig):
             device_setup=device_setup,
         )
 
-    logging_setup.wandb_resume(
-        run_id=checkpoint["wandb_id"],
-        cfg=run_cfg,
-    )
+    if device_setup.is_master_process:
+        logging_setup.wandb_resume(
+            run_id=checkpoint["wandb_id"],
+            cfg=run_cfg,
+        )
 
     run_name = checkpoint["run_name"]
     run_stats = RunStats(**checkpoint["run_stats"])
