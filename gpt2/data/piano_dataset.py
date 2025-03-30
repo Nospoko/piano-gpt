@@ -360,6 +360,5 @@ class PianoDataset(MidiDataset):
             "target_token_ids": target_token_ids,
             "source_time_steps": source_time_steps,
             "prompt_length": len(prompt_token_ids),
-            "source_prefix_tokens": source_prefix_tokens,
         }
         return out

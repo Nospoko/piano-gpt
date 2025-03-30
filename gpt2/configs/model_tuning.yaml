@@ -10,7 +10,7 @@ checkpoint_path:
 # etc.
 defaults:
   - dataset: medium
-  - tasks: chords
+  - tasks: piano_medium
   - _self_
 
 # TODO Might be better to get rid of the overrides field and treat
@@ -27,7 +27,7 @@ overrides:
     dropout: 0.1
 
   lr:
-    warmup_iters: 3000
+    warmup_iters: 1000
     lr_decay_iters: 80000
     learning_rate: 6e-4
-    min_lr: 6e-5
+    min_lr: 2e-4

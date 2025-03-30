@@ -2,9 +2,15 @@ base_dataset_name: "epr-labs/maestro-sustain-v2"
 extra_datasets:
   - 'epr-labs/maestro-augmented'
   - 'epr-labs/giant-midi-augmented'
-  - 'epr-labs/piano-midi-de-augmented'
   - 'epr-labs/pianofor-ai-augmented'
   - 'epr-labs/imslp-augmented'
+  - 'epr-labs/pijamia-midi-v1-augmented'
+  - 'epr-labs/vgmidi-augmented'
+  - 'epr-labs/jsb-chorales-augmented'
+  - 'epr-labs/piano-midi-de-augmented'
+  - 'epr-labs/atepp-1.1-sustain-v2-augmented'
+  - 'epr-labs/music-net-augmented'
+  - 'epr-labs/piast-midi-augmented'
 pause_detection_threshold: 4
 augmentation:
   speed_change_factors: []
