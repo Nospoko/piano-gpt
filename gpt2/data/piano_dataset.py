@@ -12,6 +12,7 @@ from gpt2.data.dataset import MidiDataset
 from gpt2.data.musicality import MusicManager
 
 
+# TODO: unify and document the indexing situation
 class PianoIndex(NamedTuple):
     task_name: str
     start_point: int
@@ -28,100 +29,100 @@ class SubsequenceIndex(NamedTuple):
     start: int
     finish: int
 
+    @staticmethod
+    def max_valid_subrecord_index(
+        max_notes_per_record: int,
+        min_notes_per_record: int,
+        min_n_task_notes: int,
+    ) -> int:
+        """
+        Compute the maximum valid index for selecting a nested subsequence.
 
-def max_valid_subrecord_index(
-    max_notes_per_record: int,
-    min_notes_per_record: int,
-    min_n_task_notes: int,
-) -> int:
-    """
-    Compute the maximum valid index for selecting a nested subsequence.
+        This function calculates the total number of possible (n_notes, n_task_notes, start)
+        combinations given the constraints.
 
-    This function calculates the total number of possible (n_notes, n_task_notes, start)
-    combinations given the constraints.
+        Parameters:
+            max_notes_per_record (int): The maximum allowed sequence length.
+            min_notes_per_record (int): The minimum allowed sequence length.
+            min_n_task_notes (int): The minimum length of the inner subsequence.
 
-    Parameters:
-        max_notes_per_record (int): The maximum allowed sequence length.
-        min_notes_per_record (int): The minimum allowed sequence length.
-        min_n_task_notes (int): The minimum length of the inner subsequence.
+        Returns:
+            int: The total number of valid indexed subsequences.
+        """
+        return sum(
+            sum(n - k + 1 for k in range(min_n_task_notes + 1, n))
+            for n in range(min_notes_per_record, max_notes_per_record + 1)
+        )
 
-    Returns:
-        int: The total number of valid indexed subsequences.
-    """
-    return sum(
-        sum(n - k + 1 for k in range(min_n_task_notes + 1, n))
-        for n in range(min_notes_per_record, max_notes_per_record + 1)
-    )
+    @staticmethod
+    def get_nested_subsequence_index(
+        idx: int,
+        max_notes_per_record: int,
+        min_notes_per_record: int,
+        min_n_task_notes: int,
+    ) -> "SubsequenceIndex":
+        """
+        Given an index, determine a two-level subsequence:
+          1. A primary subsequence of length `n_notes` within `max_notes_per_record`.
+          2. A nested subsequence within `n_notes` of length at least `min_n_task_notes`.
 
+        Parameters:
+            idx (int): The global index determining both subsequences.
+            max_notes_per_record (int): The maximum sequence length allowed.
+            min_notes_per_record (int): The minimum sequence length allowed.
+            min_n_task_notes (int): The minimum length of the second-level subsequence.
 
-def get_nested_subsequence_index(
-    idx: int,
-    max_notes_per_record: int,
-    min_notes_per_record: int,
-    min_n_task_notes: int,
-) -> SubsequenceIndex:
-    """
-    Given an index, determine a two-level subsequence:
-      1. A primary subsequence of length `n_notes` within `max_notes_per_record`.
-      2. A nested subsequence within `n_notes` of length at least `min_n_task_notes`.
+        Returns:
+            tuple: (n_notes, n_task_notes, start, finish), where
+              - `n_notes` is the primary subsequence length.
+              - `n_task_notes` is the nested subsequence length.
+              - `start` and `finish` define the nested subsequence within `n_notes`.
+        """
+        # Compute total first-level subsequences (all n_notes choices)
+        # total_sequences = sum(sum(n - k + 1 for k in range(min_n_task_notes + 1, n))
+        #                       for n in range(min_notes_per_record, max_notes_per_record + 1))
+        total_sequences = 0
 
-    Parameters:
-        idx (int): The global index determining both subsequences.
-        max_notes_per_record (int): The maximum sequence length allowed.
-        min_notes_per_record (int): The minimum sequence length allowed.
-        min_n_task_notes (int): The minimum length of the second-level subsequence.
+        # Iterate over all possible primary subsequence lengths (n_notes)
+        for n_notes in range(min_notes_per_record, max_notes_per_record + 1):
+            task_subsequences = 0
 
-    Returns:
-        tuple: (n_notes, n_task_notes, start, finish), where
-          - `n_notes` is the primary subsequence length.
-          - `n_task_notes` is the nested subsequence length.
-          - `start` and `finish` define the nested subsequence within `n_notes`.
-    """
-    # Compute total first-level subsequences (all n_notes choices)
-    # total_sequences = sum(sum(n - k + 1 for k in range(min_n_task_notes + 1, n))
-    #                       for n in range(min_notes_per_record, max_notes_per_record + 1))
-    total_sequences = 0
+            # Iterate over all valid nested subsequence lengths (n_task_notes)
+            for n_task_notes in range(min_n_task_notes + 1, n_notes):
+                # Count the possible starting positions for the nested subsequence
+                task_subsequences += n_notes - n_task_notes + 1
 
-    # Iterate over all possible primary subsequence lengths (n_notes)
-    for n_notes in range(min_notes_per_record, max_notes_per_record + 1):
-        task_subsequences = 0
+            # Accumulate the total number of valid subsequences
+            total_sequences += task_subsequences
 
-        # Iterate over all valid nested subsequence lengths (n_task_notes)
+        if idx > total_sequences:
+            raise ValueError("Index out of range")
+
+        # Find the corresponding `n_notes`
+        current_index = idx
+        for n_notes in range(min_notes_per_record, max_notes_per_record + 1):
+            num_task_length_options = sum(n_notes - k + 1 for k in range(min_n_task_notes + 1, n_notes))
+            if current_index <= num_task_length_options:
+                break
+            current_index -= num_task_length_options
+
+        # Find the corresponding `n_task_notes`
         for n_task_notes in range(min_n_task_notes + 1, n_notes):
-            # Count the possible starting positions for the nested subsequence
-            task_subsequences += n_notes - n_task_notes + 1
+            num_task_subsequences = n_notes - n_task_notes + 1
+            if current_index <= num_task_subsequences:
+                # Zero-based index
+                start = current_index
+                subsequence_index = SubsequenceIndex(
+                    n_notes=n_notes,
+                    n_task_notes=n_task_notes,
+                    start=start,
+                    finish=start + n_task_notes,
+                )
+                return subsequence_index
 
-        # Accumulate the total number of valid subsequences
-        total_sequences += task_subsequences
+            current_index -= num_task_subsequences
 
-    if idx > total_sequences:
-        raise ValueError("Index out of range")
-
-    # Find the corresponding `n_notes`
-    current_index = idx
-    for n_notes in range(min_notes_per_record, max_notes_per_record + 1):
-        num_task_length_options = sum(n_notes - k + 1 for k in range(min_n_task_notes + 1, n_notes))
-        if current_index <= num_task_length_options:
-            break
-        current_index -= num_task_length_options
-
-    # Find the corresponding `n_task_notes`
-    for n_task_notes in range(min_n_task_notes + 1, n_notes):
-        num_task_subsequences = n_notes - n_task_notes + 1
-        if current_index <= num_task_subsequences:
-            # Zero-based index
-            start = current_index
-            subsequence_index = SubsequenceIndex(
-                n_notes=n_notes,
-                n_task_notes=n_task_notes,
-                start=start,
-                finish=start + n_task_notes,
-            )
-            return subsequence_index
-
-        current_index -= num_task_subsequences
-
-    raise ValueError("Task index computation failed")
+        raise ValueError("Task index computation failed")
 
 
 class PianoDataset(MidiDataset):
@@ -183,7 +184,7 @@ class PianoDataset(MidiDataset):
         # Records shorter than context are effectively discarded
         self.record_lengths = record_lengths.clip(min=0)
 
-        self.n_subrecord_sequences = max_valid_subrecord_index(
+        self.n_subrecord_sequences = SubsequenceIndex.max_valid_subrecord_index(
             max_notes_per_record=self.max_notes_per_record,
             min_notes_per_record=self.min_notes_per_record,
             min_n_task_notes=self.min_n_task_notes,
@@ -213,7 +214,7 @@ class PianoDataset(MidiDataset):
         # ... and decode the number of notes for this record
         # subsequence_index = self.min_notes_per_record + (idx_bis % self.n_subrecord_sequences)
         subsequence_idx = idx_bis % self.n_subrecord_sequences
-        subsequence_index = get_nested_subsequence_index(
+        subsequence_index = SubsequenceIndex.get_nested_subsequence_index(
             idx=subsequence_idx,
             min_n_task_notes=self.min_n_task_notes,
             max_notes_per_record=self.max_notes_per_record,
