@@ -146,6 +146,10 @@ def main():
     prompt_piece = prompt_piece[start_note_idx:finish_note_idx]
     prompt_piece.df.pitch += pitch_shift
 
+    prompt_notes_df: pd.DataFrame = prompt_piece.df
+    prompt_notes_df.start /= speedup_factor
+    prompt_notes_df.end /= speedup_factor
+
     streamlit_pianoroll.from_fortepyan(prompt_piece)
     st.write("Prompt notes:", prompt_piece.size)
     st.write("Prompt duration:", prompt_piece.duration)
@@ -247,10 +251,6 @@ def main():
         return
 
     piano_task = piano_task_manager.get_task(piano_task_name)
-
-    prompt_notes_df: pd.DataFrame = prompt_piece.df
-    prompt_notes_df.start /= speedup_factor
-    prompt_notes_df.end /= speedup_factor
 
     model = model_setup["model"]
     tokenizer = model_setup["tokenizer"]
