@@ -12,9 +12,6 @@
 
 - class: LowNotesMasking
   param_range:
-    - n_notes: 1
-    - n_notes: 2
-    - n_notes: 3
     - n_notes: 4
     - n_notes: 5
     - n_notes: 6
@@ -22,13 +19,9 @@
     - n_notes: 8
     - n_notes: 10
     - n_notes: 15
-    - n_notes: 20
 
 - class: HighNotesMasking
   param_range:
-    - n_notes: 1
-    - n_notes: 2
-    - n_notes: 3
     - n_notes: 4
     - n_notes: 5
     - n_notes: 6
@@ -36,13 +29,9 @@
     - n_notes: 8
     - n_notes: 10
     - n_notes: 15
-    - n_notes: 20
 
 - class: ShortNotesMasking
   param_range:
-    - n_notes: 1
-    - n_notes: 2
-    - n_notes: 3
     - n_notes: 4
     - n_notes: 5
     - n_notes: 6
@@ -50,13 +39,9 @@
     - n_notes: 8
     - n_notes: 10
     - n_notes: 15
-    - n_notes: 20
 
 - class: LongNotesMasking
   param_range:
-    - n_notes: 1
-    - n_notes: 2
-    - n_notes: 3
     - n_notes: 4
     - n_notes: 5
     - n_notes: 6
@@ -64,7 +49,6 @@
     - n_notes: 8
     - n_notes: 10
     - n_notes: 15
-    - n_notes: 20
 
 - class: StrideMasking
   param_range:
@@ -73,11 +57,6 @@
     - stride: 3
     - stride: 4
     - stride: 5
-    - stride: 6
-    - stride: 8
-    - stride: 10
-    - stride: 15
-    - stride: 20
 
 - class: ChordMasking
   params:

@@ -1,6 +1,5 @@
 import io
 import os
-import json
 import secrets
 import zipfile
 from glob import glob
@@ -147,10 +146,15 @@ def main():
     prompt_piece = prompt_piece[start_note_idx:finish_note_idx]
     prompt_piece.df.pitch += pitch_shift
 
+    prompt_notes_df: pd.DataFrame = prompt_piece.df
+    prompt_notes_df.start /= speedup_factor
+    prompt_notes_df.end /= speedup_factor
+
     streamlit_pianoroll.from_fortepyan(prompt_piece)
     st.write("Prompt notes:", prompt_piece.size)
+    st.write("Prompt duration:", prompt_piece.duration)
 
-    st.write("### Generation settings")
+    st.write("# Generation settings")
     with st.form("generation setup"):
         random_seed = st.number_input(
             label="random seed",
@@ -195,6 +199,27 @@ def main():
             help="Choose from available special tokens to add to your prompt",
         )
 
+        cols = st.columns(2)
+        gen_time_start = cols[0].number_input(
+            label="generation start [s]",
+            min_value=0.0,
+            max_value=prompt_piece.duration,
+            step=0.1,
+            value=1.0,
+        )
+
+        gen_time_finish = cols[1].number_input(
+            label="generation finish [s]",
+            min_value=1.0,
+            max_value=prompt_piece.duration,
+            step=0.1,
+            value=2.0,
+        )
+        target_time_tokens = [
+            music_manager.get_absolute_time_token(gen_time_start),
+            music_manager.get_absolute_time_token(gen_time_finish),
+        ]
+
         n_target_notes = st.number_input(
             label="N target notes",
             min_value=0,
@@ -227,10 +252,6 @@ def main():
 
     piano_task = piano_task_manager.get_task(piano_task_name)
 
-    prompt_notes_df: pd.DataFrame = prompt_piece.df
-    prompt_notes_df.start /= speedup_factor
-    prompt_notes_df.end /= speedup_factor
-
     model = model_setup["model"]
     tokenizer = model_setup["tokenizer"]
 
@@ -238,7 +259,9 @@ def main():
 
     composer_tokens = ["<BACH>", "<MOZART>", "<CHOPIN>", "<UNKNOWN_COMPOSER>"]
     for composer_token in composer_tokens:
-        pre_input_tokens = [dataset_token, composer_token, n_notes_token] + piano_task.prefix_tokens
+        pre_input_tokens = [dataset_token, composer_token, n_notes_token]
+        pre_input_tokens += piano_task.prefix_tokens
+        pre_input_tokens += target_time_tokens
 
         st.write("Pre-input tokens:", pre_input_tokens)
 
@@ -253,6 +276,8 @@ def main():
                 "pre_input_tokens": pre_input_tokens,
                 "piano_task": piano_task.name,
                 "top_k": top_k,
+            }
+            model_info = {
                 "model_id": os.path.basename(checkpoint_path),
             }
             st.write(generation_setup)
@@ -274,6 +299,7 @@ def main():
                 pre_input_tokens=pre_input_tokens,
                 temperature=temperature,
                 max_new_tokens=max_new_tokens,
+                model_info=model_info,
                 generation_info=generation_info,
             )
 
@@ -296,6 +322,7 @@ def main():
                         prompt_piece=prompt_piece,
                         pianoroll_apikey=pianoroll_apikey,
                         generation_info=generation_info,
+                        model_info=model_info,
                         unique_id=unique_id,
                     )
                     st.write("POSTED!")
@@ -343,18 +370,20 @@ def post_to_pianoroll(
     prompt_piece: ff.MidiPiece,
     pianoroll_apikey: str,
     generation_info: dict,
+    model_info: dict,
     unique_id: str,
 ):
     model_notes = model_piece.df.to_dict(orient="records")
     prompt_notes = prompt_piece.df.to_dict(orient="records")
 
-    description = json.dumps(generation_info, indent=4)
     post_title = "ai riff " + unique_id
     payload = {
         "model_notes": model_notes,
         "prompt_notes": prompt_notes,
         "post_title": post_title,
-        "post_description": description,
+        "post_description": "My model did this!",
+        "generation_settings": generation_info,
+        "model_info": model_info,
     }
 
     headers = {
@@ -375,6 +404,7 @@ def cache_generation(
     _tokenizer,
     pre_input_tokens: list[str],
     generation_info: dict,
+    model_info: dict,
     device: str = "cuda",
     max_new_tokens: int = 2048,
     temperature: int = 1,
