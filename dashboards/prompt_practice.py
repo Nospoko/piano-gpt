@@ -1,6 +1,5 @@
 import io
 import os
-import json
 import secrets
 import zipfile
 from glob import glob
@@ -277,6 +276,8 @@ def main():
                 "pre_input_tokens": pre_input_tokens,
                 "piano_task": piano_task.name,
                 "top_k": top_k,
+            }
+            model_info = {
                 "model_id": os.path.basename(checkpoint_path),
             }
             st.write(generation_setup)
@@ -298,6 +299,7 @@ def main():
                 pre_input_tokens=pre_input_tokens,
                 temperature=temperature,
                 max_new_tokens=max_new_tokens,
+                model_info=model_info,
                 generation_info=generation_info,
             )
 
@@ -320,6 +322,7 @@ def main():
                         prompt_piece=prompt_piece,
                         pianoroll_apikey=pianoroll_apikey,
                         generation_info=generation_info,
+                        model_info=model_info,
                         unique_id=unique_id,
                     )
                     st.write("POSTED!")
@@ -367,18 +370,20 @@ def post_to_pianoroll(
     prompt_piece: ff.MidiPiece,
     pianoroll_apikey: str,
     generation_info: dict,
+    model_info: dict,
     unique_id: str,
 ):
     model_notes = model_piece.df.to_dict(orient="records")
     prompt_notes = prompt_piece.df.to_dict(orient="records")
 
-    description = json.dumps(generation_info, indent=4)
     post_title = "ai riff " + unique_id
     payload = {
         "model_notes": model_notes,
         "prompt_notes": prompt_notes,
         "post_title": post_title,
-        "post_description": description,
+        "post_description": "My model did this!",
+        "generation_settings": generation_info,
+        "model_info": model_info,
     }
 
     headers = {
@@ -399,6 +404,7 @@ def cache_generation(
     _tokenizer,
     pre_input_tokens: list[str],
     generation_info: dict,
+    model_info: dict,
     device: str = "cuda",
     max_new_tokens: int = 2048,
     temperature: int = 1,
