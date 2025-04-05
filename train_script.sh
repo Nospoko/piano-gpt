@@ -11,6 +11,6 @@ PYTHONPATH=. torchrun --nproc-per-node=4 -m gpt2.main \
     model=gpt2_medium \
     system.data_workers=128 \
     system.compile=true \
-    training.prompt_masking=false \
+    training.prompt_masking=true \
     training.max_notes_per_record=168 \
     training.context_size=1024

@@ -20,7 +20,7 @@ out_dir_relative: 'tmp/checkpoints'
 out_dir:
 
 eval_interval: 500
-eval_iters: 50
+eval_iters: 150
 
 # TODO Split this into training stuff, and music stuff
 training:

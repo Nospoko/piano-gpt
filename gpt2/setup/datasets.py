@@ -220,9 +220,11 @@ def create_piano_datasets(
 def create_validation_splits(validation_set: HFDataset) -> dict[str, HFDataset]:
     """Create composer-specific validation splits."""
     validation_set = validation_set.shuffle(seed=1337)
+    # TODO This should be controlled in config
+    # But improve the composer token logic first
     return {
         "full_val": validation_set,
-        "bach": validation_set.filter(lambda x: json.loads(x["source"])["composer"] == "Johann Sebastian Bach"),
-        "chopin": validation_set.filter(lambda x: json.loads(x["source"])["composer"] == "Frédéric Chopin"),
-        "mozart": validation_set.filter(lambda x: json.loads(x["source"])["composer"] == "Wolfgang Amadeus Mozart"),
+        # "bach": validation_set.filter(lambda x: json.loads(x["source"])["composer"] == "Johann Sebastian Bach"),
+        # "chopin": validation_set.filter(lambda x: json.loads(x["source"])["composer"] == "Frédéric Chopin"),
+        # "mozart": validation_set.filter(lambda x: json.loads(x["source"])["composer"] == "Wolfgang Amadeus Mozart"),
     }
