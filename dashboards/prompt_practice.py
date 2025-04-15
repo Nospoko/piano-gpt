@@ -128,8 +128,8 @@ def main():
         pitch_shift = st.number_input(
             label="pitch shift",
             value=0,
-            min_value=-12,
-            max_value=12,
+            min_value=-24,
+            max_value=24,
         )
         _ = st.form_submit_button()
 
