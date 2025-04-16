@@ -17,7 +17,7 @@ class GenerationInput:
     start_note_idx: int
     finish_note_idx: int
     prompt_name: str
-    composer: ComposerTokenSelection
+    composer_token: ComposerTokenSelection
     random_seed: int = 137
 
 
@@ -27,6 +27,10 @@ def main():
         "Upload a new prompt midi file, or select one from the list.",
         "Uploading will add a file to that list.",
     )
+
+    if "generation_history" not in st.session_state:
+        st.session_state["generation_history"] = []
+        st.write("initialized generation history!")
 
     prompt_path = prompt_selection()
 
@@ -41,6 +45,36 @@ def main():
 
     st.write("## Input piece")
     streamlit_pianoroll.from_fortepyan(prompt_piece)
+
+    show_generation_history()
+
+    with st.form("FOO"):
+        generations_parameters = get_generations_parameters(n_generations=5)
+        st.write(generations_parameters)
+        st.write("---")
+
+        yo = st.form_submit_button()
+
+    if not yo:
+        st.write("yo!")
+        return
+
+    for it, generation_parameters in enumerate(generations_parameters):
+
+        def add_to_history(p):
+            st.session_state.generation_history.append(p)
+
+        st.write(generation_parameters)
+        click_me = st.button(
+            label="ADD",
+            key=f"add_{it}",
+            on_click=add_to_history,
+            args=[generation_parameters],
+        )
+        st.write(click_me)
+        st.write("---")
+
+    return
 
     # 1. Select a sub-prompt from the input piece
     #   - allow time selection and note idx selection
@@ -73,7 +107,7 @@ def main():
     for it in range(n_iterations - 1):
         label = f"Iteration {it}"
         with st.expander(label=label, expanded=False):
-            bar = get_parameters(it=it)
+            bar = get_generations_parameters(it=it)
             st.write(bar)
 
         foo[it] = bar
@@ -83,7 +117,7 @@ def main():
         it = n_iterations - 1
         label = f"Iteration {it}"
         with st.expander(label=label, expanded=True):
-            bar = get_parameters(it=it)
+            bar = get_generations_parameters(it=it)
         foo[it] = bar
         st.write("---")
 
@@ -106,42 +140,62 @@ def main():
     st.write(st.session_state)
 
 
-def get_parameters(it: int) -> GenerationInput:
-    st.write("fooo")
+def show_generation_history():
+    if not st.session_state.get("generation_history"):
+        st.info("No generations yet. Start by selecting a time range and adding an iteration.")
+        return
+
+    st.write(st.session_state.generation_history)
+
+    for generation_parameters in st.session_state.generation_history:
+        # generation_parameters = GenerationInput(**generation_parameters)
+        st.write(generation_parameters.start_note_idx)
+
+
+def get_generations_parameters(n_generations: int) -> list[GenerationInput]:
     start_note_idx = st.number_input(
-        label=f"start note idx {it}",
+        label="start note idx {it}",
+        key="start_note_idx",
         min_value=0,
         max_value=200,
         value=0,
     )
     finish_note_idx = st.number_input(
-        label=f"finish note idx {it}",
+        label="finish note idx {it}",
+        key="finish_note_idx",
         min_value=0,
         max_value=200,
         value=20,
     )
     prompt_name = st.text_input(
-        label=f"name {it}",
+        label="name {it}",
         value="my promp",
+        key="prompt_name",
     )
-    composer = st.selectbox(
-        label=f"composer token {it}",
+    composer_token = st.selectbox(
+        label="composer token {it}",
+        key="composer_token",
         options=[token.name for token in ComposerTokenSelection],
     )
     random_seed = st.number_input(
-        label=f"random seed {it}",
+        label="random seed {it}",
+        key="random_seed",
         value=137,
     )
 
-    generation_input = GenerationInput(
-        start_note_idx=start_note_idx,
-        finish_note_idx=finish_note_idx,
-        prompt_name=prompt_name,
-        composer=composer,
-        random_seed=random_seed,
-    )
+    generation_inputs = []
+    for it in range(n_generations):
+        local_seed = random_seed + 1000 * it
+        generation_input = GenerationInput(
+            start_note_idx=start_note_idx,
+            finish_note_idx=finish_note_idx,
+            prompt_name=prompt_name,
+            composer_token=composer_token,
+            random_seed=local_seed,
+        )
+        generation_inputs.append(generation_input)
 
-    return generation_input
+    return generation_inputs
 
 
 def prompt_selection() -> str:
@@ -170,6 +224,22 @@ def prompt_selection() -> str:
         st.form_submit_button()
 
     return prompt_path
+
+
+def get_current_gen_params() -> dict:
+    # I have to manually snatch everything by key
+    # from the state in order to get the values that
+    # are currently actually set in the form :(
+    keys = [
+        "start_note_idx",
+        "finish_note_idx",
+        "prompt_name",
+        "random_seed",
+        "composer_token",
+    ]
+    data = {key: st.session_state[key] for key in keys}
+
+    return data
 
 
 if __name__ == "__main__":
